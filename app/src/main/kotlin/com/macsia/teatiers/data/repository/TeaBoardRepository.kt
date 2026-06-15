@@ -1,29 +1,53 @@
 package com.macsia.teatiers.data.repository
 
+import com.macsia.teatiers.data.db.BoardWithChildren
+import com.macsia.teatiers.data.db.TeaDao
+import com.macsia.teatiers.data.db.toDomain
+import com.macsia.teatiers.data.db.toEntities
+import com.macsia.teatiers.data.db.toSeedEntities
 import com.macsia.teatiers.data.sample.SampleBoardProvider
+import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.Tea
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * In-memory single source of truth for boards. Seeded from [SampleBoardProvider] and shared
- * across screens via Hilt's singleton scope so an added tea shows up everywhere immediately.
- * State survives configuration changes but not process death; a Room-backed implementation
- * replaces this in M1 (context/plan.md) behind the same StateFlow surface, so callers don't
- * change.
+ * Room-backed single source of truth for boards (M1). Boards are exposed as a hot [StateFlow]
+ * collected on the app scope so the synchronous reads below see loaded data and an added tea
+ * shows up on every screen at once. State now survives process death; the public surface is
+ * unchanged from the Phase 0 in-memory version, so callers did not change.
+ *
+ * On first run (empty DB) the store is seeded from [SampleBoardProvider]; later runs read what
+ * the user saved.
  */
 @Singleton
-class TeaBoardRepository @Inject constructor(seed: SampleBoardProvider) {
+class TeaBoardRepository @Inject constructor(
+    private val dao: TeaDao,
+    @AppScope private val scope: CoroutineScope,
+    seed: SampleBoardProvider,
+) {
 
-    private val _boards = MutableStateFlow(seed.boards())
-    val boards: StateFlow<List<Board>> = _boards.asStateFlow()
+    val boards: StateFlow<List<Board>> = dao.observeBoards()
+        .map { rows -> rows.map(BoardWithChildren::toDomain) }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    fun board(boardId: String): Board? = _boards.value.firstOrNull { it.id == boardId }
+    init {
+        scope.launch {
+            if (dao.boardCount() == 0) {
+                val entities = seed.boards().toSeedEntities()
+                dao.seed(entities.boards, entities.tiers, entities.teas, entities.flavors, entities.purchases)
+            }
+        }
+    }
+
+    fun board(boardId: String): Board? = boards.value.firstOrNull { it.id == boardId }
 
     fun tea(boardId: String, teaId: String): Tea? {
         val board = board(boardId) ?: return null
@@ -31,22 +55,13 @@ class TeaBoardRepository @Inject constructor(seed: SampleBoardProvider) {
     }
 
     /**
-     * Appends [tea] to [boardId]. With a known [tierId] the tea joins that tier; otherwise it
-     * lands in the board's unranked teas.
+     * Appends [tea] to [boardId]. With a known [tierId] the tea joins that tier; an unknown tier
+     * (or null) lands it in the unranked tray.
      */
-    fun addTea(boardId: String, tea: Tea, tierId: String?) {
-        _boards.update { boards ->
-            boards.map { board ->
-                if (board.id != boardId) {
-                    board
-                } else if (tierId != null && board.tiers.any { it.id == tierId }) {
-                    val placements = board.placements.toMutableMap()
-                    placements[tierId] = placements[tierId].orEmpty() + tea
-                    board.copy(placements = placements)
-                } else {
-                    board.copy(unranked = board.unranked + tea)
-                }
-            }
-        }
+    suspend fun addTea(boardId: String, tea: Tea, tierId: String?) {
+        val resolvedTier = tierId?.takeIf { id -> board(boardId)?.tiers?.any { it.id == id } == true }
+        val position = dao.nextTeaPosition(boardId)
+        val entities = tea.toEntities(rowId = tea.id, boardId = boardId, tierId = resolvedTier, position = position)
+        dao.addTea(entities.tea, entities.flavors, entities.purchases)
     }
 }

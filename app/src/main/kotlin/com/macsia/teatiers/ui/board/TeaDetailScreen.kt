@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
-import com.macsia.teatiers.data.location.MapLinks
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.components.FlavorRadar
@@ -191,11 +190,6 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 private fun PurchaseRow(location: PurchaseLocation) {
     val context = LocalContext.current
     val (primary, secondary, uri) = when (location) {
-        is PurchaseLocation.Geo -> Triple(
-            location.label ?: stringResource(location.provider.labelRes),
-            stringResource(R.string.detail_purchase_open_map, stringResource(location.provider.labelRes)),
-            MapLinks.of(location.provider).viewUri(location.latitude, location.longitude),
-        )
         is PurchaseLocation.Marketplace -> Triple(
             location.label ?: stringResource(R.string.purchase_kind_marketplace),
             location.url,

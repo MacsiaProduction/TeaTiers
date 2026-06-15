@@ -377,3 +377,53 @@ deviated.
       mirrors `android/nowinandroid`).
     - **Known non-fatal warning (M1):** `hiltViewModel()` is deprecated and moved to package
       `androidx.hilt.lifecycle.viewmodel.compose`; the import migration is an M1 cleanup.
+
+## 2026-06-15 (addendum 9) — B+C UI pass + M1 Room persistence
+
+33. **B+C UI pass closed out #30/#31/#32 deferrals (PR #2).**
+    - **Golos Text** (OFL variable TTF) is now bundled in `res/font/` and wired into the M3
+      type scale via `FontVariation` (`@OptIn(ExperimentalTextApi::class)`); the OFL license
+      ships in `assets/licenses/`. **Supersedes #30's** "system fonts now / `res/font/` slot
+      later" and the #31 "nothing binary bundled" note.
+    - **Android Lint `abortOnError = true`** (warnings stay non-fatal). **Supersedes the
+      Phase-0 `abortOnError=false`** in #31/#32; a committed baseline is added only if a
+      future finding is genuinely unavoidable.
+    - **`hiltViewModel()` import migrated** to `androidx.hilt.lifecycle.viewmodel.compose`
+      (artifact `hilt-lifecycle-viewmodel-compose` 1.3.0); dropped `hilt-navigation-compose`
+      so there is no transitive `androidx.navigation`. **Resolves the #32 known warning.**
+    - **Navigation = a tiny dependency-free saveable back stack** (`Destination` sealed type
+      + `BackStackSaver`), not navigation-compose — the graph is small (boards → board → tea
+      detail / add tea). Revisit if the graph grows.
+
+34. **M1 persistence = Room 2.8.4, user data only, board-scoped teas.** Backs
+    `TeaBoardRepository` with Room (per #1 local-first) so boards/tiers/teas/flavors/notes/
+    purchase-locations survive process death; the public repo surface is unchanged from
+    Phase 0, so the screens/ViewModels did not change shape.
+    - **Version: Room 2.8.4** (latest stable, Nov-2025; Room 3.0 is still alpha). `room-runtime`
+      + `room-ktx` (Flow/suspend) + `room-compiler` via KSP; inherits the Kotlin-2.4 metadata
+      override (#32) already on the KSP classpath.
+    - **Schema (normalized, board-scoped):** `boards`, `tiers(boardId FK)`, `teas(boardId FK,
+      tierId?)`, `tea_flavors(teaId FK, dimension, intensity, PK[teaId,dimension])`,
+      `purchase_locations(teaId FK, kind, label?, value)`. A tea is **board-scoped** (one
+      placement = one row keyed by a board-unique id), **not** a shared catalog — the shared
+      tea catalog is M2/M4 with the backend. Enum columns store the enum `name` as text
+      (#10/#23) and convert in the mappers (no TypeConverter).
+    - **`exportSchema = false` for v1** (no migrations to diff yet); flip it on with a
+      `room.schemaLocation` + committed JSON when the schema first changes.
+    - **First-run seeding** from `SampleBoardProvider` on an empty DB, launched on an injected
+      app-lifetime `@AppScope CoroutineScope`; `boards` is a hot `StateFlow`
+      (`SharingStarted.Eagerly`) so synchronous reads see loaded data and an added tea appears
+      on every screen at once.
+    - **Writes are `suspend`** (`addTea`) inside a single `@Transaction`; the add-tea flow
+      navigates back after the row is persisted (the StateFlow reflects it everywhere).
+
+35. **Purchase-location code realigned to #20 (removed geo that slipped into the B+C pass).**
+    The B+C UI had introduced a `GEO` purchase kind (map provider + lat/lng) plus a
+    `MapLinkProvider`, contradicting the locked #20 MVP cut (free-text + marketplace URL only;
+    no geopoint, no location permission). Removed `PurchaseLocation.Geo` / `GeoProvider` /
+    `MapLinkProvider`, the GEO add-form UI, the geo detail row, and the geo strings. So
+    `purchase_locations.kind` is `URL | TEXT` only. The map/geopoint returns post-MVP (M6).
+
+36. **DataStore deferred (user-selected "Room only").** Preferences (theme/language, the #28
+    settings) are not wired in M1 — only Room user-data persistence. DataStore lands with the
+    settings screen in a later milestone.

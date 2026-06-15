@@ -27,8 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -42,7 +42,6 @@ import com.macsia.teatiers.viewmodel.AddTeaForm
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
-import com.macsia.teatiers.domain.model.GeoProvider
 import kotlin.math.roundToInt
 
 private val ScreenInset = 16.dp
@@ -56,8 +55,9 @@ fun AddTeaScreen(
     modifier: Modifier = Modifier,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(boardId) { viewModel.bind(boardId) }
     val form by viewModel.form.collectAsStateWithLifecycle()
-    val tiers = remember(boardId) { viewModel.tiersOf(boardId) }
+    val tiers by viewModel.tiers.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -74,7 +74,7 @@ fun AddTeaScreen(
                 },
                 actions = {
                     TextButton(
-                        onClick = { if (viewModel.submit(boardId)) onSaved() },
+                        onClick = { viewModel.submit(onSaved) },
                         enabled = form.isValid,
                     ) {
                         Text(stringResource(R.string.action_save))
@@ -229,35 +229,6 @@ private fun PurchaseEditor(form: AddTeaForm, onUpdate: ((AddTeaForm) -> AddTeaFo
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             modifier = Modifier.fillMaxWidth(),
         )
-        PurchaseKind.GEO -> {
-            ChipRow {
-                GeoProvider.entries.forEach { provider ->
-                    FilterChip(
-                        selected = provider == draft.provider,
-                        onClick = { onUpdate { it.copy(purchase = it.purchase.copy(provider = provider)) } },
-                        label = { Text(stringResource(provider.labelRes)) },
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = draft.latitude,
-                    onValueChange = { v -> onUpdate { it.copy(purchase = it.purchase.copy(latitude = v)) } },
-                    label = { Text(stringResource(R.string.field_latitude)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = draft.longitude,
-                    onValueChange = { v -> onUpdate { it.copy(purchase = it.purchase.copy(longitude = v)) } },
-                    label = { Text(stringResource(R.string.field_longitude)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
     }
 }
 
@@ -295,5 +266,4 @@ private fun FlavorSlider(label: String, value: Int, onValue: (Int) -> Unit) {
 private fun PurchaseKind.labelRes(): Int = when (this) {
     PurchaseKind.TEXT -> R.string.purchase_kind_text
     PurchaseKind.MARKETPLACE -> R.string.purchase_kind_marketplace
-    PurchaseKind.GEO -> R.string.purchase_kind_geo
 }

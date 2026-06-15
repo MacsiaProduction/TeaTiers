@@ -19,8 +19,6 @@
     <string name="detail_notes_title">Заметки</string>
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
-    <!-- %1$s — название картографического сервиса в именительном падеже -->
-    <string name="detail_purchase_open_map">Открыть на карте: %1$s</string>
 
     <!-- Add tea -->
     <string name="add_tea_action">Добавить чай</string>
@@ -40,16 +38,8 @@
     <string name="field_purchase_label">Название места</string>
     <string name="field_purchase_text">Описание</string>
     <string name="field_purchase_url">Ссылка</string>
-    <string name="field_latitude">Широта</string>
-    <string name="field_longitude">Долгота</string>
     <string name="purchase_kind_text">Текст</string>
     <string name="purchase_kind_marketplace">Маркетплейс</string>
-    <string name="purchase_kind_geo">На карте</string>
-
-    <!-- Map providers for purchase geopoints (nominative case) -->
-    <string name="geo_provider_google">Google Карты</string>
-    <string name="geo_provider_yandex">Яндекс Карты</string>
-    <string name="geo_provider_osm">OpenStreetMap</string>
 
     <!-- %1$s — вкусовая характеристика, %2$d — её интенсивность от 0 до 5 -->
     <string name="a11y_flavor_dim">%1$s: %2$d из 5</string>

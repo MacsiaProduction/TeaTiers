@@ -2,14 +2,13 @@ package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
-import com.macsia.teatiers.domain.model.GeoProvider
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import java.util.UUID
 
-/** Which kind of purchase location the add form is editing. */
-enum class PurchaseKind { TEXT, MARKETPLACE, GEO }
+/** Which kind of purchase location the add form is editing (MVP: no map geopoint — #20). */
+enum class PurchaseKind { TEXT, MARKETPLACE }
 
 /** Flavor axes offered in the add form's quick-rate mode (decisions.md #28), not all eleven. */
 val QuickRateDimensions: List<FlavorDimension> = listOf(
@@ -27,9 +26,6 @@ data class PurchaseDraft(
     val label: String = "",
     val text: String = "",
     val url: String = "",
-    val provider: GeoProvider = GeoProvider.OSM,
-    val latitude: String = "",
-    val longitude: String = "",
 )
 
 /** Mutable state of the add-tea form. [isValid] gates the Save action. */
@@ -56,15 +52,6 @@ fun PurchaseDraft.toLocation(): PurchaseLocation? {
             text.trim().ifBlank { null }?.let { PurchaseLocation.FreeText(it, cleanLabel) }
         PurchaseKind.MARKETPLACE ->
             url.trim().ifBlank { null }?.let { PurchaseLocation.Marketplace(it, cleanLabel) }
-        PurchaseKind.GEO -> {
-            val lat = latitude.trim().toDoubleOrNull()
-            val lng = longitude.trim().toDoubleOrNull()
-            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
-                PurchaseLocation.Geo(provider, lat, lng, cleanLabel)
-            } else {
-                null
-            }
-        }
     }
 }
 
