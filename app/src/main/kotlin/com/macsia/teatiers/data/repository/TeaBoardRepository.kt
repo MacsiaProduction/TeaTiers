@@ -2,6 +2,7 @@ package com.macsia.teatiers.data.repository
 
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.TeaDao
+import com.macsia.teatiers.data.db.TeaPlacement
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
 import com.macsia.teatiers.data.db.toSeedEntities
@@ -63,5 +64,54 @@ class TeaBoardRepository @Inject constructor(
         val position = dao.nextTeaPosition(boardId)
         val entities = tea.toEntities(rowId = tea.id, boardId = boardId, tierId = resolvedTier, position = position)
         dao.addTea(entities.tea, entities.flavors, entities.purchases)
+    }
+
+    /**
+     * Drag-to-rank: moves [teaId] within [boardId] to [targetTierId] (null = the unranked tray) at
+     * [targetIndex], the slot among the *other* teas in the target group. An unknown tier falls back
+     * to the tray. No-op when the board or tea is unknown, or the placement would not change.
+     */
+    suspend fun moveTea(boardId: String, teaId: String, targetTierId: String?, targetIndex: Int) {
+        val board = board(boardId) ?: return
+        val placements = computeMovePlacements(board, teaId, targetTierId, targetIndex)
+        if (placements.isNotEmpty()) dao.applyPlacements(placements)
+    }
+}
+
+/**
+ * Pure reorder math for [TeaBoardRepository.moveTea], split out so it is unit-testable without a
+ * DAO. Removes [teaId] from its current group, inserts it into the target group (an unknown tier
+ * becomes the tray) at [targetIndex] clamped into range, and returns contiguous 0..n positions for
+ * every tea in the affected group(s). Ordering within a group is all that matters — [toDomain]
+ * sorts by position inside each group — so only touched groups are renumbered. Returns empty when
+ * the move changes nothing (tea absent, or already at that exact slot).
+ */
+internal fun computeMovePlacements(
+    board: Board,
+    teaId: String,
+    targetTierId: String?,
+    targetIndex: Int,
+): List<TeaPlacement> {
+    val target = if (targetTierId != null && board.tiers.any { tier -> tier.id == targetTierId }) targetTierId else null
+
+    val groups = LinkedHashMap<String?, MutableList<String>>()
+    board.tiers.forEach { tier -> groups[tier.id] = board.placements[tier.id].orEmpty().map { it.id }.toMutableList() }
+    groups[null] = board.unranked.map { it.id }.toMutableList()
+
+    // Resolve the source entry before reading its key: the tray's key is null, so an elvis on
+    // `?.key` would treat "tea sits in the tray" the same as "tea not found" and bail out.
+    val sourceEntry = groups.entries.firstOrNull { it.value.contains(teaId) } ?: return emptyList()
+    val sourceKey = sourceEntry.key
+    val sourceList = sourceEntry.value
+    val sourceIndex = sourceList.indexOf(teaId)
+    sourceList.remove(teaId)
+
+    val targetList = groups.getValue(target)
+    val index = targetIndex.coerceIn(0, targetList.size)
+    if (sourceKey == target && index == sourceIndex) return emptyList()
+    targetList.add(index, teaId)
+
+    return setOf(sourceKey, target).flatMap { key ->
+        groups.getValue(key).mapIndexed { position, id -> TeaPlacement(id, key, position) }
     }
 }

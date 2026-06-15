@@ -13,6 +13,9 @@
 
     <string name="a11y_back">Назад</string>
     <string name="cd_liquor">Цвет настоя</string>
+    <!-- Drag-to-rank accessibility actions. %1$s — метка тира (S, A, B…). -->
+    <string name="a11y_move_to_tier">Переместить в тир %1$s</string>
+    <string name="a11y_move_to_unranked">Переместить в «Без ранга»</string>
 
     <!-- Tea detail -->
     <string name="detail_flavor_title">Вкус</string>
