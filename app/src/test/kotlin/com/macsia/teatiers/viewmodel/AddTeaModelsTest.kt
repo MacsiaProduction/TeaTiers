@@ -1,7 +1,9 @@
 package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.domain.model.FlavorDimension
+import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
+import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -44,21 +46,25 @@ class AddTeaModelsTest {
     }
 
     @Test
-    fun `toTea includes a purchase only when the toggle is on`() {
+    fun `toTea keeps every non-empty purchase draft and drops blank ones`() {
         val form = AddTeaForm(
             nameRu = "Чай",
-            includePurchase = true,
-            purchase = PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "https://shop.example", label = "магазин"),
+            purchases = listOf(
+                PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "https://shop.example", label = "магазин"),
+                PurchaseDraft(kind = PurchaseKind.TEXT, text = "Рынок", label = "поездка"),
+                // blank => dropped by mapNotNull(toLocation)
+                PurchaseDraft(kind = PurchaseKind.TEXT, text = "  ", label = "  "),
+            ),
         )
 
         val tea = form.toTea()
-        assertEquals(1, tea.purchaseLocations.size)
-        val location = tea.purchaseLocations.first()
-        assertTrue(location is PurchaseLocation.Marketplace)
-        assertEquals("https://shop.example", (location as PurchaseLocation.Marketplace).url)
-        assertEquals("магазин", location.label)
-
-        assertTrue(form.copy(includePurchase = false).toTea().purchaseLocations.isEmpty())
+        assertEquals(2, tea.purchaseLocations.size)
+        val first = tea.purchaseLocations[0] as PurchaseLocation.Marketplace
+        assertEquals("https://shop.example", first.url)
+        assertEquals("магазин", first.label)
+        val second = tea.purchaseLocations[1] as PurchaseLocation.FreeText
+        assertEquals("Рынок", second.text)
+        assertEquals("поездка", second.label)
     }
 
     @Test
@@ -76,5 +82,74 @@ class AddTeaModelsTest {
     fun `isValid requires a non-blank ru name`() {
         assertFalse(AddTeaForm(nameRu = "   ").isValid)
         assertTrue(AddTeaForm(nameRu = "Чай").isValid)
+    }
+
+    @Test
+    fun `Tea toForm preserves every editable field`() {
+        val tea = Tea(
+            id = "x",
+            nameRu = "Да Хун Пао",
+            nameZh = "大红袍",
+            pinyin = "Dà Hóng Páo",
+            nameEn = "Da Hong Pao",
+            type = TeaType.OOLONG,
+            origin = "Уишань",
+            shortBlurb = "blurb (catalog/AI; not edited)",
+            flavor = listOf(FlavorScore(FlavorDimension.ROASTED, 5), FlavorScore(FlavorDimension.FLORAL, 2)),
+            notes = "хорошо после обеда",
+            purchaseLocations = listOf(
+                PurchaseLocation.FreeText("Рынок", "поездка"),
+                PurchaseLocation.Marketplace("https://example.com", "интернет"),
+            ),
+        )
+
+        val form = tea.toForm()
+
+        assertEquals("Да Хун Пао", form.nameRu)
+        assertEquals("Da Hong Pao", form.nameEn)
+        assertEquals("Dà Hóng Páo", form.pinyin)
+        assertEquals("大红袍", form.nameZh)
+        assertEquals(TeaType.OOLONG, form.type)
+        assertEquals("Уишань", form.origin)
+        assertEquals("хорошо после обеда", form.notes)
+        assertEquals(mapOf(FlavorDimension.ROASTED to 5, FlavorDimension.FLORAL to 2), form.flavors)
+        assertNull(form.tierId) // tier picker is hidden in edit mode
+        assertEquals(2, form.purchases.size)
+        assertEquals(PurchaseKind.TEXT, form.purchases[0].kind)
+        assertEquals("Рынок", form.purchases[0].text)
+        assertEquals("поездка", form.purchases[0].label)
+        assertEquals(PurchaseKind.MARKETPLACE, form.purchases[1].kind)
+        assertEquals("https://example.com", form.purchases[1].url)
+        assertEquals("интернет", form.purchases[1].label)
+    }
+
+    @Test
+    fun `toForm then toTea round-trips the user-entered fields`() {
+        val original = Tea(
+            id = "x",
+            nameRu = "Чай",
+            nameZh = null,
+            pinyin = null,
+            nameEn = "Tea",
+            type = TeaType.GREEN,
+            origin = "Уезд",
+            flavor = listOf(FlavorScore(FlavorDimension.GRASSY, 3)),
+            notes = "заметка",
+            purchaseLocations = listOf(PurchaseLocation.FreeText("Лавка", null)),
+        )
+
+        val rebuilt = original.toForm().toTea()
+
+        assertEquals(original.nameRu, rebuilt.nameRu)
+        assertEquals(original.nameEn, rebuilt.nameEn)
+        assertEquals(original.nameZh, rebuilt.nameZh)
+        assertEquals(original.pinyin, rebuilt.pinyin)
+        assertEquals(original.type, rebuilt.type)
+        assertEquals(original.origin, rebuilt.origin)
+        assertEquals(original.notes, rebuilt.notes)
+        assertEquals(original.flavor, rebuilt.flavor)
+        assertEquals(original.purchaseLocations, rebuilt.purchaseLocations)
+        // toTea always mints a new user- id; the round-trip is over user-edited fields, not the id.
+        assertTrue(rebuilt.id.startsWith("user-"))
     }
 }

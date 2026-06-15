@@ -3,6 +3,9 @@ package com.macsia.teatiers.data.repository
 import com.macsia.teatiers.data.db.toSeedEntities
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.FlavorDimension
+import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
@@ -174,5 +177,60 @@ class TeaBoardRepositoryTest {
         val board = repository.boards.value.single()
         assertEquals(listOf("a"), board.tiers.map { it.id })
         assertTrue(board.unranked.any { it.nameRu == "green" })
+    }
+
+    @Test
+    fun `updateTea rewrites editable fields and replaces children, preserving placement`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repositoryWithSeed()
+            advanceUntilIdle()
+
+            val edited = Tea(
+                id = "ignored-on-update",
+                nameRu = "Зелёный (новое)",
+                nameEn = "Green (new)",
+                type = TeaType.OOLONG,
+                origin = "Фуцзянь",
+                flavor = listOf(
+                    FlavorScore(FlavorDimension.FLORAL, 4),
+                    FlavorScore(FlavorDimension.SWEETNESS, 2),
+                ),
+                notes = "ред.",
+                purchaseLocations = listOf(
+                    PurchaseLocation.FreeText("Лавка", "поездка"),
+                    PurchaseLocation.Marketplace("https://shop.example", "интернет"),
+                ),
+            )
+
+            repository.updateTea("b", teaId = "b-green", tea = edited)
+            advanceUntilIdle()
+
+            val board = repository.boards.value.single()
+            // tier + position are preserved (still in tier "s") even though the form rewrote everything else
+            assertEquals(listOf("Зелёный (новое)"), board.placements.getValue("s").map { it.nameRu })
+            val updated = board.placements.getValue("s").single()
+            assertEquals(TeaType.OOLONG, updated.type)
+            assertEquals("Фуцзянь", updated.origin)
+            assertEquals("ред.", updated.notes)
+            assertEquals(listOf(FlavorDimension.FLORAL, FlavorDimension.SWEETNESS), updated.flavor.map { it.dimension })
+            assertEquals(listOf(4, 2), updated.flavor.map { it.intensity })
+            assertEquals(2, updated.purchaseLocations.size)
+            assertTrue(updated.purchaseLocations[0] is PurchaseLocation.FreeText)
+            assertTrue(updated.purchaseLocations[1] is PurchaseLocation.Marketplace)
+            // tray and the other tier are unaffected
+            assertEquals(listOf("tray"), board.unranked.map { it.nameRu })
+            assertTrue(board.placements.getValue("a").isEmpty())
+        }
+
+    @Test
+    fun `updateTea on an unknown tea is a no-op`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+        val before = repository.boards.value
+
+        repository.updateTea("b", teaId = "missing", tea = tea("ghost"))
+        advanceUntilIdle()
+
+        assertEquals(before, repository.boards.value)
     }
 }

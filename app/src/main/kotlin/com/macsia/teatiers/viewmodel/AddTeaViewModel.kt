@@ -16,7 +16,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Owns the add-tea form state and persists a valid tea to the repository (Room) on save. */
+/**
+ * Owns the add/edit form state. With [editingTeaId] null this is the add flow (insert a new tea
+ * into the bound board); when non-null the form prefills from the tea and saves with
+ * [TeaBoardRepository.updateTea]. The tier picker is only meaningful in add mode (drag-to-rank
+ * owns placement on the board).
+ */
 @HiltViewModel
 class AddTeaViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
@@ -26,9 +31,22 @@ class AddTeaViewModel @Inject constructor(
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
 
     private val boardId = MutableStateFlow<String?>(null)
+    private val _editingTeaId = MutableStateFlow<String?>(null)
+    val editingTeaId: StateFlow<String?> = _editingTeaId.asStateFlow()
 
-    fun bind(id: String) {
-        boardId.value = id
+    /**
+     * Binds the form to a board (and, in edit mode, an existing tea). [bind] always rewrites the
+     * form so a recomposition with a new [boardId]/[teaId] cannot leak stale state from a previous
+     * binding (the VM is reused across navigations under the host activity's `viewModelStore`).
+     */
+    fun bind(boardId: String, teaId: String? = null) {
+        this.boardId.value = boardId
+        _editingTeaId.value = teaId
+        _form.value = if (teaId != null) {
+            repository.tea(boardId, teaId)?.toForm() ?: AddTeaForm()
+        } else {
+            AddTeaForm()
+        }
     }
 
     /** Tiers of the bound board for the optional tier picker; empty until the board loads. */
@@ -47,13 +65,36 @@ class AddTeaViewModel @Inject constructor(
         _form.update { it.copy(flavors = it.flavors + (dimension to intensity)) }
     }
 
-    /** Persists the tea when the form is valid and a board is bound, then invokes [onSaved]. */
+    fun addPurchase() {
+        _form.update { it.copy(purchases = it.purchases + PurchaseDraft()) }
+    }
+
+    fun updatePurchase(index: Int, transform: (PurchaseDraft) -> PurchaseDraft) {
+        _form.update { form ->
+            if (index !in form.purchases.indices) return@update form
+            form.copy(purchases = form.purchases.toMutableList().also { it[index] = transform(it[index]) })
+        }
+    }
+
+    fun removePurchase(index: Int) {
+        _form.update { form ->
+            if (index !in form.purchases.indices) return@update form
+            form.copy(purchases = form.purchases.toMutableList().also { it.removeAt(index) })
+        }
+    }
+
+    /** Persists the tea (insert in add mode, in-place update in edit mode), then [onSaved]. */
     fun submit(onSaved: () -> Unit) {
         val form = _form.value
         val board = boardId.value
         if (board == null || !form.isValid) return
+        val editing = _editingTeaId.value
         viewModelScope.launch {
-            repository.addTea(board, form.toTea(), form.tierId)
+            if (editing == null) {
+                repository.addTea(board, form.toTea(), form.tierId)
+            } else {
+                repository.updateTea(board, editing, form.toTea())
+            }
             onSaved()
         }
     }

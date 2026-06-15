@@ -3,6 +3,11 @@ package com.macsia.teatiers.viewmodel
 import app.cash.turbine.test
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.FlavorDimension
+import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.PurchaseLocation
+import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -105,5 +110,98 @@ class AddTeaViewModelTest {
 
         assertFalse(saved)
         coVerify(exactly = 0) { repository.addTea(any(), any(), any()) }
+    }
+
+    @Test
+    fun `purchase helpers add update and remove drafts`() = runTest {
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind("b")
+
+        viewModel.addPurchase()
+        viewModel.addPurchase()
+        viewModel.updatePurchase(0) { it.copy(kind = PurchaseKind.MARKETPLACE, url = "https://shop") }
+        viewModel.updatePurchase(1) { it.copy(text = "Рынок") }
+        viewModel.removePurchase(0)
+
+        val purchases = viewModel.form.value.purchases
+        assertEquals(1, purchases.size)
+        assertEquals(PurchaseKind.TEXT, purchases[0].kind)
+        assertEquals("Рынок", purchases[0].text)
+    }
+
+    @Test
+    fun `purchase helpers ignore out-of-range indices`() = runTest {
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind("b")
+
+        viewModel.removePurchase(5)
+        viewModel.updatePurchase(7) { it.copy(text = "noop") }
+
+        assertTrue(viewModel.form.value.purchases.isEmpty())
+    }
+
+    @Test
+    fun `bind in edit mode prefills the form from the tea`() = runTest {
+        val tea = Tea(
+            id = "t1",
+            nameRu = "Да Хун Пао",
+            type = TeaType.OOLONG,
+            origin = "Уишань",
+            flavor = listOf(FlavorScore(FlavorDimension.ROASTED, 5)),
+            notes = "после обеда",
+            purchaseLocations = listOf(PurchaseLocation.FreeText("Рынок", "поездка")),
+        )
+        every { repository.tea(eq("b"), eq("t1")) } returns tea
+        val viewModel = AddTeaViewModel(repository)
+
+        viewModel.bind("b", teaId = "t1")
+
+        val form = viewModel.form.value
+        assertEquals("Да Хун Пао", form.nameRu)
+        assertEquals(TeaType.OOLONG, form.type)
+        assertEquals(mapOf(FlavorDimension.ROASTED to 5), form.flavors)
+        assertEquals(1, form.purchases.size)
+        assertEquals("Рынок", form.purchases[0].text)
+        assertEquals("t1", viewModel.editingTeaId.value)
+    }
+
+    @Test
+    fun `submit in edit mode calls updateTea, not addTea`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        every { repository.tea(eq("b"), eq("t1")) } returns tea
+        coEvery { repository.updateTea(any(), any(), any()) } just Runs
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind("b", teaId = "t1")
+        viewModel.update { it.copy(nameRu = "Новый чай", notes = "обновлено") }
+
+        var saved = false
+        viewModel.submit { saved = true }
+        advanceUntilIdle()
+
+        assertTrue(saved)
+        coVerify(exactly = 1) {
+            repository.updateTea(
+                eq("b"),
+                eq("t1"),
+                match { it.nameRu == "Новый чай" && it.notes == "обновлено" },
+            )
+        }
+        coVerify(exactly = 0) { repository.addTea(any(), any(), any()) }
+    }
+
+    @Test
+    fun `bind clears the form when re-binding to a fresh add flow`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN, notes = "заметка")
+        every { repository.tea(eq("b"), eq("t1")) } returns tea
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind("b", teaId = "t1")
+        // simulate the user navigating away from edit and into the add flow on the same VM
+        viewModel.bind("b")
+
+        val form = viewModel.form.value
+        assertEquals("", form.nameRu)
+        assertEquals("", form.notes)
+        assertTrue(form.purchases.isEmpty())
+        assertEquals(null, viewModel.editingTeaId.value)
     }
 }

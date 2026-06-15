@@ -62,6 +62,32 @@ abstract class TeaDao {
     @Query("DELETE FROM tiers WHERE id = :tierId")
     abstract suspend fun deleteTier(tierId: String)
 
+    /**
+     * Rewrites only the user-editable scalar columns of a tea. Leaves boardId/tierId/position
+     * (drag-to-rank state) and shortBlurb (catalog/AI-derived) untouched so editing the form
+     * never reorders the board.
+     */
+    @Query(
+        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, " +
+            "nameEn = :nameEn, type = :type, origin = :origin, notes = :notes WHERE id = :teaId",
+    )
+    abstract suspend fun updateTeaFields(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        notes: String?,
+    )
+
+    @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")
+    abstract suspend fun deleteFlavorsFor(teaId: String)
+
+    @Query("DELETE FROM purchase_locations WHERE teaId = :teaId")
+    abstract suspend fun deletePurchasesFor(teaId: String)
+
     @Transaction
     open suspend fun seed(
         boards: List<BoardEntity>,
@@ -109,5 +135,30 @@ abstract class TeaDao {
     open suspend fun removeTier(tierId: String, reassignedTeas: List<TeaPlacement>) {
         applyPlacements(reassignedTeas)
         deleteTier(tierId)
+    }
+
+    /**
+     * Updates a tea's editable fields and replaces its flavor + purchase rows in one transaction.
+     * Child rows are wholesale rebuilt (delete + insert) because edits can add, remove, or reorder
+     * any number of them — simpler and just as cheap as diffing for the small lists involved.
+     */
+    @Transaction
+    open suspend fun updateTea(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        notes: String?,
+        flavors: List<FlavorEntity>,
+        purchases: List<PurchaseLocationEntity>,
+    ) {
+        updateTeaFields(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, notes)
+        deleteFlavorsFor(teaId)
+        deletePurchasesFor(teaId)
+        insertFlavors(flavors)
+        insertPurchases(purchases)
     }
 }

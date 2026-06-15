@@ -48,6 +48,7 @@ fun TeaTiersApp() {
                     boardId = current.boardId,
                     teaId = current.teaId,
                     onBack = ::pop,
+                    onEdit = { teaId -> navigate(Destination.EditTea(current.boardId, teaId)) },
                 )
 
             is Destination.AddTea ->
@@ -55,6 +56,14 @@ fun TeaTiersApp() {
                     boardId = current.boardId,
                     onBack = ::pop,
                     onSaved = ::pop,
+                )
+
+            is Destination.EditTea ->
+                AddTeaScreen(
+                    boardId = current.boardId,
+                    onBack = ::pop,
+                    onSaved = ::pop,
+                    teaId = current.teaId,
                 )
 
             is Destination.TierEditor ->

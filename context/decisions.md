@@ -488,3 +488,30 @@ deviated.
     - **Icons restricted to `material-icons-core`** (the only icons dependency): Add /
       KeyboardArrowUp / KeyboardArrowDown / Delete are all present; the extended icon set is not a
       dependency.
+
+## 2026-06-15 (addendum 13) — tea editing
+
+40. **Tea editing reuses the add flow as a single add/edit screen** (`Destination.EditTea`,
+    "Изменить" action on `TeaDetailScreen`). One `AddTeaForm` / `AddTeaViewModel` / `AddTeaScreen`
+    handles both modes — add when `editingTeaId` is null, edit when it carries the tea id — to
+    avoid a parallel screen and keep the form rules (trim, drop blanks, filter zero-intensity
+    flavors, blank ru name disables Save) in one place.
+    - **Update writes only the editable columns and replaces the child rows** in one
+      `TeaDao.updateTea` `@Transaction`: `updateTeaFields(...)` + delete-and-insert for flavor and
+      purchase rows. The DAO never touches `boardId` / `tierId` / `position` / `shortBlurb`, so
+      editing the form never moves the tea on the board (drag-to-rank owns placement) and never
+      overwrites the catalog/AI-derived blurb.
+    - **Tier picker is hidden in edit mode.** Including it would let the same form both edit *and*
+      re-rank, conflicting with drag-to-rank as the single placement surface; the form's `tierId`
+      is ignored on save when editing.
+    - **`AddTeaViewModel.bind(boardId, teaId?)` deterministically rewrites the form** every call
+      (empty for add, `tea.toForm()` for edit), because the host activity reuses the same VM
+      across navigations and a recomposition with a new key would otherwise leak stale state.
+    - **Multiple purchase locations.** `AddTeaForm.purchases: List<PurchaseDraft>` replaces the
+      single-row `purchase`/`includePurchase` pair; the editor renders one card per row with
+      add/remove. The model already supported a list (seed teas have two), so this also closes a
+      gap in the add flow rather than only enabling editing.
+    - **Pure-JVM tests cover** `Tea.toForm` / `PurchaseLocation.toDraft` round-tripping, the
+      purchase-list helpers, edit-mode bind + submit (calls `updateTea`, not `addTea`), and the
+      end-to-end `TeaBoardRepository.updateTea` over `FakeTeaDao` (preserves tier/position,
+      replaces flavors + purchases).
