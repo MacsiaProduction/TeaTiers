@@ -71,6 +71,7 @@ fun AddTeaScreen(
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()
     val placementCount by viewModel.placementCount.collectAsStateWithLifecycle()
+    val photos by viewModel.photos.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -189,6 +190,13 @@ fun AddTeaScreen(
                 label = { Text(stringResource(R.string.field_origin)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+            )
+
+            PhotoStripField(
+                photos = photos,
+                onPick = viewModel::onAddPhoto,
+                onRemove = viewModel::onRemovePhoto,
+                onReorder = viewModel::onReorderPhotos,
             )
 
             FieldLabel(stringResource(R.string.field_flavor))

@@ -17,6 +17,7 @@ data class Tea(
     val flavor: List<FlavorScore> = emptyList(),
     val notes: String? = null,
     val purchaseLocations: List<PurchaseLocation> = emptyList(),
+    val photos: List<TeaPhoto> = emptyList(),
 ) {
     /** Latin/han secondary line shown under the ru name: "Dà Hóng Páo · 大红袍". */
     val secondaryName: String

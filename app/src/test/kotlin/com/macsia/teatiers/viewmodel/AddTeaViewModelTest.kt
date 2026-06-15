@@ -1,5 +1,6 @@
 package com.macsia.teatiers.viewmodel
 
+import android.net.Uri
 import app.cash.turbine.test
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Board
@@ -15,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +75,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `submit persists the mapped tea and notifies on success`() = runTest {
-        coEvery { repository.addTea(any(), any(), any()) } just Runs
+        coEvery { repository.addTea(any(), any(), any()) } returns "tea-1"
         val viewModel = AddTeaViewModel(repository)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао", tierId = "a") }
@@ -257,5 +259,76 @@ class AddTeaViewModelTest {
 
         assertFalse(deleted)
         coVerify(exactly = 0) { repository.deleteTea(any()) }
+    }
+
+    @Test
+    fun `add-mode draft photos are materialized after the tea is saved`() = runTest {
+        coEvery { repository.addTea(eq("b"), any(), any()) } returns "tea-new"
+        coEvery { repository.addPhoto(any(), any()) } returns "photo-id"
+
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+
+        val uriOne = mockk<Uri>().also { every { it.toString() } returns "content://one" }
+        val uriTwo = mockk<Uri>().also { every { it.toString() } returns "content://two" }
+        viewModel.onAddPhoto(uriOne)
+        viewModel.onAddPhoto(uriTwo)
+
+        // Drafts visible on the strip while we are still composing the form. The `photos`
+        // StateFlow is `WhileSubscribed`, so without a subscriber its value stays empty —
+        // we assert the underlying draft buffer instead, which is the source of truth for
+        // both the strip projection and the materialization-on-save loop.
+        assertEquals(2, viewModel.draftPhotos.value.size)
+
+        var saved = false
+        viewModel.submit { saved = true }
+        advanceUntilIdle()
+
+        assertTrue(saved)
+        coVerify(exactly = 1) { repository.addPhoto("tea-new", uriOne) }
+        coVerify(exactly = 1) { repository.addPhoto("tea-new", uriTwo) }
+        // Drafts cleared so a follow-up bind starts fresh.
+        assertTrue(viewModel.draftPhotos.value.isEmpty())
+    }
+
+    @Test
+    fun `edit-mode addPhoto delegates to the repository immediately`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.addPhoto(eq("t1"), any()) } returns "photo-id"
+
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        val uri = mockk<Uri>().also { every { it.toString() } returns "content://x" }
+        viewModel.onAddPhoto(uri)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.addPhoto("t1", uri) }
+        // Edit mode never stages drafts — the repo flow is the source of truth.
+        assertTrue(viewModel.draftPhotos.value.isEmpty())
+    }
+
+    @Test
+    fun `edit-mode removePhoto and reorderPhotos route through the repository`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.removePhoto(eq("t1"), any()) } just Runs
+        coEvery { repository.reorderPhotos(eq("t1"), any()) } just Runs
+
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        val orderedSlot = slot<List<String>>()
+        viewModel.onRemovePhoto("photo-1")
+        viewModel.onReorderPhotos(listOf("a", "b", "c"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.removePhoto("t1", "photo-1") }
+        coVerify(exactly = 1) { repository.reorderPhotos("t1", capture(orderedSlot)) }
+        assertEquals(listOf("a", "b", "c"), orderedSlot.captured)
     }
 }

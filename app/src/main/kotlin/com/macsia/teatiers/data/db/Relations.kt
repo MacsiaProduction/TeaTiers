@@ -3,13 +3,15 @@ package com.macsia.teatiers.data.db
 import androidx.room.Embedded
 import androidx.room.Relation
 
-/** A user-tea with its flavor scores and purchase locations, fetched in one @Transaction read. */
+/** A user-tea with its flavor scores, purchase locations, and photos. One @Transaction read. */
 data class TeaWithChildren(
     @Embedded val tea: TeaEntity,
     @Relation(parentColumn = "id", entityColumn = "teaId")
     val flavors: List<FlavorEntity>,
     @Relation(parentColumn = "id", entityColumn = "teaId")
     val purchases: List<PurchaseLocationEntity>,
+    @Relation(parentColumn = "id", entityColumn = "teaId")
+    val photos: List<PhotoEntity>,
 )
 
 /**

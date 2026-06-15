@@ -71,6 +71,19 @@
     <string name="detail_notes_title">Заметки</string>
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
+    <string name="detail_photos_title">Фотографии</string>
+
+    <!-- Photo strip / gallery (decisions.md #43, photos reopening). -->
+    <string name="photos_section_title">Фотографии</string>
+    <string name="photos_add">Добавить фото</string>
+    <string name="a11y_photo_strip">Фотографии чая</string>
+    <string name="a11y_photo_thumbnail">Фото %1$d из %2$d</string>
+    <string name="a11y_add_photo">Добавить фото</string>
+    <string name="a11y_remove_photo">Удалить это фото</string>
+    <string name="a11y_photo_drag_handle">Перетащите, чтобы изменить порядок</string>
+    <string name="a11y_photo_zoom_close">Закрыть просмотр фото</string>
+    <string name="confirm_remove_photo_title">Удалить фото?</string>
+    <string name="confirm_remove_photo_message">Фото будет удалено с этого чая. Действие необратимо.</string>
 
     <!-- Add tea -->
     <string name="add_tea_action">Добавить чай</string>

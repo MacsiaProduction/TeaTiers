@@ -2,8 +2,13 @@ package com.macsia.teatiers.di
 
 import android.content.Context
 import androidx.room.Room
+import coil3.ImageLoader
+import coil3.request.crossfade
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
+import com.macsia.teatiers.data.photos.AndroidPhotoStore
+import com.macsia.teatiers.data.photos.PhotoStore
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,8 +31,10 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): TeaDatabase =
         Room.databaseBuilder(context, TeaDatabase::class.java, "teatiers.db")
-            // v1 -> v2 (shared-teas, decisions.md #42) is destructive while we are pre-launch;
-            // first launch on the new schema drops the v1 data and the sample provider reseeds.
+            // v1 -> v2 (shared-teas, decisions.md #42) and v2 -> v3 (photos, decisions.md #43)
+            // are destructive while we are pre-launch; first launch on the new schema drops
+            // the older data and the sample provider reseeds. Real Migration(N, N+1) instances
+            // become mandatory before we ship to a real user.
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
@@ -39,4 +46,27 @@ object AppModule {
     @Singleton
     @AppScope
     fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Coil loader for the photo strip / detail gallery / card thumbnail (decisions.md #43). MVP
+     * never loads over the network so we deliberately omit `coil-network-okhttp`; the decode
+     * pipeline is local-file-only. Crossfade smooths the swap from the type swatch placeholder
+     * to the photo without us hand-rolling a fade.
+     */
+    @Provides
+    @Singleton
+    fun provideImageLoader(@ApplicationContext context: Context): ImageLoader =
+        // On Android, Coil 3's PlatformContext is a typealias for android.content.Context, so the
+        // Hilt-injected app context flows through directly.
+        ImageLoader.Builder(context)
+            .crossfade(true)
+            .build()
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class PhotoStoreModule {
+    @Binds
+    @Singleton
+    abstract fun bindPhotoStore(impl: AndroidPhotoStore): PhotoStore
 }

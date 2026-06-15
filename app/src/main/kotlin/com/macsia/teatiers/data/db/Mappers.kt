@@ -3,9 +3,11 @@ package com.macsia.teatiers.data.db
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
 
@@ -59,12 +61,22 @@ fun TeaWithChildren.toDomain(): Tea = Tea(
         .map { FlavorScore(FlavorDimension.valueOf(it.dimension), it.intensity) },
     notes = tea.notes,
     purchaseLocations = purchases.sortedBy { it.position }.map { it.toDomain() },
+    photos = photos.sortedBy { it.position }.map { it.toDomain() },
 )
 
 fun PurchaseLocationEntity.toDomain(): PurchaseLocation = when (kind) {
     PurchaseKindDb.URL -> PurchaseLocation.Marketplace(url = value, label = label)
     else -> PurchaseLocation.FreeText(text = value, label = label)
 }
+
+fun PhotoEntity.toDomain(): TeaPhoto = TeaPhoto(
+    id = id,
+    uri = uri,
+    position = position,
+    source = runCatching { PhotoSource.valueOf(source) }.getOrDefault(PhotoSource.USER),
+    license = license,
+    sourceUrl = sourceUrl,
+)
 
 // --- Domain -> entities -------------------------------------------------------------------
 
@@ -73,6 +85,7 @@ data class TeaEntities(
     val tea: TeaEntity,
     val flavors: List<FlavorEntity>,
     val purchases: List<PurchaseLocationEntity>,
+    val photos: List<PhotoEntity>,
 )
 
 /** All rows for a first-run seed, grouped by table for batched inserts. */
@@ -83,9 +96,10 @@ data class SeedEntities(
     val placements: List<PlacementEntity>,
     val flavors: List<FlavorEntity>,
     val purchases: List<PurchaseLocationEntity>,
+    val photos: List<PhotoEntity>,
 )
 
-fun Tea.toEntities(rowId: String = id): TeaEntities {
+fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
     val teaEntity = TeaEntity(
         id = rowId,
         nameRu = nameRu,
@@ -103,7 +117,10 @@ fun Tea.toEntities(rowId: String = id): TeaEntities {
     val purchaseRows = purchaseLocations.mapIndexed { index, location ->
         location.toEntity(teaId = rowId, position = index)
     }
-    return TeaEntities(teaEntity, flavorRows, purchaseRows)
+    val photoRows = photos.mapIndexed { index, photo ->
+        photo.toEntity(teaId = rowId, position = index, fallbackCreatedAtMs = nowMs)
+    }
+    return TeaEntities(teaEntity, flavorRows, purchaseRows, photoRows)
 }
 
 fun PurchaseLocation.toEntity(teaId: String, position: Int): PurchaseLocationEntity = when (this) {
@@ -112,6 +129,20 @@ fun PurchaseLocation.toEntity(teaId: String, position: Int): PurchaseLocationEnt
     is PurchaseLocation.FreeText ->
         PurchaseLocationEntity("$teaId-p$position", teaId, position, PurchaseKindDb.TEXT, label, text)
 }
+
+fun TeaPhoto.toEntity(teaId: String, position: Int, fallbackCreatedAtMs: Long): PhotoEntity =
+    PhotoEntity(
+        id = id,
+        teaId = teaId,
+        uri = uri,
+        position = position,
+        source = source.name,
+        license = license,
+        sourceUrl = sourceUrl,
+        // Seed/round-trip teas don't carry timestamps; they get a deterministic 0L unless the
+        // caller passes a real wall-clock value (the repository does on user uploads).
+        createdAtEpochMs = fallbackCreatedAtMs,
+    )
 
 /**
  * Flattens the seed boards into table rows. Teas are deduplicated by [Tea.id]: the user-tea
@@ -128,6 +159,7 @@ fun List<Board>.toSeedEntities(): SeedEntities {
     val teaRows = mutableListOf<TeaEntity>()
     val flavorRows = mutableListOf<FlavorEntity>()
     val purchaseRows = mutableListOf<PurchaseLocationEntity>()
+    val photoRows = mutableListOf<PhotoEntity>()
 
     forEachIndexed { boardIndex, board ->
         boardRows += BoardEntity(id = board.id, name = board.name, position = boardIndex)
@@ -146,6 +178,7 @@ fun List<Board>.toSeedEntities(): SeedEntities {
                 teaRows += entities.tea
                 flavorRows += entities.flavors
                 purchaseRows += entities.purchases
+                photoRows += entities.photos
             }
             placementRows += PlacementEntity(
                 id = placement.placementId,
@@ -156,5 +189,5 @@ fun List<Board>.toSeedEntities(): SeedEntities {
             )
         }
     }
-    return SeedEntities(boardRows, tierRows, teaRows, placementRows, flavorRows, purchaseRows)
+    return SeedEntities(boardRows, tierRows, teaRows, placementRows, flavorRows, purchaseRows, photoRows)
 }

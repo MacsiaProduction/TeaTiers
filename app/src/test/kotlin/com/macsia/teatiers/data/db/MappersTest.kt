@@ -129,6 +129,7 @@ class MappersTest {
                     tea = greenTea,
                     flavors = listOf(FlavorEntity("green", "GRASSY", 4, 0)),
                     purchases = emptyList(),
+                    photos = emptyList(),
                 ),
             ),
         )
@@ -139,6 +140,7 @@ class MappersTest {
                     tea = tray,
                     flavors = emptyList(),
                     purchases = listOf(PurchaseLocationEntity("p", "x", 0, "URL", "магазин", "https://y.example")),
+                    photos = emptyList(),
                 ),
             ),
         )
@@ -186,7 +188,9 @@ class MappersTest {
         val trayTea = TeaEntity("t", "Чай", null, null, null, "BLACK", null, null, null)
         val tray = PlacementWithTea(
             placement = PlacementEntity(id = "b-t", boardId = "b", teaId = "t", tierId = null, position = 0),
-            tea = listOf(TeaWithChildren(tea = trayTea, flavors = emptyList(), purchases = emptyList())),
+            tea = listOf(
+                TeaWithChildren(tea = trayTea, flavors = emptyList(), purchases = emptyList(), photos = emptyList()),
+            ),
         )
 
         val domain = BoardWithChildren(board, tiers = emptyList(), placements = listOf(tray)).toDomain()

@@ -143,3 +143,38 @@ data class PurchaseLocationEntity(
     val label: String?,
     val value: String,
 )
+
+/**
+ * One photo attached to a user-tea (decisions.md #43; supersedes #24's single-photo line).
+ *
+ * - `uri` is an absolute file path under the app's private dir for `source = "USER"` (the only
+ *   source wired in MVP); `PhotoStore` copies bytes there so the URI keeps working through
+ *   gallery cleanup and the export bundle (#26) is just a directory copy. Future "CATALOG"
+ *   photos store an HTTPS URL.
+ * - `position` is per-tea contiguous (0..n); reorder rewrites every row in one transaction
+ *   (mirrors decisions.md #38/#39).
+ * - `license` / `sourceUrl` stay null for user uploads and exist now so a future CC catalog
+ *   image fits the same row without another migration (decisions.md #43).
+ */
+@Entity(
+    tableName = "tea_photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = TeaEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["teaId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("teaId")],
+)
+data class PhotoEntity(
+    @PrimaryKey val id: String,
+    val teaId: String,
+    val uri: String,
+    val position: Int,
+    val source: String,
+    val license: String?,
+    val sourceUrl: String?,
+    val createdAtEpochMs: Long,
+)

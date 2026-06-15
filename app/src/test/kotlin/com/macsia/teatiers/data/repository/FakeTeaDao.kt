@@ -3,6 +3,7 @@ package com.macsia.teatiers.data.repository
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.FlavorEntity
+import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PlacementWithTea
 import com.macsia.teatiers.data.db.PurchaseLocationEntity
@@ -32,6 +33,7 @@ class FakeTeaDao : TeaDao() {
     private val placements = mutableListOf<PlacementEntity>()
     private val flavors = mutableListOf<FlavorEntity>()
     private val purchases = mutableListOf<PurchaseLocationEntity>()
+    private val photos = mutableListOf<PhotoEntity>()
 
     private val state = MutableStateFlow<List<BoardWithChildren>>(emptyList())
 
@@ -43,6 +45,7 @@ class FakeTeaDao : TeaDao() {
                 tea = tea,
                 flavors = flavors.filter { it.teaId == tea.id },
                 purchases = purchases.filter { it.teaId == tea.id },
+                photos = photos.filter { it.teaId == tea.id },
             )
         }
 
@@ -90,6 +93,35 @@ class FakeTeaDao : TeaDao() {
         refresh()
     }
 
+    override suspend fun insertPhotos(photos: List<PhotoEntity>) {
+        this.photos += photos
+        refresh()
+    }
+
+    override suspend fun loadPhotos(teaId: String): List<PhotoEntity> =
+        photos.filter { it.teaId == teaId }.sortedBy { it.position }
+
+    override suspend fun loadPhotoUrisFor(teaId: String): List<String> =
+        photos.filter { it.teaId == teaId }.map { it.uri }
+
+    override suspend fun loadPhotoUri(photoId: String): String? =
+        photos.firstOrNull { it.id == photoId }?.uri
+
+    override suspend fun nextPhotoPosition(teaId: String): Int =
+        (photos.filter { it.teaId == teaId }.maxOfOrNull { it.position } ?: -1) + 1
+
+    override suspend fun updatePhotoPosition(photoId: String, position: Int) {
+        val index = photos.indexOfFirst { it.id == photoId }
+        if (index >= 0) {
+            photos[index] = photos[index].copy(position = position)
+            refresh()
+        }
+    }
+
+    override suspend fun deletePhotoRow(photoId: String) {
+        if (photos.removeAll { it.id == photoId }) refresh()
+    }
+
     override suspend fun updatePlacement(placementId: String, tierId: String?, position: Int) {
         val index = placements.indexOfFirst { it.id == placementId }
         if (index >= 0) {
@@ -103,11 +135,12 @@ class FakeTeaDao : TeaDao() {
     }
 
     override suspend fun deleteTeaRow(teaId: String) {
-        // Mimic Room's ON DELETE CASCADE for placements + flavors + purchases.
+        // Mimic Room's ON DELETE CASCADE for placements + flavors + purchases + photos.
         if (teas.removeAll { it.id == teaId }) {
             placements.removeAll { it.teaId == teaId }
             flavors.removeAll { it.teaId == teaId }
             purchases.removeAll { it.teaId == teaId }
+            photos.removeAll { it.teaId == teaId }
             refresh()
         }
     }
@@ -182,6 +215,7 @@ class FakeTeaDao : TeaDao() {
                                 tea = tea,
                                 flavors = flavors.filter { it.teaId == tea.id },
                                 purchases = purchases.filter { it.teaId == tea.id },
+                                photos = photos.filter { it.teaId == tea.id },
                             ),
                         )
                     } else {
