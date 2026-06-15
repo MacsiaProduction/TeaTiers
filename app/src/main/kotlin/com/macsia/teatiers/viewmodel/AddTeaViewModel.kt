@@ -17,10 +17,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Owns the add/edit form state. With [editingTeaId] null this is the add flow (insert a new tea
- * into the bound board); when non-null the form prefills from the tea and saves with
- * [TeaBoardRepository.updateTea]. The tier picker is only meaningful in add mode (drag-to-rank
- * owns placement on the board).
+ * Owns the add/edit form state. Add mode wants a [boardId] (the new placement targets that
+ * board); edit mode wants only a [editingTeaId] because the user-tea is shared across boards
+ * (decisions.md #42) — saving in edit mode never reorders any board, the tier picker is
+ * hidden, and the change ripples to every placement.
  */
 @HiltViewModel
 class AddTeaViewModel @Inject constructor(
@@ -35,17 +35,33 @@ class AddTeaViewModel @Inject constructor(
     val editingTeaId: StateFlow<String?> = _editingTeaId.asStateFlow()
 
     /**
-     * Binds the form to a board (and, in edit mode, an existing tea). [bind] always rewrites the
-     * form so a recomposition with a new [boardId]/[teaId] cannot leak stale state from a previous
-     * binding (the VM is reused across navigations under the host activity's `viewModelStore`).
+     * How many boards the edited user-tea currently sits on; drives the
+     * "Изменения видны во всех подборках" caption (shown when > 1, decisions.md #42). Zero in
+     * add mode and while the load is in flight.
      */
-    fun bind(boardId: String, teaId: String? = null) {
+    private val _placementCount = MutableStateFlow(0)
+    val placementCount: StateFlow<Int> = _placementCount.asStateFlow()
+
+    /**
+     * Binds the form. Always resets first so a recomposition with new ids cannot leak stale
+     * state from a previous binding (the VM is reused across navigations under the host
+     * activity's `viewModelStore`). The tea load is async — the form stays empty until the
+     * load resolves and we double-check the binding hasn't changed in between.
+     */
+    fun bind(boardId: String? = null, teaId: String? = null) {
         this.boardId.value = boardId
         _editingTeaId.value = teaId
-        _form.value = if (teaId != null) {
-            repository.tea(boardId, teaId)?.toForm() ?: AddTeaForm()
-        } else {
-            AddTeaForm()
+        _form.value = AddTeaForm()
+        _placementCount.value = 0
+        if (teaId != null) {
+            viewModelScope.launch {
+                val tea = repository.tea(teaId)
+                val count = repository.placementCountForTea(teaId)
+                if (_editingTeaId.value == teaId) {
+                    _form.value = tea?.toForm() ?: AddTeaForm()
+                    _placementCount.value = count
+                }
+            }
         }
     }
 
@@ -86,16 +102,30 @@ class AddTeaViewModel @Inject constructor(
     /** Persists the tea (insert in add mode, in-place update in edit mode), then [onSaved]. */
     fun submit(onSaved: () -> Unit) {
         val form = _form.value
-        val board = boardId.value
-        if (board == null || !form.isValid) return
+        if (!form.isValid) return
         val editing = _editingTeaId.value
+        val board = boardId.value
         viewModelScope.launch {
-            if (editing == null) {
+            if (editing != null) {
+                repository.updateTea(editing, form.toTea())
+            } else if (board != null) {
                 repository.addTea(board, form.toTea(), form.tierId)
             } else {
-                repository.updateTea(board, editing, form.toTea())
+                return@launch
             }
             onSaved()
+        }
+    }
+
+    /**
+     * Deletes the user-tea everywhere from the edit screen — every board the tea sits on loses
+     * its placement (FK cascade). Destructive; the screen gates this behind a confirm dialog.
+     */
+    fun deleteTea(onDeleted: () -> Unit) {
+        val editing = _editingTeaId.value ?: return
+        viewModelScope.launch {
+            repository.deleteTea(editing)
+            onDeleted()
         }
     }
 }

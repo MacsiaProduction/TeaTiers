@@ -37,25 +37,47 @@ class BoardViewModelTest {
     }
 
     @Test
-    fun `moveTea forwards the bound board id to the repository`() = runTest {
+    fun `movePlacement forwards the bound board id to the repository`() = runTest {
         coEvery { repository.moveTea(any(), any(), any(), any()) } just Runs
         val viewModel = BoardViewModel(repository)
         viewModel.bind("b")
 
-        viewModel.moveTea(teaId = "t1", targetTierId = "a", targetIndex = 2)
+        viewModel.movePlacement(placementId = "p1", targetTierId = "a", targetIndex = 2)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.moveTea(eq("b"), eq("t1"), eq("a"), eq(2)) }
+        coVerify(exactly = 1) { repository.moveTea(eq("b"), eq("p1"), eq("a"), eq(2)) }
     }
 
     @Test
-    fun `moveTea is a no-op when no board is bound`() = runTest {
+    fun `movePlacement is a no-op when no board is bound`() = runTest {
         val viewModel = BoardViewModel(repository)
 
-        viewModel.moveTea(teaId = "t1", targetTierId = "a", targetIndex = 0)
+        viewModel.movePlacement(placementId = "p1", targetTierId = "a", targetIndex = 0)
         advanceUntilIdle()
 
         coVerify(exactly = 0) { repository.moveTea(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `removePlacement forwards to the repository (no boardId needed)`() = runTest {
+        coEvery { repository.removePlacement(any()) } just Runs
+        val viewModel = BoardViewModel(repository)
+
+        viewModel.removePlacement("p1")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.removePlacement(eq("p1")) }
+    }
+
+    @Test
+    fun `deleteTea forwards to the repository`() = runTest {
+        coEvery { repository.deleteTea(any()) } just Runs
+        val viewModel = BoardViewModel(repository)
+
+        viewModel.deleteTea("tea-1")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteTea(eq("tea-1")) }
     }
 
     @Test

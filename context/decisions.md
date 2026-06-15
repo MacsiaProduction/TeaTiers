@@ -546,3 +546,52 @@ deviated.
     - **Pure-JVM tests cover** each template's seeded tier set and order, the blank-label no-op,
       tier-id namespacing across two F-S boards, and the VM forwarding the right
       `(label, template)` to the repository.
+
+## 2026-06-15 (addendum 15) — shared user-tea collection across boards
+
+42. **Teas are now user-global, not board-scoped (reopens #34)** — brainstorm point A,
+    `context/brainstorming.md`. A tea (Да Хун Пао you bought once) is one row in the user's
+    collection; it can sit on N boards through N **placements**. Editing the tea's notes,
+    flavor, photos (later), or purchase locations on the edit screen ripples to every board
+    the tea is on, so the user never re-types the same data per board. This is the model the
+    brainstorm called for and supersedes the board-scoped TeaEntity from #34.
+    - **Schema:** new `placements(boardId FK, teaId FK, tierId?, position, UNIQUE(boardId, teaId))`
+      table; `teas` drops `boardId/tierId/position`. The UNIQUE enforces "one tea cannot sit
+      on the same board twice". Placements have **no FK to `tiers`** (only the board FK
+      cascades) — same trade-off as #39, so removeTier explicitly reassigns placements to the
+      tray inside one transaction. `BoardWithChildren` now nests `placements: List<PlacementWithTea>`
+      and the placement → tea side is 1:1 by FK + UNIQUE.
+    - **Migration is destructive** (DB version 1 → 2; `fallbackToDestructiveMigration(dropAllTables = true)`):
+      pre-launch the only durable user data is sample seed; a real `Migration(1, 2)` becomes
+      mandatory before we ship to a real user.
+    - **Resolve-or-create on add (auto-link).** `TeaBoardRepository.addTea(boardId, tea, tier?)`
+      first looks for an existing user-tea by name; on a hit it reuses that user-tea (does **not**
+      overwrite its fields) and only inserts a new placement, on a miss it inserts both. Match
+      key is the first non-blank of `(nameRu trimmed, nameZh trimmed, pinyin trimmed)`,
+      Unicode-case-insensitive on `nameRu` and `pinyin`. Done in Kotlin (not SQLite) because
+      built-in `LOWER` is ASCII-only and would silently miss Russian uppercase.
+    - **Two delete paths:** "Убрать с подборки" deletes one placement (tea row stays, other
+      boards keep their copy); "Удалить чай совсем" deletes the user-tea (FK cascade drops every
+      placement, flavor, purchase). The destructive option is always confirmation-gated. Both
+      live in a per-card overflow menu on the board, plus a top-bar overflow on detail/edit.
+    - **Routing is by `teaId`.** `Destination.TeaDetail(teaId)` and `Destination.EditTea(teaId)`
+      drop their old `boardId` — the user-tea is shared, so detail/edit are board-agnostic.
+      `Destination.AddTea(boardId)` keeps its board id (the new placement targets that board).
+    - **Ripple notice** on the edit screen ("Изменения видны во всех подборках, где есть этот
+      чай.") is shown only when `placementCountForTea(teaId) > 1` — a single-placement tea has
+      no ripple to warn about.
+    - **Drag handle is the placement, not the tea.** `BoardDragState`/`computeMovePlacements`
+      operate on `placementId` so moving a tea on board A never affects the same tea on board
+      B. `BoardModels.TierWithPlacements` (renamed from `TierWithTeas`) carries `Placement`
+      instead of `Tea`.
+    - **SampleBoardProvider also fixed.** Tier ids in seed boards are now namespaced by board
+      (e.g. `"favorites-s"`, `"oolongs-s"`) — without this the global PK on `TierEntity` would
+      have crashed the seed transaction the moment a second board referenced `"s"` again.
+      That bug shipped silently with #34 (only one board ever seeded); the migration to v2
+      surfaces and fixes it.
+    - **Pure-JVM tests cover** the resolve-or-create match (Russian uppercase + whitespace),
+      `removePlacement` keeping the user-tea visible on other boards, `deleteTea` cascading,
+      `placementCountForTea`, `updateTea` rippling across boards, the placement-keyed
+      `computeMovePlacements`, the placement-aware `Mappers`/`toSeedEntities` (one tea row +
+      multiple placements), and the new VM surface (`movePlacement` / `removePlacement` /
+      `deleteTea` / `placementCount`).

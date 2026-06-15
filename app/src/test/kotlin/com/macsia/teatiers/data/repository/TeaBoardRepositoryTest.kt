@@ -5,6 +5,7 @@ import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
@@ -24,21 +25,29 @@ import org.junit.jupiter.api.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TeaBoardRepositoryTest {
 
-    private fun tea(id: String, type: TeaType = TeaType.GREEN) = Tea(id = id, nameRu = id, type = type)
+    private fun tea(id: String, type: TeaType = TeaType.GREEN, nameRu: String = id) =
+        Tea(id = id, nameRu = nameRu, type = type)
 
+    private fun place(boardId: String, tea: Tea): Placement =
+        Placement(placementId = "$boardId-${tea.id}", tea = tea)
+
+    /** A tiny seed board used by most tests; tiers s + a, one ranked tea, one tray tea. */
     private val seededBoard = Board(
         id = "b",
         name = "Доска",
         tiers = listOf(Tier("s", "S", 0), Tier("a", "A", 1)),
-        placements = mapOf("s" to listOf(tea("green")), "a" to emptyList()),
-        unranked = listOf(tea("tray")),
+        placements = mapOf(
+            "s" to listOf(place("b", tea("green"))),
+            "a" to emptyList(),
+        ),
+        unranked = listOf(place("b", tea("tray"))),
     )
 
     /** Builds a repository over a fake DAO already holding [seededBoard], so init does not re-seed. */
-    private suspend fun TestScope.repositoryWithSeed(): TeaBoardRepository {
+    private suspend fun TestScope.repositoryWithSeed(boards: List<Board> = listOf(seededBoard)): TeaBoardRepository {
         val dao = FakeTeaDao()
-        val seed = listOf(seededBoard).toSeedEntities()
-        dao.seed(seed.boards, seed.tiers, seed.teas, seed.flavors, seed.purchases)
+        val seed = boards.toSeedEntities()
+        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases)
         return TeaBoardRepository(dao, backgroundScope, SampleBoardProvider())
     }
 
@@ -51,21 +60,21 @@ class TeaBoardRepositoryTest {
         assertEquals(listOf("b"), boards.map { it.id })
         val board = boards.single()
         assertEquals(listOf("s", "a"), board.tiers.map { it.id })
-        assertEquals(listOf("green"), board.placements.getValue("s").map { it.nameRu })
-        assertEquals(emptyList<String>(), board.placements.getValue("a").map { it.nameRu })
-        assertEquals(listOf("tray"), board.unranked.map { it.nameRu })
+        assertEquals(listOf("green"), board.placements.getValue("s").map { it.tea.nameRu })
+        assertEquals(emptyList<String>(), board.placements.getValue("a").map { it.tea.nameRu })
+        assertEquals(listOf("tray"), board.unranked.map { it.tea.nameRu })
     }
 
     @Test
-    fun `addTea places a tea in a known tier`() = runTest(UnconfinedTestDispatcher()) {
+    fun `addTea places a brand-new tea in a known tier`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
-        repository.addTea("b", tea("oolong", TeaType.OOLONG), tierId = "a")
+        repository.addTea("b", tea("oolong", TeaType.OOLONG, nameRu = "Улун"), tierId = "a")
         advanceUntilIdle()
 
         val board = repository.boards.value.single()
-        assertEquals(listOf("oolong"), board.placements.getValue("a").map { it.nameRu })
+        assertEquals(listOf("Улун"), board.placements.getValue("a").map { it.tea.nameRu })
     }
 
     @Test
@@ -73,48 +82,145 @@ class TeaBoardRepositoryTest {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
-        repository.addTea("b", tea("ghost"), tierId = "does-not-exist")
+        repository.addTea("b", tea("ghost", nameRu = "Призрак"), tierId = "does-not-exist")
         advanceUntilIdle()
 
         val board = repository.boards.value.single()
-        assertTrue(board.unranked.any { it.nameRu == "ghost" })
-        assertTrue(board.placements.values.flatten().none { it.nameRu == "ghost" })
+        assertTrue(board.unranked.any { it.tea.nameRu == "Призрак" })
+        assertTrue(board.placements.values.flatten().none { it.tea.nameRu == "Призрак" })
     }
 
     @Test
-    fun `tea lookup resolves a tea by board and id`() = runTest(UnconfinedTestDispatcher()) {
-        val repository = repositoryWithSeed()
+    fun `addTea auto-links to an existing user-tea by Russian name match`() = runTest(UnconfinedTestDispatcher()) {
+        // Two boards so the dedup is observable: adding a same-named tea on board2 must reuse
+        // the user-tea row introduced by board1's seed.
+        val board1 = seededBoard
+        val board2 = Board(
+            id = "b2",
+            name = "Доска 2",
+            tiers = listOf(Tier("b2-s", "S", 0)),
+            placements = emptyMap(),
+            unranked = emptyList(),
+        )
+        val repository = repositoryWithSeed(listOf(board1, board2))
         advanceUntilIdle()
 
-        // Seeded teas carry a board-unique id ("<boardId>-<teaId>").
-        assertEquals("green", repository.tea("b", "b-green")?.nameRu)
-        assertEquals(null, repository.tea("b", "missing"))
+        // Same name (case + whitespace different on purpose) as the seeded "green" tea.
+        repository.addTea("b2", tea("brand-new-id", nameRu = "  GREEN  "), tierId = "b2-s")
+        advanceUntilIdle()
+
+        val placedOnBoard2 = repository.boards.value.first { it.id == "b2" }
+            .placements.getValue("b2-s").single()
+        // The auto-link reused the original tea id ("green"), not the throwaway candidate id.
+        assertEquals("green", placedOnBoard2.tea.id)
+        // Editing one ripples to the other (verified separately) — for now just confirm both
+        // boards reference the same user-tea id.
+        val onBoard1 = repository.boards.value.first { it.id == "b" }
+            .placements.getValue("s").single()
+        assertEquals(onBoard1.tea.id, placedOnBoard2.tea.id)
     }
 
     @Test
-    fun `moveTea re-ranks a tea into another tier`() = runTest(UnconfinedTestDispatcher()) {
+    fun `tea lookup resolves a user-tea by id from any board`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
-        repository.moveTea("b", teaId = "b-green", targetTierId = "a", targetIndex = 0)
+        assertEquals("green", repository.tea("green")?.nameRu)
+        assertNull(repository.tea("missing"))
+    }
+
+    @Test
+    fun `moveTea re-ranks a placement into another tier`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.moveTea("b", placementId = "b-green", targetTierId = "a", targetIndex = 0)
         advanceUntilIdle()
 
         val board = repository.boards.value.single()
-        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.nameRu })
-        assertEquals(listOf("green"), board.placements.getValue("a").map { it.nameRu })
+        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.tea.nameRu })
+        assertEquals(listOf("green"), board.placements.getValue("a").map { it.tea.nameRu })
     }
 
     @Test
-    fun `moveTea can drop a tea back into the unranked tray`() = runTest(UnconfinedTestDispatcher()) {
+    fun `moveTea can drop a placement back into the unranked tray`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
-        repository.moveTea("b", teaId = "b-green", targetTierId = null, targetIndex = 0)
+        repository.moveTea("b", placementId = "b-green", targetTierId = null, targetIndex = 0)
         advanceUntilIdle()
 
         val board = repository.boards.value.single()
-        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.nameRu })
-        assertTrue(board.unranked.any { it.nameRu == "green" })
+        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.tea.nameRu })
+        assertTrue(board.unranked.any { it.tea.nameRu == "green" })
+    }
+
+    @Test
+    fun `removePlacement drops one placement but keeps the user-tea everywhere else`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val board1 = seededBoard
+            val board2 = Board(
+                id = "b2",
+                name = "Доска 2",
+                tiers = listOf(Tier("b2-s", "S", 0)),
+                placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+                unranked = emptyList(),
+            )
+            val repository = repositoryWithSeed(listOf(board1, board2))
+            advanceUntilIdle()
+
+            repository.removePlacement("b-green")
+            advanceUntilIdle()
+
+            val onBoard1 = repository.boards.value.first { it.id == "b" }
+            val onBoard2 = repository.boards.value.first { it.id == "b2" }
+            // Board 1 lost the placement; board 2 kept its own.
+            assertTrue(onBoard1.placements.getValue("s").isEmpty())
+            assertTrue(onBoard1.unranked.none { it.tea.id == "green" })
+            assertEquals(listOf("green"), onBoard2.placements.getValue("b2-s").map { it.tea.id })
+            // The user-tea row is still present.
+            assertNotNull(repository.tea("green"))
+        }
+
+    @Test
+    fun `deleteTea cascades to every placement on every board`() = runTest(UnconfinedTestDispatcher()) {
+        val board1 = seededBoard
+        val board2 = Board(
+            id = "b2",
+            name = "Доска 2",
+            tiers = listOf(Tier("b2-s", "S", 0)),
+            placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+            unranked = emptyList(),
+        )
+        val repository = repositoryWithSeed(listOf(board1, board2))
+        advanceUntilIdle()
+
+        repository.deleteTea("green")
+        advanceUntilIdle()
+
+        repository.boards.value.forEach { board ->
+            assertTrue(board.placements.values.flatten().none { it.tea.id == "green" })
+            assertTrue(board.unranked.none { it.tea.id == "green" })
+        }
+        assertNull(repository.tea("green"))
+    }
+
+    @Test
+    fun `placementCountForTea reports how many boards a tea sits on`() = runTest(UnconfinedTestDispatcher()) {
+        val board1 = seededBoard
+        val board2 = Board(
+            id = "b2",
+            name = "Доска 2",
+            tiers = listOf(Tier("b2-s", "S", 0)),
+            placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+            unranked = emptyList(),
+        )
+        val repository = repositoryWithSeed(listOf(board1, board2))
+        advanceUntilIdle()
+
+        assertEquals(2, repository.placementCountForTea("green"))
+        assertEquals(1, repository.placementCountForTea("tray"))
+        assertEquals(0, repository.placementCountForTea("missing"))
     }
 
     @Test
@@ -170,7 +276,7 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
-    fun `removeTier deletes the tier and drops its teas into the tray`() = runTest(UnconfinedTestDispatcher()) {
+    fun `removeTier deletes the tier and drops its placements into the tray`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
@@ -179,7 +285,7 @@ class TeaBoardRepositoryTest {
 
         val board = repository.boards.value.single()
         assertEquals(listOf("a"), board.tiers.map { it.id })
-        assertTrue(board.unranked.any { it.nameRu == "green" })
+        assertTrue(board.unranked.any { it.tea.nameRu == "green" })
     }
 
     @Test
@@ -205,13 +311,13 @@ class TeaBoardRepositoryTest {
                 ),
             )
 
-            repository.updateTea("b", teaId = "b-green", tea = edited)
+            repository.updateTea(teaId = "green", tea = edited)
             advanceUntilIdle()
 
             val board = repository.boards.value.single()
             // tier + position are preserved (still in tier "s") even though the form rewrote everything else
-            assertEquals(listOf("Зелёный (новое)"), board.placements.getValue("s").map { it.nameRu })
-            val updated = board.placements.getValue("s").single()
+            assertEquals(listOf("Зелёный (новое)"), board.placements.getValue("s").map { it.tea.nameRu })
+            val updated = board.placements.getValue("s").single().tea
             assertEquals(TeaType.OOLONG, updated.type)
             assertEquals("Фуцзянь", updated.origin)
             assertEquals("ред.", updated.notes)
@@ -220,10 +326,35 @@ class TeaBoardRepositoryTest {
             assertEquals(2, updated.purchaseLocations.size)
             assertTrue(updated.purchaseLocations[0] is PurchaseLocation.FreeText)
             assertTrue(updated.purchaseLocations[1] is PurchaseLocation.Marketplace)
-            // tray and the other tier are unaffected
-            assertEquals(listOf("tray"), board.unranked.map { it.nameRu })
+            assertEquals(listOf("tray"), board.unranked.map { it.tea.nameRu })
             assertTrue(board.placements.getValue("a").isEmpty())
         }
+
+    @Test
+    fun `updateTea ripples to every board the tea sits on`() = runTest(UnconfinedTestDispatcher()) {
+        val board1 = seededBoard
+        val board2 = Board(
+            id = "b2",
+            name = "Доска 2",
+            tiers = listOf(Tier("b2-s", "S", 0)),
+            placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+            unranked = emptyList(),
+        )
+        val repository = repositoryWithSeed(listOf(board1, board2))
+        advanceUntilIdle()
+
+        val edited = tea("green", nameRu = "Зелёный (новое)")
+        repository.updateTea(teaId = "green", tea = edited)
+        advanceUntilIdle()
+
+        // Both boards now show the new name on their respective placements.
+        val onBoard1 = repository.boards.value.first { it.id == "b" }
+            .placements.getValue("s").single().tea.nameRu
+        val onBoard2 = repository.boards.value.first { it.id == "b2" }
+            .placements.getValue("b2-s").single().tea.nameRu
+        assertEquals("Зелёный (новое)", onBoard1)
+        assertEquals("Зелёный (новое)", onBoard2)
+    }
 
     @Test
     fun `updateTea on an unknown tea is a no-op`() = runTest(UnconfinedTestDispatcher()) {
@@ -231,7 +362,7 @@ class TeaBoardRepositoryTest {
         advanceUntilIdle()
         val before = repository.boards.value
 
-        repository.updateTea("b", teaId = "missing", tea = tea("ghost"))
+        repository.updateTea(teaId = "missing", tea = tea("ghost"))
         advanceUntilIdle()
 
         assertEquals(before, repository.boards.value)
@@ -307,9 +438,7 @@ class TeaBoardRepositoryTest {
 
             val first = repository.boards.value.first { it.id == firstId }
             val second = repository.boards.value.first { it.id == secondId }
-            // Same labels...
             assertEquals(first.tiers.map { it.label }, second.tiers.map { it.label })
-            // ...but disjoint ids (the global PK constraint would otherwise break the second insert).
             assertTrue(first.tiers.map { it.id }.intersect(second.tiers.map { it.id }.toSet()).isEmpty())
         }
 }

@@ -6,9 +6,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Room schema for the local tier-list store (M1). Teas are board-scoped: each placement is its
- * own row keyed by a board-unique id, mirroring the in-memory aggregate the UI already consumes.
- * A shared tea catalog (one tea on many boards) is a later milestone (M2/M4 with the backend).
+ * Room schema for the local store. After the shared-teas reopening (decisions.md #42) teas are
+ * **user-global**: each [TeaEntity] is one user-tea, and a separate [PlacementEntity] tracks
+ * "this tea sits on this board in this tier at this slot". The same user-tea can therefore
+ * appear on N boards via N placements, while edits to its name/notes/flavor/purchases ripple
+ * to every board automatically.
+ *
+ * Schema bump from v1 (board-scoped teas) is destructive (decisions.md #42): on first launch
+ * after upgrade Room drops everything and the [com.macsia.teatiers.data.sample.SampleBoardProvider]
+ * reseeds. Acceptable while we are pre-launch and the only real state is sample data.
  *
  * Enum-valued columns hold the enum `name` as text (decisions.md #10/#23) and are converted in
  * the mappers, so no TypeConverter is needed and a renamed enum fails loudly at mapping time.
@@ -41,24 +47,14 @@ data class TierEntity(
     val colorArgb: Long?,
 )
 
-@Entity(
-    tableName = "teas",
-    foreignKeys = [
-        ForeignKey(
-            entity = BoardEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["boardId"],
-            onDelete = ForeignKey.CASCADE,
-        ),
-    ],
-    indices = [Index("boardId"), Index("tierId")],
-)
+/**
+ * The user-tea pool. After the shared-teas reopening this row is no longer tied to any
+ * particular board — placement is tracked separately in [PlacementEntity]. [shortBlurb] stays
+ * here because it is catalog/AI-derived (decisions.md #25), not user-typed.
+ */
+@Entity(tableName = "teas")
 data class TeaEntity(
     @PrimaryKey val id: String,
-    val boardId: String,
-    // null => the board's unranked tray; otherwise the owning TierEntity.id.
-    val tierId: String?,
-    val position: Int,
     val nameRu: String,
     val nameZh: String?,
     val pinyin: String?,
@@ -69,9 +65,46 @@ data class TeaEntity(
     val notes: String?,
 )
 
+/**
+ * One tea on one board. [tierId] is null when the placement sits in the unranked tray; it has
+ * **no FK to tiers** on purpose (the tier editor's removeTier reassigns placements to the tray
+ * inside one transaction — decisions.md #39 — so a cascade would orphan teas off-board).
+ *
+ * UNIQUE(boardId, teaId) enforces the brainstorm invariant: the same user-tea cannot be
+ * declared twice on the same board (decisions.md #42).
+ */
+@Entity(
+    tableName = "placements",
+    foreignKeys = [
+        ForeignKey(
+            entity = BoardEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["boardId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = TeaEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["teaId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["boardId", "teaId"], unique = true),
+        Index("teaId"),
+        Index("tierId"),
+    ],
+)
+data class PlacementEntity(
+    @PrimaryKey val id: String,
+    val boardId: String,
+    val teaId: String,
+    val tierId: String?,
+    val position: Int,
+)
+
 @Entity(
     tableName = "tea_flavors",
-    // Composite PK already indexes teaId as its leftmost column, covering the foreign key.
     primaryKeys = ["teaId", "dimension"],
     foreignKeys = [
         ForeignKey(

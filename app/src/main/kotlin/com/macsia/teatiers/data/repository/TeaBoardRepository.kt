@@ -2,8 +2,10 @@ package com.macsia.teatiers.data.repository
 
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
+import com.macsia.teatiers.data.db.PlacementEntity
+import com.macsia.teatiers.data.db.PlacementMove
 import com.macsia.teatiers.data.db.TeaDao
-import com.macsia.teatiers.data.db.TeaPlacement
+import com.macsia.teatiers.data.db.TeaMatchKeyRow
 import com.macsia.teatiers.data.db.TierEntity
 import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
@@ -12,6 +14,7 @@ import com.macsia.teatiers.data.db.toSeedEntities
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
@@ -26,13 +29,18 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Room-backed single source of truth for boards (M1). Boards are exposed as a hot [StateFlow]
- * collected on the app scope so the synchronous reads below see loaded data and an added tea
- * shows up on every screen at once. State now survives process death; the public surface is
- * unchanged from the Phase 0 in-memory version, so callers did not change.
+ * Room-backed single source of truth for boards (M1; shared-teas reopening per decisions.md
+ * #42). Boards are exposed as a hot [StateFlow] collected on the app scope so the synchronous
+ * reads below see loaded data and an added tea shows up on every screen at once.
+ *
+ * After the shared-teas reopening teas are user-global: each board exposes [Placement]s, the
+ * underlying [Tea] is shared across boards, and edits to a tea ripple to every board it sits
+ * on. New teas auto-link to an existing user-tea by name match (case-insensitive on `nameRu`,
+ * exact on `nameZh`, case-insensitive on `pinyin`, in that order).
  *
  * On first run (empty DB) the store is seeded from [SampleBoardProvider]; later runs read what
- * the user saved.
+ * the user saved. v1 → v2 schema migration is destructive (the builder configures
+ * `fallbackToDestructiveMigration` — acceptable pre-launch).
  */
 @Singleton
 class TeaBoardRepository @Inject constructor(
@@ -49,12 +57,39 @@ class TeaBoardRepository @Inject constructor(
         scope.launch {
             if (dao.boardCount() == 0) {
                 val entities = seed.boards().toSeedEntities()
-                dao.seed(entities.boards, entities.tiers, entities.teas, entities.flavors, entities.purchases)
+                dao.seed(
+                    entities.boards,
+                    entities.tiers,
+                    entities.teas,
+                    entities.placements,
+                    entities.flavors,
+                    entities.purchases,
+                )
             }
         }
     }
 
     fun board(boardId: String): Board? = boards.value.firstOrNull { it.id == boardId }
+
+    /**
+     * Resolves the user-tea by id. Walks the in-memory boards first (placement-side cache, free
+     * if the tea sits on at least one board), then falls back to a DB read so a tea with zero
+     * placements (e.g. removed from every board but not deleted) still resolves on the detail
+     * and edit screens.
+     */
+    suspend fun tea(teaId: String): Tea? {
+        boards.value.forEach { board ->
+            val hit = (board.placements.values.flatten() + board.unranked).firstOrNull { it.tea.id == teaId }
+            if (hit != null) return hit.tea
+        }
+        return dao.loadTea(teaId)?.toDomain()
+    }
+
+    /**
+     * Counts how many boards the user-tea currently sits on. Drives the "Изменения видны во
+     * всех подборках" hint on the edit screen — only shown when this is greater than 1.
+     */
+    suspend fun placementCountForTea(teaId: String): Int = dao.placementCountForTea(teaId)
 
     /**
      * Creates a new board with [label] (trimmed; blank is a no-op returning null) and seeds it
@@ -79,31 +114,68 @@ class TeaBoardRepository @Inject constructor(
         return boardId
     }
 
-    fun tea(boardId: String, teaId: String): Tea? {
-        val board = board(boardId) ?: return null
-        return (board.placements.values.flatten() + board.unranked).firstOrNull { it.id == teaId }
-    }
-
     /**
-     * Appends [tea] to [boardId]. With a known [tierId] the tea joins that tier; an unknown tier
-     * (or null) lands it in the unranked tray.
+     * Adds a placement of [tea] on [boardId]. Resolve-or-create (decisions.md #42): if a
+     * matching user-tea already exists by name we reuse it (no overwrite of its fields), else
+     * we insert a fresh user-tea. With a known [tierId] the placement joins that tier; an
+     * unknown tier (or null) lands it in the unranked tray. No-op when [boardId] is unknown.
      */
     suspend fun addTea(boardId: String, tea: Tea, tierId: String?) {
-        val resolvedTier = tierId?.takeIf { id -> board(boardId)?.tiers?.any { it.id == id } == true }
-        val position = dao.nextTeaPosition(boardId)
-        val entities = tea.toEntities(rowId = tea.id, boardId = boardId, tierId = resolvedTier, position = position)
-        dao.addTea(entities.tea, entities.flavors, entities.purchases)
+        val board = board(boardId) ?: return
+        val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
+        val existingTeaId = resolveTeaIdForMatch(tea)
+
+        // Always generate a fresh teaId for new teas: the candidate id from the form is a
+        // throwaway UUID, but a sample/test caller may pass a sticky id and we don't want
+        // to risk a PK collision — the placement is the user-visible handle anyway.
+        val teaIdToPlace = existingTeaId ?: "tea-${UUID.randomUUID()}"
+        val teaToInsert = if (existingTeaId == null) tea.copy(id = teaIdToPlace).toEntities() else null
+
+        val placementId = "placement-${UUID.randomUUID()}"
+        val position = dao.nextPlacementPosition(boardId)
+        val placementEntity = PlacementEntity(
+            id = placementId,
+            boardId = boardId,
+            teaId = teaIdToPlace,
+            tierId = resolvedTier,
+            position = position,
+        )
+        dao.addTea(
+            tea = teaToInsert?.tea,
+            flavors = teaToInsert?.flavors.orEmpty(),
+            purchases = teaToInsert?.purchases.orEmpty(),
+            placement = placementEntity,
+        )
     }
 
     /**
-     * Drag-to-rank: moves [teaId] within [boardId] to [targetTierId] (null = the unranked tray) at
-     * [targetIndex], the slot among the *other* teas in the target group. An unknown tier falls back
-     * to the tray. No-op when the board or tea is unknown, or the placement would not change.
+     * Drag-to-rank: moves [placementId] within [boardId] to [targetTierId] (null = the unranked
+     * tray) at [targetIndex], the slot among the *other* placements in the target group. An
+     * unknown tier falls back to the tray. No-op when the board or placement is unknown, or
+     * the placement would not change.
      */
-    suspend fun moveTea(boardId: String, teaId: String, targetTierId: String?, targetIndex: Int) {
+    suspend fun moveTea(boardId: String, placementId: String, targetTierId: String?, targetIndex: Int) {
         val board = board(boardId) ?: return
-        val placements = computeMovePlacements(board, teaId, targetTierId, targetIndex)
-        if (placements.isNotEmpty()) dao.applyPlacements(placements)
+        val moves = computeMovePlacements(board, placementId, targetTierId, targetIndex)
+        if (moves.isNotEmpty()) dao.applyPlacements(moves)
+    }
+
+    /**
+     * Removes a single placement (one tea on one board); the user-tea row stays so it remains
+     * visible on every other board it sits on. No-op when the placement is unknown — the DB
+     * delete is idempotent so we don't bother validating against the current snapshot.
+     */
+    suspend fun removePlacement(placementId: String) {
+        dao.removePlacement(placementId)
+    }
+
+    /**
+     * Deletes the user-tea everywhere: removes the tea row and (via FK cascade) every
+     * placement on every board, plus its flavors and purchases. Used by the destructive
+     * "Удалить чай совсем" action on the detail / edit screens.
+     */
+    suspend fun deleteTea(teaId: String) {
+        dao.deleteTea(teaId)
     }
 
     /** Appends a new tier (default ramp color) to the end of [boardId]'s tier list. */
@@ -136,7 +208,7 @@ class TeaBoardRepository @Inject constructor(
         if (positions.isNotEmpty()) dao.reorderTiers(positions)
     }
 
-    /** Removes a tier and drops its teas into the unranked tray (open item #11). */
+    /** Removes a tier and drops its placements into the unranked tray (open item #11). */
     suspend fun removeTier(boardId: String, tierId: String) {
         val board = board(boardId) ?: return
         if (!board.hasTier(tierId)) return
@@ -144,16 +216,16 @@ class TeaBoardRepository @Inject constructor(
     }
 
     /**
-     * Rewrites the editable fields and child rows (flavors, purchases) of [teaId] on [boardId].
-     * The DAO never touches `tierId` / `position` / `boardId` / `shortBlurb`, so editing the form
-     * never moves the tea on the board. No-op when the board or tea is unknown.
+     * Rewrites the editable fields and child rows (flavors, purchases) of [teaId]. The DAO
+     * never touches placements, so editing the form ripples to every board the tea is on
+     * without moving any of them. No-op when the tea is unknown.
      */
-    suspend fun updateTea(boardId: String, teaId: String, tea: Tea) {
-        if (this.tea(boardId, teaId) == null) return
-        // toEntities also builds a TeaEntity, but the DAO @Transaction only reads the scalar
-        // columns from `tea` and never writes the entity itself, so the rowId/boardId/tier/position
-        // values plumbed in here are inert; we still need flavor + purchase rows keyed by teaId.
-        val entities = tea.toEntities(rowId = teaId, boardId = boardId, tierId = null, position = 0)
+    suspend fun updateTea(teaId: String, tea: Tea) {
+        if (tea(teaId) == null) return
+        // toEntities also rebuilds a TeaEntity, but the DAO @Transaction only reads the scalar
+        // columns we pass explicitly and never writes the entity itself, so we just need
+        // flavor + purchase rows keyed by teaId.
+        val entities = tea.toEntities(rowId = teaId)
         dao.updateTea(
             teaId = teaId,
             nameRu = tea.nameRu,
@@ -167,45 +239,90 @@ class TeaBoardRepository @Inject constructor(
             purchases = entities.purchases,
         )
     }
+
+    /**
+     * Tries to find an existing user-tea matching [candidate] by name (decisions.md #42). Picks
+     * the first non-blank match field on the candidate in priority `nameRu` → `nameZh` →
+     * `pinyin`, then returns any user-tea whose same field equals it. Returns null when no
+     * match field is non-blank or no row matches.
+     *
+     * The match is done in Kotlin rather than SQLite because SQLite's built-in `LOWER` is
+     * ASCII-only and would never lower-case Russian uppercase letters; pulling the (small)
+     * candidate set into memory keeps the rule correct without an ICU build.
+     */
+    private suspend fun resolveTeaIdForMatch(candidate: Tea): String? {
+        val candidateKey = candidate.matchKey() ?: return null
+        return dao.loadTeaMatchKeys()
+            .firstOrNull { row -> row.matches(candidateKey) }
+            ?.id
+    }
 }
 
 private fun Board.hasTier(tierId: String): Boolean = tiers.any { it.id == tierId }
 
 /**
- * Pure reorder math for [TeaBoardRepository.moveTea], split out so it is unit-testable without a
- * DAO. Removes [teaId] from its current group, inserts it into the target group (an unknown tier
- * becomes the tray) at [targetIndex] clamped into range, and returns contiguous 0..n positions for
- * every tea in the affected group(s). Ordering within a group is all that matters — [toDomain]
- * sorts by position inside each group — so only touched groups are renumbered. Returns empty when
- * the move changes nothing (tea absent, or already at that exact slot).
+ * The first non-blank name field of a tea, used for resolve-or-create matching. The order
+ * (`nameRu` → `nameZh` → `pinyin`) is also the priority the matcher walks.
+ */
+private sealed class MatchKey {
+    abstract val value: String
+
+    data class Ru(override val value: String) : MatchKey()
+    data class Zh(override val value: String) : MatchKey()
+    data class Py(override val value: String) : MatchKey()
+}
+
+private fun Tea.matchKey(): MatchKey? {
+    nameRu.trim().lowercase().takeIf { it.isNotEmpty() }?.let { return MatchKey.Ru(it) }
+    nameZh?.trim()?.takeIf { it.isNotEmpty() }?.let { return MatchKey.Zh(it) }
+    pinyin?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }?.let { return MatchKey.Py(it) }
+    return null
+}
+
+private fun TeaMatchKeyRow.matches(candidate: MatchKey): Boolean = when (candidate) {
+    is MatchKey.Ru -> nameRu.trim().lowercase() == candidate.value
+    is MatchKey.Zh -> nameZh?.trim() == candidate.value
+    is MatchKey.Py -> pinyin?.trim()?.lowercase() == candidate.value
+}
+
+/**
+ * Pure reorder math for [TeaBoardRepository.moveTea], split out so it is unit-testable without
+ * a DAO. Removes [placementId] from its current group, inserts it into the target group (an
+ * unknown tier becomes the tray) at [targetIndex] clamped into range, and returns contiguous
+ * 0..n positions for every placement in the affected group(s). Ordering within a group is all
+ * that matters — [BoardWithChildren.toDomain] sorts by position inside each group — so only
+ * touched groups are renumbered. Returns empty when the move changes nothing (placement
+ * absent, or already at that exact slot).
  */
 internal fun computeMovePlacements(
     board: Board,
-    teaId: String,
+    placementId: String,
     targetTierId: String?,
     targetIndex: Int,
-): List<TeaPlacement> {
+): List<PlacementMove> {
     val target = if (targetTierId != null && board.tiers.any { tier -> tier.id == targetTierId }) targetTierId else null
 
     val groups = LinkedHashMap<String?, MutableList<String>>()
-    board.tiers.forEach { tier -> groups[tier.id] = board.placements[tier.id].orEmpty().map { it.id }.toMutableList() }
-    groups[null] = board.unranked.map { it.id }.toMutableList()
+    board.tiers.forEach { tier ->
+        groups[tier.id] = board.placements[tier.id].orEmpty().map { it.placementId }.toMutableList()
+    }
+    groups[null] = board.unranked.map { it.placementId }.toMutableList()
 
     // Resolve the source entry before reading its key: the tray's key is null, so an elvis on
-    // `?.key` would treat "tea sits in the tray" the same as "tea not found" and bail out.
-    val sourceEntry = groups.entries.firstOrNull { it.value.contains(teaId) } ?: return emptyList()
+    // `?.key` would treat "placement sits in the tray" the same as "placement not found".
+    val sourceEntry = groups.entries.firstOrNull { it.value.contains(placementId) } ?: return emptyList()
     val sourceKey = sourceEntry.key
     val sourceList = sourceEntry.value
-    val sourceIndex = sourceList.indexOf(teaId)
-    sourceList.remove(teaId)
+    val sourceIndex = sourceList.indexOf(placementId)
+    sourceList.remove(placementId)
 
     val targetList = groups.getValue(target)
     val index = targetIndex.coerceIn(0, targetList.size)
     if (sourceKey == target && index == sourceIndex) return emptyList()
-    targetList.add(index, teaId)
+    targetList.add(index, placementId)
 
     return setOf(sourceKey, target).flatMap { key ->
-        groups.getValue(key).mapIndexed { position, id -> TeaPlacement(id, key, position) }
+        groups.getValue(key).mapIndexed { position, id -> PlacementMove(id, key, position) }
     }
 }
 
@@ -225,13 +342,14 @@ internal fun computeTierPositions(board: Board, orderedTierIds: List<String>): L
 }
 
 /**
- * Pure helper for [TeaBoardRepository.removeTier]: the removed tier's teas join the unranked tray
- * after the teas already there, and the whole tray is renumbered to contiguous 0..n so positions
- * never collide. Empty when the tier holds no teas (the tier is then simply deleted).
+ * Pure helper for [TeaBoardRepository.removeTier]: the removed tier's placements join the
+ * unranked tray after the placements already there, and the whole tray is renumbered to
+ * contiguous 0..n so positions never collide. Empty when the tier holds no placements (the
+ * tier is then simply deleted).
  */
-internal fun computeTrayReassignment(board: Board, removedTierId: String): List<TeaPlacement> {
-    val removed = board.placements[removedTierId].orEmpty().map { it.id }
+internal fun computeTrayReassignment(board: Board, removedTierId: String): List<PlacementMove> {
+    val removed = board.placements[removedTierId].orEmpty().map { it.placementId }
     if (removed.isEmpty()) return emptyList()
-    val trayOrder = board.unranked.map { it.id } + removed
-    return trayOrder.mapIndexed { position, id -> TeaPlacement(id, null, position) }
+    val trayOrder = board.unranked.map { it.placementId } + removed
+    return trayOrder.mapIndexed { position, id -> PlacementMove(id, null, position) }
 }

@@ -48,6 +48,8 @@ class AddTeaViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { repository.boards } returns MutableStateFlow(listOf(board))
+        // Default for any code path that calls placementCountForTea(teaId) (e.g. bind on edit).
+        coEvery { repository.placementCountForTea(any()) } returns 1
     }
 
     @AfterEach
@@ -60,7 +62,7 @@ class AddTeaViewModelTest {
         val viewModel = AddTeaViewModel(repository)
 
         viewModel.tiers.test {
-            viewModel.bind("b")
+            viewModel.bind(boardId = "b")
             // the StateFlow starts empty; wait for the first emission carrying the bound tiers
             var tiers = awaitItem()
             while (tiers.isEmpty()) tiers = awaitItem()
@@ -73,7 +75,7 @@ class AddTeaViewModelTest {
     fun `submit persists the mapped tea and notifies on success`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } just Runs
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b")
+        viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао", tierId = "a") }
 
         var saved = false
@@ -89,7 +91,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit is a no-op when the ru name is blank`() = runTest {
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b")
+        viewModel.bind(boardId = "b")
 
         var saved = false
         viewModel.submit { saved = true }
@@ -100,8 +102,9 @@ class AddTeaViewModelTest {
     }
 
     @Test
-    fun `submit is a no-op when no board is bound`() = runTest {
+    fun `submit is a no-op when no board is bound (add flow)`() = runTest {
         val viewModel = AddTeaViewModel(repository)
+        // Add flow with no boardId means we cannot place anywhere — submit must bail.
         viewModel.update { it.copy(nameRu = "Чай") }
 
         var saved = false
@@ -115,7 +118,7 @@ class AddTeaViewModelTest {
     @Test
     fun `purchase helpers add update and remove drafts`() = runTest {
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b")
+        viewModel.bind(boardId = "b")
 
         viewModel.addPurchase()
         viewModel.addPurchase()
@@ -132,7 +135,7 @@ class AddTeaViewModelTest {
     @Test
     fun `purchase helpers ignore out-of-range indices`() = runTest {
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b")
+        viewModel.bind(boardId = "b")
 
         viewModel.removePurchase(5)
         viewModel.updatePurchase(7) { it.copy(text = "noop") }
@@ -141,7 +144,7 @@ class AddTeaViewModelTest {
     }
 
     @Test
-    fun `bind in edit mode prefills the form from the tea`() = runTest {
+    fun `bind in edit mode prefills the form from the user-tea`() = runTest {
         val tea = Tea(
             id = "t1",
             nameRu = "Да Хун Пао",
@@ -151,10 +154,12 @@ class AddTeaViewModelTest {
             notes = "после обеда",
             purchaseLocations = listOf(PurchaseLocation.FreeText("Рынок", "поездка")),
         )
-        every { repository.tea(eq("b"), eq("t1")) } returns tea
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.placementCountForTea(eq("t1")) } returns 1
         val viewModel = AddTeaViewModel(repository)
 
-        viewModel.bind("b", teaId = "t1")
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
 
         val form = viewModel.form.value
         assertEquals("Да Хун Пао", form.nameRu)
@@ -163,15 +168,31 @@ class AddTeaViewModelTest {
         assertEquals(1, form.purchases.size)
         assertEquals("Рынок", form.purchases[0].text)
         assertEquals("t1", viewModel.editingTeaId.value)
+        assertEquals(1, viewModel.placementCount.value)
     }
 
     @Test
-    fun `submit in edit mode calls updateTea, not addTea`() = runTest {
+    fun `placementCount is exposed for the ripple caption`() = runTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
-        every { repository.tea(eq("b"), eq("t1")) } returns tea
-        coEvery { repository.updateTea(any(), any(), any()) } just Runs
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.placementCountForTea(eq("t1")) } returns 3
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b", teaId = "t1")
+
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.placementCount.value)
+    }
+
+    @Test
+    fun `submit in edit mode calls updateTea (no boardId), not addTea`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.placementCountForTea(eq("t1")) } returns 2
+        coEvery { repository.updateTea(any(), any()) } just Runs
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
         viewModel.update { it.copy(nameRu = "Новый чай", notes = "обновлено") }
 
         var saved = false
@@ -181,7 +202,6 @@ class AddTeaViewModelTest {
         assertTrue(saved)
         coVerify(exactly = 1) {
             repository.updateTea(
-                eq("b"),
                 eq("t1"),
                 match { it.nameRu == "Новый чай" && it.notes == "обновлено" },
             )
@@ -192,16 +212,50 @@ class AddTeaViewModelTest {
     @Test
     fun `bind clears the form when re-binding to a fresh add flow`() = runTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN, notes = "заметка")
-        every { repository.tea(eq("b"), eq("t1")) } returns tea
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.placementCountForTea(eq("t1")) } returns 1
         val viewModel = AddTeaViewModel(repository)
-        viewModel.bind("b", teaId = "t1")
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
         // simulate the user navigating away from edit and into the add flow on the same VM
-        viewModel.bind("b")
+        viewModel.bind(boardId = "b")
 
         val form = viewModel.form.value
         assertEquals("", form.nameRu)
         assertEquals("", form.notes)
         assertTrue(form.purchases.isEmpty())
         assertEquals(null, viewModel.editingTeaId.value)
+        assertEquals(0, viewModel.placementCount.value)
+    }
+
+    @Test
+    fun `deleteTea forwards to the repository and notifies on success`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.placementCountForTea(eq("t1")) } returns 1
+        coEvery { repository.deleteTea(eq("t1")) } just Runs
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        var deleted = false
+        viewModel.deleteTea { deleted = true }
+        advanceUntilIdle()
+
+        assertTrue(deleted)
+        coVerify(exactly = 1) { repository.deleteTea(eq("t1")) }
+    }
+
+    @Test
+    fun `deleteTea is a no-op when not in edit mode`() = runTest {
+        val viewModel = AddTeaViewModel(repository)
+        viewModel.bind(boardId = "b")
+
+        var deleted = false
+        viewModel.deleteTea { deleted = true }
+        advanceUntilIdle()
+
+        assertFalse(deleted)
+        coVerify(exactly = 0) { repository.deleteTea(any()) }
     }
 }

@@ -54,7 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.viewmodel.BoardViewModel
-import com.macsia.teatiers.viewmodel.TierWithTeas
+import com.macsia.teatiers.viewmodel.TierWithPlacements
 
 private val ScreenInset = 16.dp
 private val InkOnLight = Color(0xFF1E1B16)
@@ -87,7 +87,7 @@ fun TierEditorScreen(
     val newTierLabel = stringResource(R.string.tier_new_label)
 
     var colorDialogTierId by remember { mutableStateOf<String?>(null) }
-    var deleteDialogTier by remember { mutableStateOf<TierWithTeas?>(null) }
+    var deleteDialogTier by remember { mutableStateOf<TierWithPlacements?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -172,7 +172,7 @@ fun TierEditorScreen(
 
 @Composable
 private fun TierEditRow(
-    row: TierWithTeas,
+    row: TierWithPlacements,
     rampColor: Color,
     isFirst: Boolean,
     isLast: Boolean,

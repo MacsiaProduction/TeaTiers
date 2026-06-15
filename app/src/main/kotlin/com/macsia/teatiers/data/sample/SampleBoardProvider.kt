@@ -12,6 +12,7 @@ import com.macsia.teatiers.domain.model.FlavorDimension.SMOKY
 import com.macsia.teatiers.domain.model.FlavorDimension.SWEETNESS
 import com.macsia.teatiers.domain.model.FlavorDimension.UMAMI
 import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
@@ -21,54 +22,74 @@ import javax.inject.Inject
 /**
  * Demo content used to seed the Room store on first run (M1) so the screens open with real,
  * multilingual teas until the catalog API (M2/M4) exists. Pure data, no I/O.
+ *
+ * Tea instances are referenced from multiple boards on purpose (decisions.md #42): the mapper
+ * deduplicates by [Tea.id] so a tea appears once in the user-tea pool with N placements.
  */
 class SampleBoardProvider @Inject constructor() {
 
     fun boards(): List<Board> = listOf(favorites(), oolongs(), tasting())
 
-    private fun defaultTiers(): List<Tier> = listOf(
-        Tier(id = "s", label = "S", position = 0),
-        Tier(id = "a", label = "A", position = 1),
-        Tier(id = "b", label = "B", position = 2),
-        Tier(id = "c", label = "C", position = 3),
-        Tier(id = "d", label = "D", position = 4),
+    /**
+     * Tier ids are namespaced by [boardId] because [com.macsia.teatiers.data.db.TierEntity.id]
+     * is a global primary key — without the prefix every seed board would collide on `"s"`.
+     */
+    private fun defaultTiers(boardId: String): List<Tier> = listOf(
+        Tier(id = "$boardId-s", label = "S", position = 0),
+        Tier(id = "$boardId-a", label = "A", position = 1),
+        Tier(id = "$boardId-b", label = "B", position = 2),
+        Tier(id = "$boardId-c", label = "C", position = 3),
+        Tier(id = "$boardId-d", label = "D", position = 4),
     )
 
-    private fun favorites(): Board = Board(
-        id = "favorites",
-        name = "Любимые чаи",
-        tiers = defaultTiers(),
-        placements = mapOf(
-            "s" to listOf(daHongPao, longjing),
-            "a" to listOf(tieguanyin, baiHaoYinZhen),
-            "b" to listOf(dianHong),
-            "c" to listOf(earlGrey),
-            "d" to listOf(gunpowder),
-        ),
-        unranked = listOf(shuPuer),
-    )
+    private fun favorites(): Board {
+        val tiers = defaultTiers("favorites")
+        return Board(
+            id = "favorites",
+            name = "Любимые чаи",
+            tiers = tiers,
+            placements = mapOf(
+                "favorites-s" to placements("favorites", daHongPao, longjing),
+                "favorites-a" to placements("favorites", tieguanyin, baiHaoYinZhen),
+                "favorites-b" to placements("favorites", dianHong),
+                "favorites-c" to placements("favorites", earlGrey),
+                "favorites-d" to placements("favorites", gunpowder),
+            ),
+            unranked = placements("favorites", shuPuer),
+        )
+    }
 
-    private fun oolongs(): Board = Board(
-        id = "oolongs",
-        name = "Уишаньские улуны",
-        tiers = defaultTiers(),
-        placements = mapOf(
-            "s" to listOf(daHongPao),
-            "a" to listOf(tieguanyin),
-        ),
-        unranked = emptyList(),
-    )
+    private fun oolongs(): Board {
+        val tiers = defaultTiers("oolongs")
+        return Board(
+            id = "oolongs",
+            name = "Уишаньские улуны",
+            tiers = tiers,
+            placements = mapOf(
+                "oolongs-s" to placements("oolongs", daHongPao),
+                "oolongs-a" to placements("oolongs", tieguanyin),
+            ),
+            unranked = emptyList(),
+        )
+    }
 
-    private fun tasting(): Board = Board(
-        id = "tasting",
-        name = "Дегустация 2026",
-        tiers = defaultTiers(),
-        placements = mapOf(
-            "s" to listOf(baiHaoYinZhen),
-            "b" to listOf(dianHong, longjing),
-        ),
-        unranked = listOf(shuPuer, gunpowder),
-    )
+    private fun tasting(): Board {
+        val tiers = defaultTiers("tasting")
+        return Board(
+            id = "tasting",
+            name = "Дегустация 2026",
+            tiers = tiers,
+            placements = mapOf(
+                "tasting-s" to placements("tasting", baiHaoYinZhen),
+                "tasting-b" to placements("tasting", dianHong, longjing),
+            ),
+            unranked = placements("tasting", shuPuer, gunpowder),
+        )
+    }
+
+    /** Placement id is "<boardId>-<teaId>" so the same tea gets a stable, board-unique handle. */
+    private fun placements(boardId: String, vararg teas: Tea): List<Placement> =
+        teas.map { tea -> Placement(placementId = "$boardId-${tea.id}", tea = tea) }
 
     // Flavor intensities are illustrative (0..5), tuned to make the radar/bars legible.
     private val daHongPao = Tea(
