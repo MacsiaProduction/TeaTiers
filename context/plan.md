@@ -213,9 +213,12 @@ Enrich-on-miss flow, triggered by `POST /api/v1/teas/resolve`:
    `confidence`, `source='ai'`, `enriched_by`, insert, and return the row.
 
 In scope (decisions 2026-06-15): translate/normalize names, verify/cross-check facts,
-auto-fill a user's custom tea. **Out of scope:** open-ended web crawling to *discover*
-teas — Wikidata covers most free verification; a web-search API is used only if it is
-free and RU-reachable, and only to verify.
+auto-fill a user's custom tea. **Out of scope:** open-ended web crawling / web-search
+grounding to *discover* or enrich teas — **confirmed by research 08 / decision #45**:
+under the no-VPN, all-Yandex-native lock (#18) there is no compliant web-grounding path
+(Yandex Search API forbids storing results, ToS 2.7.4; Yandex LLMs have no built-in
+search; Tavily/Gemini = the non-Yandex egress #18 removed). Grounding stays **Wikidata →
+user-pasted `sourceText` (#25) → Yandex LLM**; never store built-in-grounded output.
 
 Guardrails:
 - **Keys server-side only** (rules 10/50) — the app never holds an AI/search key.
@@ -244,11 +247,12 @@ versions), a root `Makefile`, `.dockerignore`, GitHub Actions CI running
 `./gradlew check` for both modules, and `docker-compose.yml` (placeholder). Wire
 Hilt, base packages, and a health endpoint. Outcome: both modules build green in CI.
 
-**Phase 1 — Research.** Runs 01–06 ✅ DONE (01–04 opus, 05–06 alice); decisions in
-`decisions.md` #9/#10/#15–25 and §9. Net: Yandex Cloud via Terraform, **VPN dropped**,
-Yandex-native booster. **Run 07 (flavor-prompt tuning) is pending** and gates the *quality*
-of the flavor-profile output, not the rest of the build. Other open items are console
-verifications (Qwen3/DeepSeek availability + price; provider version).
+**Phase 1 — Research.** Runs 01–08 ✅ DONE (01–04, 07–08 opus; 05–06 alice); decisions in
+`decisions.md` #9/#10/#15–25/#44 and §9. Net: Yandex Cloud via Terraform, **VPN dropped**,
+Yandex-native booster; **run 07** locked the flavor-prompt setup (#44, gates output
+*quality*, not structure); **run 08** resolved to **not adopt** web-grounding (#45 — its
+"upgrade" verdict assumed the now-dropped DE VPN; §6 "no web crawling" stands). Other open
+items are console verifications (Qwen3/DeepSeek availability + price; provider version).
 
 **M1 — Offline app skeleton (no backend) — ships first.**
 Boards list/CRUD → board screen with customizable tiers (rename/reorder/recolor/add-
@@ -346,7 +350,8 @@ benchmarks better (#18).
 | `research/04-eu-egress-llm/` | ✅ opus | Gemini free tier is **EEA paid-only** (can't be primary). Final order: Wikidata→Wikipedia → **YandexGPT Lite** primary (direct, no VPN) → **Groq `qwen3-32b`** zh-booster via DE VPN → DeepSeek optional. *Superseded by #18: VPN dropped, booster now Yandex-native Qwen3/DeepSeek.* | §6, #17→#18 |
 | `research/05-yandex-terraform/` | ✅ alice | Yandex Cloud via Terraform: VM + **self-hosted Postgres in compose** (Managed PG = upgrade), Lockbox, **S3+YDB state**, GH Actions, ≈700–1700 ₽/mo. RU gotcha: use `terraform-mirror.yandexcloud.net`. Provider verify (`0.206.0`) | §8 Deploy, decision #18 |
 | `research/06-yandex-alice/` | ✅ alice | **Alice AI LLM** = distinct Foundation Models model (`aliceai-llm`, 64k; `aliceai-llm-flash` cheaper), same API/json_schema. Keep YandexGPT Lite primary, **benchmark Alice Flash** in M4. Bonus: Yandex hosts **Qwen3-235B/DeepSeek natively** → VPN dropped (#18) | §6, decision #18 |
-| `research/07-flavor-prompt-tuning/` | ⏳ pending | Tuned prompts for calibrated 0–5 flavor profiles — **zero-shot + grounded on pasted vendor text** (#25): per-dimension rubric, system/user templates, strict `json_schema`, few-shot, injection hardening, params, confidence formula, eval method | §6, decision #25 |
+| `research/07-flavor-prompt-tuning/` | ✅ opus | Calibrated 0–5 flavor prompts (zero-shot + grounded, #25): anchor rubric, ru system/user templates, strict `json_schema` (`$defs.dim`, inline if `$defs` rejected), ≤3 few-shot, injection hardening, multiplicative confidence gate, MAE≤1.0 eval. **Yandex caveats:** `json_schema` unconfirmed on Lite (keep `json_object` fallback), no Yandex-managed DeepSeek URI, native vs OpenAI-compat request shapes differ, Qwen3 thinking-mode ≠ structured output | §6 step 3, decision #44, #25/#23 |
+| `research/08-ai-web-search/` | ✅ opus → **not adopted (#45)** | Revisited §6 under a DE-VPN premise that #18 retired. **Decision #45: keep "no web crawling".** No compliant path under #18's no-VPN/Yandex-native lock (Yandex Search ToS-blocked 2.7.4; Yandex LLMs no built-in search; Tavily/Gemini = the egress #18 removed). Durable findings kept for a future revisit: never store built-in `googleSearch`-grounded output (Gemini ToS); Tavily = only card-free search-only API; Wikidata weak on RU transliterations → user-pasted text is the right long-tail grounding | §6, decision #45 |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.
@@ -430,8 +435,12 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
 - **Import the live VM into Terraform (M2):** a first `teatiers` VM + `teatiers-sg` +
   static IP `93.77.185.62` (`tea.macsia.fun`) were hand-created via `yc` to unblock DNS —
   `terraform import` them in M2 so IaC owns them (see `infra/README.md`).
-- **Run 07 (flavor-prompt tuning)** result drops into §6 step 3 when ready (tunes quality,
-  not structure).
+- **Run 07 (flavor-prompt tuning)** ✅ resolved — artifacts + Yandex caveats locked in
+  decision #44; they drop into §6 step 3 / the M4 prompt module (tunes quality, not
+  structure).
+- **Run 08 (ai-web-search) §6 disposition** ✅ resolved — decision #45: **not adopted**,
+  §6 "no open-ended web crawling" stands (no compliant web-grounding path under #18's
+  no-VPN/Yandex-native lock). Durable findings kept for a future revisit only.
 
 ## 12. Requirements coverage (vs `../task.md` / `../architecture.md`)
 

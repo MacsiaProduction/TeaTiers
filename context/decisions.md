@@ -653,3 +653,98 @@ deviated.
       omissions), the repository surface (`addPhoto` / `removePhoto` / `reorderPhotos` /
       `deleteTea` cascade) over a `FakePhotoStore`, and the VM (add-mode draft buffer
       materialized on save, edit-mode immediate delegation, reorder forwarding).
+
+## 2026-06-16 — flavor-prompt tuning RESOLVED (research 07)
+
+44. **Flavor-prompt setup RESOLVED 2026-06-16** (research `07-flavor-prompt-tuning`,
+    winner opus; see its `RATING.md`). This closes the "run 07 pending" gate on #25/#23
+    and fixes the *quality* contract for the M4 enrichment LLM (it does not change any
+    schema or API shape). Lock these artifacts as the starting point for the M4 prompt
+    module (verify each against the live Yandex API at integration time — they are a
+    synthesis, not gospel):
+    - **0–5 anchor rubric** per dimension with the general rule `0 = absent; 1 = barely
+      detectable; 3 = clearly present, moderate; 5 = dominant` — score the *brewed
+      liquor*, force full-scale use, separate "no evidence" (`evidence=false`, low conf)
+      from "evidence says absent" (`value=0`, `evidence=true`) to fight central-tendency
+      bias. Opus's 11-line rubric + gemini's "Reference Tea Anchor" column (Gyokuro UMAMI
+      5, Lapsang SMOKY 5, young Sheng BITTERNESS 3, …) seed the human-rater calibration
+      card.
+    - **Two prompt modes:** grounded (vendor `<VENDOR_TEXT>`-wrapped text → derive
+      profile + original ru blurb) and zero-shot (name only, `overall_confidence` capped
+      ≤ 0.6). Russian system prompts, anti-copy clause, Palladius transliteration rule
+      (大红袍 → "Да Хун Пао", never "Большой красный халат").
+    - **Strict `json_schema`** with a reused `$defs.dim` (`value` int 0–5, `confidence`
+      0–1, `evidence` bool), `additionalProperties:false`, names (display_ru/original/
+      pinyin), type enum, `short_blurb_ru` (≤240), `overall_confidence`. **Inline the
+      `dim` object 11× if a model rejects `$defs`** (Yandex native endpoint).
+    - **≤3 maximally-different few-shot examples** (Да Хун Пао yancha · Лунцзин green ·
+      Ми Лань Сян oolong) — few-shot bias on numeric output grows monotonically with
+      example count (arXiv 2511.04053), and smaller models (Lite) are more susceptible.
+    - **Confidence is a multiplicative gate** (model_overall × mode[1.0 grounded / 0.7
+      zero-shot] × evidence-fraction × name-resolution × schema-validity), clamped in
+      Kotlin — *not* the model's self-rating. Reconciles with the programmatic confidence
+      already locked in #15 (pinyin4j + transliteration litmus).
+    - **Injection hardening for `sourceText`** (extends #25): 4k-char cap, HTML/markup +
+      zero-width strip, `<VENDOR_TEXT>` delimiter wrap, sandwich reminder, schema-validate
+      + fail-closed, n-gram overlap scan of the generated blurb vs source, never reflect
+      raw model text into a second call.
+    - **Params:** temperature 0 for the numeric profile (re-roll on invalid JSON, don't
+      raise temp); optional separate temp ~0.3 call for prose only.
+    - **Eval gate before M4 ships:** 20–30-tea gold set with extremes represented,
+      per-dimension MAE ≤ 1.0, central-tendency check on 0/5 usage, injection
+      attack-success = 0%, transliteration regression list.
+    - **Yandex-API caveats (from opus's Discard list — these will break a naive build):**
+      *(a)* `json_schema` support is **officially unconfirmed for `yandexgpt-lite`** (all
+      Yandex examples use Pro `yandexgpt/rc`) → keep a `json_object` + Kotlin-validation
+      fallback; *(b)* **no Yandex-managed DeepSeek URI** (self-host or DeepSeek's own
+      `json_object`-only API) — note this also nuances #17/#18's "Yandex-native DeepSeek"
+      assumption; verify in console (already an open item in #18); *(c)* the **native
+      Yandex API** (top-level `json_schema` wrapper) and the **OpenAI-compatible endpoint**
+      (`response_format:{type:"json_schema"}`) take different request shapes — pick one and
+      pin it; *(d)* **Qwen3 thinking-mode does not support structured output** and leaks
+      reasoning into content → call the booster in non-thinking mode.
+    - **Discard (do not copy into code):** Alice's "Lite ctx = 8K" (it's 32,768) and
+      "Qwen3-on-Yandex = 128K" (262,144); GPT's temp 0.2–0.5 (too high for scoring);
+      DeepSeek's 0–10 scale and `enum:[…, null]` Draft-07 violation; any claim that Lite
+      "fully supports json_schema".
+
+## 2026-06-16 — web-grounded enrichment NOT adopted (research 08)
+
+45. **§6 web-grounded enrichment fallback = NOT adopted; "no open-ended web crawling"
+    STANDS** (research `08-ai-web-search`, winner opus; see its `RATING.md`).
+    Run 08's *verdict* was "upgrade §6 to a web-grounded fallback", but that verdict was
+    produced against a prompt premise — a **Germany (EU) VPN egress** routing enrichment
+    LLM calls (it cites `#15/#16`) — that **decision #18 already retired** (VPN dropped,
+    all enrichment moved to direct Yandex Cloud Foundation Models). Re-read under the
+    *current* locked architecture, web-grounding has **no compliant path**:
+    - **Yandex Search API is a hard blocker** — ToS clause 2.7.4 forbids reproducing /
+      copying / storing / caching search results (the same store-and-serve trap that
+      demoted Yandex Maps in #9). A local-first catalog must persist what it serves, so
+      Yandex's own search is unusable for grounding.
+    - **YandexGPT / Yandex-native Qwen3 / DeepSeek have no built-in web-search tool** —
+      they are BYO-retrieval (run 04 + run 08). There is no Yandex-native grounded-generate.
+    - **Tavily + plain LLM / Gemini grounding** = exactly the **non-Yandex egress that
+      #18 deliberately removed**; re-adding it reverses a locked decision, adds a
+      US/Nebius-owned dependency (Tavily acquired Feb 2026, RU-reachability unverified)
+      and a ToS/IP-risk surface, for marginal coverage on obscure vendor teas.
+    - **The existing grounding is sufficient:** Wikidata → Wikipedia (free, CC0/CC-BY-SA)
+      resolves famous teas; **user-pasted `sourceText` (#25)** grounds the long tail;
+      YandexGPT/Yandex-native fills the rest. So enrichment grounding stays
+      **Wikidata → user-pasted text → Yandex LLM**, with **no web search** — §6's
+      "Out of scope: open-ended web crawling to discover teas" line is unchanged, and
+      #24's "never auto-fetch arbitrary web images" likewise stands.
+    - **Durable findings recorded for a possible future revisit** (relevant ONLY if we
+      ever re-introduce a non-Yandex egress — not planned):
+      - **Never store/re-serve built-in `googleSearch`-grounded output.** Gemini API
+        Additional ToS (eff. 2026-03-23) define "Grounded Results" as the whole response
+        when grounding is on, restrict display to the prompt-originator, cap storage at
+        2 years for narrow purposes, and forbid cache/syndicate/build-a-database. (Plain
+        *ungrounded* Gemini output is storable — but Gemini is EEA-paid-only anyway, #17.)
+      - **Tavily** is the only card-free (1,000/mo) search-only API; storage permitted at
+        customer IP risk; US/Nebius-owned, RU-reachability unverified.
+      - Wikidata/Wikipedia cover famous teas in en+zh but are **weaker on Russian
+        transliterations** (alice) — which is exactly why user-pasted text, not web
+        search, is the right long-tail grounding for a RU-first app.
+    - **Net:** no schema, API, or architecture change. §6 stays as written; the only
+      output of run 08 is this "considered, not adopted" record + the future-revisit
+      notes above.
