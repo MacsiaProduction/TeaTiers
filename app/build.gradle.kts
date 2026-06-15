@@ -49,6 +49,10 @@ android {
         abortOnError = true
         warningsAsErrors = false
     }
+
+    testOptions {
+        unitTests.all { it.useJUnitPlatform() }
+    }
 }
 
 kotlin {
@@ -85,5 +89,10 @@ dependencies {
     ksp(libs.kotlin.metadata.jvm)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
 
-    testImplementation(libs.junit)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

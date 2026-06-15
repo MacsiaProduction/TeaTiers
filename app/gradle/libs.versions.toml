@@ -12,7 +12,9 @@ lifecycle = "2.9.4"
 activityCompose = "1.13.0"
 composeBom = "2026.05.01"
 coroutines = "1.11.0"
-junit = "4.13.2"
+junitJupiter = "5.14.4"
+mockk = "1.14.9"
+turbine = "1.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -45,7 +47,14 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
-junit = { group = "junit", name = "junit", version.ref = "junit" }
+# Unit tests run on the JUnit 5 platform (JVM only; no Robolectric — Room validates its
+# queries/relations at compile time, and the rest is pure-JVM logic).
+junit-bom = { group = "org.junit", name = "junit-bom", version.ref = "junitJupiter" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

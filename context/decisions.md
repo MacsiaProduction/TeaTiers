@@ -427,3 +427,17 @@ deviated.
 36. **DataStore deferred (user-selected "Room only").** Preferences (theme/language, the #28
     settings) are not wired in M1 — only Room user-data persistence. DataStore lands with the
     settings screen in a later milestone.
+
+## 2026-06-15 (addendum 10) — M1 unit tests
+
+37. **M1 tests = pure-JVM JUnit 5, no Robolectric (yet).** Cover the logic that does not need
+    an Android runtime: entity↔domain mappers, the add-tea form/model functions, the
+    `TeaBoardRepository` (over a hand-written in-memory `FakeTeaDao`), and `AddTeaViewModel`.
+    - **JUnit 5.14.4 + MockK 1.14.9 + Turbine 1.2.1 + kotlinx-coroutines-test 1.11.0**; the
+      module runs on the JUnit Platform (`testOptions.unitTests.all { useJUnitPlatform() }`).
+      The two Phase-0 tests were migrated JUnit 4 → 5; **drops the JUnit 4 dependency.**
+    - **No Robolectric:** Room verifies its queries/relations at compile time, so the DAO is
+      faked rather than run on a simulated device; this avoids pinning a Robolectric/SDK combo
+      against AGP 9 + JDK 17. Instrumented Room/Compose tests are a later (M-test) milestone.
+    - **Coroutine tests** use `runTest` + `UnconfinedTestDispatcher`; ViewModel tests set the
+      Main dispatcher (`Dispatchers.setMain`/`resetMain`) and assert flows with Turbine.
