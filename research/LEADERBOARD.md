@@ -8,16 +8,18 @@ prompts aren't comparable); these are counts only. See `README.md` → *Leaderbo
 
 | Model  | Wins | Runs judged | Notable strengths |
 |--------|:----:|:-----------:|-------------------|
-| opus   |  4   |      4      | Legal/ToS/license precision, exact API+pricing specifics, honest caveats, flags bad QIDs & version conflicts |
-| alice  |  2   |      3      | Best on the Yandex-native topics (Terraform, Alice LLM): RU-specific gotchas, official docs, honest "unverified" caveats |
-| gemini |  0   |      6      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting; occasionally over-confident on unverified specifics |
-| gpt    |  0   |      4      | Concise but shallow, with recurring factual errors (GigaChat free tier; got the Gemini-EEA question backwards) |
-| deepseek | 0 |      3      | Useful ideas (COI image, app-fetches-Lockbox) but recurring wrong specifics (provider/model ids, "no JSON-schema") |
+| opus   |  6   |      6      | Legal/ToS/license precision (incl. Gemini Grounded-Results store-ban), exact API+pricing specifics, Yandex-API dialect quirks, honest caveats, flags bad QIDs & version conflicts |
+| alice  |  2   |      5      | Best on the Yandex-native topics (Terraform, Alice LLM, Gemini-EEA-paid-only clause): RU-specific gotchas, official docs, honest "unverified" caveats |
+| gemini |  0   |      8      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting and Wikidata QIDs; occasionally over-confident on unverified specifics, misses ToS storage traps |
+| gpt    |  0   |      6      | Concise but shallow, with recurring factual errors (GigaChat free tier; Gemini-EEA question backwards; recommended the booby-trapped Gemini-grounding-store path in 08) |
+| deepseek | 0 |      5      | Useful ideas (COI image, app-fetches-Lockbox) but recurring wrong specifics (provider/model ids, "no JSON-schema") and the same Gemini-grounding-store trap as gpt in 08 |
 | kimi   |  0   |      0      |                   |
 | grok   |  0   |      0      |                   |
 | fable  |  0   |      0      |                   |
 
 <!-- Log (newest first): -->
+<!-- 08-ai-web-search   → winner: opus (2026-06-15)  models judged: opus, alice, gemini, gpt, deepseek -->
+<!-- 07-flavor-prompt-tuning → winner: opus (2026-06-15)  models judged: opus, gemini, deepseek, alice, gpt -->
 <!-- 06-yandex-alice    → winner: alice (2026-06-15) -->
 <!-- 05-yandex-terraform → winner: alice (2026-06-15) -->
 <!-- 04-eu-egress-llm   → winner: opus (2026-06-15) -->
