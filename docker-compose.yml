@@ -1,0 +1,21 @@
+# Phase 0: runs the catalog service alone. PostgreSQL + Flyway join in M2 when the schema
+# lands (context/plan.md); add a `db` service and DATASOURCE env then.
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: teatiers/server:dev
+    container_name: teatiers-server
+    ports:
+      - "8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
+      SPRING_PROFILES_ACTIVE: default
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped

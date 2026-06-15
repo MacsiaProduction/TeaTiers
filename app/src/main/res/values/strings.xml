@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ru-first MVP (decisions.md #12). values/ holds the default (Russian) copy;
+     values-en / values-zh are added in M5. Tea names live in the data model, not here. -->
+<resources>
+    <string name="app_name">TeaTiers</string>
+
+    <string name="boards_title">Мои подборки</string>
+    <string name="board_unranked">Без ранга</string>
+    <string name="tier_empty">Пока пусто</string>
+
+    <string name="boards_empty_title">Здесь будут ваши подборки</string>
+    <string name="boards_empty_hint">Создайте подборку и разложите чаи по тирам — от S до D.</string>
+
+    <string name="a11y_back">Назад</string>
+    <string name="cd_liquor">Цвет настоя</string>
+    <!-- %1$s — вкусовая характеристика, %2$d — её интенсивность от 0 до 5 -->
+    <string name="a11y_flavor_dim">%1$s: %2$d из 5</string>
+    <!-- %1$s — перечисление характеристик профиля через запятую -->
+    <string name="a11y_flavor_profile">Вкусовой профиль: %1$s</string>
+
+    <plurals name="tea_count">
+        <item quantity="one">%d чай</item>
+        <item quantity="few">%d чая</item>
+        <item quantity="many">%d чаёв</item>
+        <item quantity="other">%d чая</item>
+    </plurals>
+
+    <!-- Tea types. ru tea convention: 红茶 = «красный» (BLACK), 黑茶 = «чёрный» (DARK). -->
+    <string name="tea_type_green">Зелёный</string>
+    <string name="tea_type_white">Белый</string>
+    <string name="tea_type_yellow">Жёлтый</string>
+    <string name="tea_type_oolong">Улун</string>
+    <string name="tea_type_black">Красный</string>
+    <string name="tea_type_dark">Чёрный</string>
+    <string name="tea_type_puer">Пуэр</string>
+    <string name="tea_type_herbal">Травяной</string>
+    <string name="tea_type_blended">Купаж</string>
+    <string name="tea_type_other">Другой</string>
+
+    <!-- Flavor dimensions (decisions.md #23): stable enum keys, localized labels. -->
+    <string name="flavor_bitterness">Горечь</string>
+    <string name="flavor_sweetness">Сладость</string>
+    <string name="flavor_astringency">Терпкость</string>
+    <string name="flavor_fruitiness">Фруктовость</string>
+    <string name="flavor_floral">Цветочность</string>
+    <string name="flavor_grassy">Травянистость</string>
+    <string name="flavor_spicy">Пряность</string>
+    <string name="flavor_smoky">Дымность</string>
+    <string name="flavor_earthy_nutty">Землистость</string>
+    <string name="flavor_umami">Умами</string>
+    <string name="flavor_roasted">Обжарка</string>
+</resources>

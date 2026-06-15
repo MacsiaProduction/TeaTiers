@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base window theme used before Compose draws; edge-to-edge is enabled in code.
+         Parented to a platform theme to avoid pulling in the Material (View) library. -->
+    <style name="Theme.TeaTiers" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/porcelain</item>
+    </style>
+</resources>

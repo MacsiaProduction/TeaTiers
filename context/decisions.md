@@ -312,3 +312,68 @@ deviated.
     - **Name display rule:** card shows the **ru primary name + pinyin + zh hanzi**; full
       locale set on detail.
     - **Accessibility:** dark mode, font scaling, TalkBack labels (esp. the flavor chart).
+
+## 2026-06-15 (addendum 7) — Phase 0 scaffolding & toolchain
+
+29. **Spring Boot 4.1.0 (deviation from rule `30-backend` "Spring Boot 3.x").** The 3.x line
+    is end-of-life/limited at this date (3.4 EOL Dec-2025, 3.5 OSS support ends ~mid-2026),
+    so a greenfield service should not start on it. **4.1.0** (GA 2026-06) on **JDK 21** is
+    the pinned baseline; WebMVC + Actuator only for Phase 0. Note: Boot 4 moved some test
+    slice annotations (`@WebMvcTest`) to a new module/package — the Phase 0 controller test is
+    a plain unit test; a proper slice test is wired in M2 once the controller layer grows.
+
+30. **Android design system = "Настой" (user-selected 2026-06-15).** Identity grounded in tea
+    itself, not a generic template:
+    - **Palette:** porcelain light surfaces (`#F3F4F0`/`#FAFAF6`) and a "steeped" dark theme
+      (`#14110E`); **tea-leaf green** (`#356A4B`) as the single brand accent; amber tertiary.
+    - **Signature = brewed-liquor color coding:** every tea carries the color of its *настой*
+      (a per-`TeaType` liquor swatch) used on cards, chips, and the featured panel.
+    - **Tier ramp** S→D is a **steeping/oxidation gradient** (deep roasted-red → pale sage),
+      not a meme rainbow; tiers stay user-recolorable (#6).
+    - **Flavor radar** is the detail motif (a Canvas polygon over the #23 dimensions); compact
+      labeled **flavor bars** on cards.
+    - **Type:** Material 3 type scale on the system family for now (full Cyrillic + CJK
+      fallback, nothing binary bundled, no GMS downloadable-fonts per #3/#9); documented
+      `res/font/` drop-in slot to adopt **Golos Text** later. ru-first copy (#12).
+
+31. **Phase 0 build structure & static-analysis deferrals (pragmatic, reversible).**
+    - **Two independent Gradle builds** (`app/` JDK 17, `server/` JDK 21), each with its own
+      wrapper (**Gradle 9.5.1**) and `libs.versions.toml`, orchestrated by a root `Makefile`
+      + a 2-job GitHub Actions matrix. Rationale: different JDK toolchains and disjoint plugin
+      ecosystems; cleaner than one root multi-project build. (Revisit if cross-module sharing
+      grows.)
+    - **Pinned, mutually-compatible toolchain** (verified upstream, not guessed): AGP 9.2.1,
+      Kotlin 2.4.0, KSP 2.3.9 (Kotlin docs pair 2.4.0↔2.3.9), Hilt 2.59.2 (adds AGP 9
+      support), Compose BOM 2026.05.01, `compileSdk`/`targetSdk` 36, `minSdk` 26.
+    - **detekt/ktlint deferred:** no detekt release supports Kotlin 2.4 / Gradle 9 yet; wire
+      them when a compatible build ships. `check` still runs tests + Android Lint.
+    - **Android Lint `abortOnError=false` for Phase 0 only** (no SDK on the dev host → lint
+      can't be vetted locally); keeps CI green while still reporting. Curated lint baseline +
+      `abortOnError` return in M1.
+    - **Package base `com.macsia.teatiers`** (not `fun.macsia.*` — `fun` is a Kotlin keyword).
+    - App unit smoke tests use **JUnit4** (Android default, zero extra config); JUnit5 + MockK
+      + Turbine adopted in M1 with real ViewModel tests.
+
+## 2026-06-15 (addendum 8) — AGP-9 build wiring (verified green in CI, PR #1)
+
+32. **Corrections to #31 found while making `app` build green in CI** (run `27546775866`,
+    both jobs success). These are deliberate; do not revert without re-breaking AGP 9:
+    - **No `org.jetbrains.kotlin.android` plugin.** AGP 9 ships **built-in Kotlin** and rejects
+      that plugin outright. It is removed from the app plugins block and the version catalog.
+      The **Compose compiler plugin** (`org.jetbrains.kotlin.plugin.compose`, `version.ref =
+      kotlin`) pins the built-in Kotlin Gradle Plugin to our **2.4.0**; the `kotlin { … }` DSL
+      (`jvmToolchain(17)`) remains available.
+    - **`compileSdk` = 37.0, not 36** (supersedes #31's "36" for compileSdk only; `targetSdk`
+      stays 36, `minSdk` 26). The pinned Compose BOM pulls `androidx.core:1.19.0`, which
+      mandates `compileSdk >= 37`; AGP 9.2 supports max API 37.0. Use the block DSL
+      `compileSdk { version = release(37) { minorApiLevel = 0 } }` — CI runners install the
+      platform as `android-37.0`, so the integer `compileSdk = 37` form fails to resolve
+      `android-37`.
+    - **Hilt + Kotlin 2.4 metadata override.** `hiltJavaCompileDebug` fails with "Provided
+      Metadata instance has version 2.4.0, while maximum supported version is 2.3.0" because
+      Dagger 2.59.2 (and 2.60) bundle an older `kotlin-metadata-jvm`. Fix: add
+      `ksp("org.jetbrains.kotlin:kotlin-metadata-jvm")` pinned to the Kotlin version so the
+      highest version wins on the processor classpath (canonical fix per `google/dagger#5001`,
+      mirrors `android/nowinandroid`).
+    - **Known non-fatal warning (M1):** `hiltViewModel()` is deprecated and moved to package
+      `androidx.hilt.lifecycle.viewmodel.compose`; the import migration is an M1 cleanup.

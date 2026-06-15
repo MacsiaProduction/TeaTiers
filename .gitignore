@@ -1,0 +1,41 @@
+# ── Build outputs ───────────────────────────────────────────────────────────
+build/
+bin/
+out/
+
+# ── Gradle ──────────────────────────────────────────────────────────────────
+.gradle/
+# Keep the wrapper jar in VCS so CI can bootstrap Gradle without a pre-install.
+!gradle/wrapper/gradle-wrapper.jar
+
+# ── Kotlin ──────────────────────────────────────────────────────────────────
+.kotlin/
+
+# ── Android ─────────────────────────────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+local.properties
+.cxx/
+captures/
+
+# ── Secrets — never commit (rule 10-style / 50-secure) ────────────────────────
+*.keystore
+*.jks
+*.p12
+keystore.properties
+secrets.properties
+service-account*.json
+.env
+.env.*
+
+# ── IDE / tooling ─────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

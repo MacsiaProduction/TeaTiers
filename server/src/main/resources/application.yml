@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: teatiers-catalog
+
+server:
+  port: 8080
+
+# Expose only the health endpoint for compose/systemd liveness & readiness probes.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
