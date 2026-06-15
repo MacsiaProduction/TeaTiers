@@ -1,26 +1,57 @@
 package com.macsia.teatiers.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.theme.TeaTheme
 
 private val CardWidth = 172.dp
+private val PhotoBadgeSize = 28.dp
+
+@Composable
+private fun PhotoBadge(uri: String) {
+    val context = LocalContext.current
+    val request = remember(uri) {
+        ImageRequest.Builder(context).data(uri).crossfade(true).build()
+    }
+    Box(
+        modifier = Modifier
+            .size(PhotoBadgeSize)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
 
 /** A tea as placed on a board: liquor swatch, multilingual names, type, and a compact flavor strip. */
 @Composable
@@ -37,8 +68,13 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         Column(Modifier.padding(14.dp)) {
+            val firstPhotoUri = tea.photos.firstOrNull()?.uri
             Row(verticalAlignment = Alignment.CenterVertically) {
-                LiquorSwatch(type = tea.type, size = 18.dp)
+                if (firstPhotoUri != null) {
+                    PhotoBadge(uri = firstPhotoUri)
+                } else {
+                    LiquorSwatch(type = tea.type, size = 18.dp)
+                }
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = tea.nameRu,

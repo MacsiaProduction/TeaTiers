@@ -16,6 +16,9 @@ data class PlacementMove(val placementId: String, val tierId: String?, val posit
 /** A tier's new order within its board, used when the tier list is reordered. */
 data class TierPosition(val tierId: String, val position: Int)
 
+/** A photo's new sort position within its tea, used when the photo strip is reordered. */
+data class PhotoPosition(val photoId: String, val position: Int)
+
 /**
  * Slim projection of a [TeaEntity] used for the resolve-or-create match (decisions.md #42). The
  * Russian-language match has to be Unicode-case-insensitive, and SQLite's built-in `LOWER` is
@@ -77,6 +80,28 @@ abstract class TeaDao {
     @Insert
     abstract suspend fun insertPurchases(purchases: List<PurchaseLocationEntity>)
 
+    @Insert
+    abstract suspend fun insertPhotos(photos: List<PhotoEntity>)
+
+    @Query("SELECT * FROM tea_photos WHERE teaId = :teaId ORDER BY position")
+    abstract suspend fun loadPhotos(teaId: String): List<PhotoEntity>
+
+    /** URIs only — used to enumerate files to delete from disk before the row goes. */
+    @Query("SELECT uri FROM tea_photos WHERE teaId = :teaId")
+    abstract suspend fun loadPhotoUrisFor(teaId: String): List<String>
+
+    @Query("SELECT uri FROM tea_photos WHERE id = :photoId")
+    abstract suspend fun loadPhotoUri(photoId: String): String?
+
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tea_photos WHERE teaId = :teaId")
+    abstract suspend fun nextPhotoPosition(teaId: String): Int
+
+    @Query("UPDATE tea_photos SET position = :position WHERE id = :photoId")
+    abstract suspend fun updatePhotoPosition(photoId: String, position: Int)
+
+    @Query("DELETE FROM tea_photos WHERE id = :photoId")
+    abstract suspend fun deletePhotoRow(photoId: String)
+
     @Query("UPDATE placements SET tierId = :tierId, position = :position WHERE id = :placementId")
     abstract suspend fun updatePlacement(placementId: String, tierId: String?, position: Int)
 
@@ -131,6 +156,7 @@ abstract class TeaDao {
         placements: List<PlacementEntity>,
         flavors: List<FlavorEntity>,
         purchases: List<PurchaseLocationEntity>,
+        photos: List<PhotoEntity>,
     ) {
         insertBoards(boards)
         insertTiers(tiers)
@@ -138,6 +164,7 @@ abstract class TeaDao {
         insertPlacements(placements)
         insertFlavors(flavors)
         insertPurchases(purchases)
+        if (photos.isNotEmpty()) insertPhotos(photos)
     }
 
     /**
@@ -215,7 +242,8 @@ abstract class TeaDao {
      * Updates a user-tea's fields and replaces its flavor + purchase rows in one transaction.
      * Child rows are wholesale rebuilt (delete + insert) because edits can add, remove, or
      * reorder any number of them — simpler and just as cheap as diffing for the small lists.
-     * Placements stay untouched: edits ripple, drag-to-rank state does not.
+     * Placements and photos stay untouched: edits ripple, drag-to-rank and the photo strip
+     * own their own writes (decisions.md #43).
      */
     @Transaction
     open suspend fun updateTea(
@@ -235,5 +263,32 @@ abstract class TeaDao {
         deletePurchasesFor(teaId)
         insertFlavors(flavors)
         insertPurchases(purchases)
+    }
+
+    /**
+     * Inserts one photo row at the next available position. The repository copies the bytes
+     * to disk first so the URI is already a stable absolute path by the time we write the row.
+     */
+    @Transaction
+    open suspend fun addPhoto(photo: PhotoEntity) {
+        insertPhotos(listOf(photo))
+    }
+
+    /**
+     * Deletes one photo row and contiguously renumbers the survivors so positions stay 0..n
+     * for the strip layout. The repository deletes the file on disk separately (best-effort,
+     * outside the DB transaction) — keeping I/O outside the @Transaction avoids holding the
+     * SQLite write lock for the duration of a filesystem call.
+     */
+    @Transaction
+    open suspend fun removePhoto(photoId: String, survivingOrder: List<PhotoPosition>) {
+        deletePhotoRow(photoId)
+        survivingOrder.forEach { updatePhotoPosition(it.photoId, it.position) }
+    }
+
+    /** Rewrites the order of every photo in the strip in one transaction. */
+    @Transaction
+    open suspend fun applyPhotoPositions(positions: List<PhotoPosition>) {
+        positions.forEach { updatePhotoPosition(it.photoId, it.position) }
     }
 }

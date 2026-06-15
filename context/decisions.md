@@ -595,3 +595,61 @@ deviated.
       `computeMovePlacements`, the placement-aware `Mappers`/`toSeedEntities` (one tea row +
       multiple placements), and the new VM surface (`movePlacement` / `removePlacement` /
       `deleteTea` / `placementCount`).
+
+## 2026-06-15 (addendum 16) — photo list per tea
+
+43. **Photos are now a list per user-tea (reopens #24).** Brainstorm point C, `context/brainstorming.md`:
+    "the tea pages should include a photo list … with ability to add user photo." #24's
+    single-photo `user_photo_uri` and "no arbitrary web fetch" line are superseded for the count
+    side (list, not single field) and **kept** for the licensing line (web/AI search photos still
+    out of MVP — a future flip needs licensing solved first). MVP scope is **user-uploaded only**;
+    catalog/CC photos plug in later (M4) without another schema migration.
+    - **Schema (Room v3 → destructive migration again, same rationale as #42).** New
+      `tea_photos(id PK, teaId FK ON DELETE CASCADE, uri, position, source ENUM USER|CATALOG,
+      license?, sourceUrl?, createdAtEpochMs)`; index on `teaId`. `TeaWithChildren` joins photos
+      alongside flavor/purchase children. `Tea.photos: List<TeaPhoto>` lands the data in domain.
+      `Migration(2, 3)` is **mandatory** before we ship to a real user; for now the builder
+      configures `fallbackToDestructiveMigration(dropAllTables = true)` so first launch on the new
+      schema drops the older data and the sample provider reseeds.
+    - **Storage = app-private copy, not `content://` URIs.** Picked photos are copied through a
+      `PhotoStore` interface into `<filesDir>/tea_photos/<uuid>.<ext>`; the absolute path goes in
+      the row. Persisted-URI permissions are too fragile for a local-first export-import app
+      (#1, #26): a gallery cleanup or app-data wipe of the source app silently breaks the link.
+      Trade-off accepted: disk usage doubles for any photo that came from internal storage.
+      `PhotoStore` is a Hilt `@Binds` so unit tests swap it for an in-memory fake.
+    - **Resolve-or-create on add.** `addTea` now returns the user-tea id (existing-by-name-match
+      or newly-created); `AddTeaViewModel` uses that to materialize add-mode draft photos after
+      the placement row is committed. `addPhoto` / `removePhoto` / `reorderPhotos` operate on the
+      user-tea, so a photo added on board A is visible on the same tea on board B too — same
+      ripple semantics as #42 for notes/flavor/purchases.
+    - **Image lib = Coil 3.5.0** (`io.coil-kt.coil3:coil-compose`). Compose-friendly, multiplatform,
+      Kotlin-2.4.0-aligned, no GMS hard dependency. **No `coil-network-*` artefact in MVP** —
+      the loader is local-file-only (`AsyncImage` on a `file://` path). Hilt provides a
+      `@Singleton ImageLoader` with `crossfade(true)`.
+    - **Permissions: none.** `ActivityResultContracts.PickVisualMedia` fronts the user-grant on
+      API 33+; androidx falls back to `OPEN_DOCUMENT` on older releases — also permission-free.
+      No `READ_MEDIA_IMAGES`, no `READ_EXTERNAL_STORAGE` declared in the manifest.
+    - **UI surfaces.**
+      - Add/edit screen: `PhotoStripField` — horizontal strip of square thumbs + an "Add" tile
+        + an "x" badge that gates removal behind a confirm dialog. Long-press starts a
+        hand-rolled drag (mirrors the tier-list drag pattern, #38) that swaps neighbours by
+        center-x crossing, no Compose lib dep.
+      - Detail screen: `PhotoGallery` — horizontal pager with dot indicator; tap any photo to
+        open `PhotoZoomDialog` (full-screen pager + `transformable` pinch/pan + double-tap reset).
+      - `TeaCard`: when `photos.isNotEmpty()`, the leading 18 dp `LiquorSwatch` is replaced by a
+        small Coil thumbnail of the first photo so cards on the board read at a glance; the
+        swatch stays the fallback when there are no photos (preserves the Настой identity, #30).
+    - **Cleanup paths.** `deleteTea` enumerates the tea's photo paths *before* the row goes,
+      then asks `PhotoStore.delete(...)` for each one outside the SQLite write transaction so a
+      slow filesystem call cannot stall the DB lock. `removePhoto` does the same for one row.
+      Best-effort: a missing file is treated as success, never blocks the row delete.
+    - **Out of this PR** (carried as future work):
+      - Catalog/CC photos (M4, with the backend catalog).
+      - AI/web-search photos — see `research/08-ai-web-search/`. #24's "no arbitrary web fetch"
+        still stands; a future flip needs the licensing question solved first.
+      - Real `Migration(1, 2)` and `Migration(2, 3)` — both become mandatory before public release.
+      - Export/import (#26) — the photos directory is part of the planned bundle but not built here.
+    - **Pure-JVM tests cover** `computePhotoPositions` (renumber, no-op, drop unknown, append
+      omissions), the repository surface (`addPhoto` / `removePhoto` / `reorderPhotos` /
+      `deleteTea` cascade) over a `FakePhotoStore`, and the VM (add-mode draft buffer
+      materialized on save, edit-mode immediate delegation, reorder forwarding).

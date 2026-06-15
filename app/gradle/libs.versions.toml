@@ -15,6 +15,7 @@ coroutines = "1.11.0"
 junitJupiter = "5.14.4"
 mockk = "1.14.9"
 turbine = "1.2.1"
+coil = "3.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -41,6 +42,10 @@ androidx-hilt-lifecycle-viewmodel-compose = { group = "androidx.hilt", name = "h
 # Pinned to the Kotlin version so Hilt's KSP processor can read our 2.4.0 class metadata
 # (Dagger bundles an older copy). See google/dagger#5001.
 kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
+
+# Image loading (M1, photos). coil-compose pulls coil + coil-compose-core; we never load over the
+# network in MVP (#24/#43) so coil-network-* is intentionally absent.
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 
 # Local persistence (M1). room-ktx adds Flow + suspend support; room-compiler runs via KSP.
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

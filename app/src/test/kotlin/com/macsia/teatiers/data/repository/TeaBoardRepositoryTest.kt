@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.repository
 
 import com.macsia.teatiers.data.db.toSeedEntities
+import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.FlavorDimension
@@ -44,11 +45,14 @@ class TeaBoardRepositoryTest {
     )
 
     /** Builds a repository over a fake DAO already holding [seededBoard], so init does not re-seed. */
-    private suspend fun TestScope.repositoryWithSeed(boards: List<Board> = listOf(seededBoard)): TeaBoardRepository {
+    private suspend fun TestScope.repositoryWithSeed(
+        boards: List<Board> = listOf(seededBoard),
+        photoStore: PhotoStore = FakePhotoStore(),
+    ): TeaBoardRepository {
         val dao = FakeTeaDao()
         val seed = boards.toSeedEntities()
-        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases)
-        return TeaBoardRepository(dao, backgroundScope, SampleBoardProvider())
+        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+        return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider())
     }
 
     @Test

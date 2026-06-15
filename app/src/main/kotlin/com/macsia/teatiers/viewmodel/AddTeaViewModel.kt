@@ -1,19 +1,27 @@
 package com.macsia.teatiers.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.FlavorDimension
+import com.macsia.teatiers.domain.model.PhotoSource
+import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.Tier
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -43,6 +51,33 @@ class AddTeaViewModel @Inject constructor(
     val placementCount: StateFlow<Int> = _placementCount.asStateFlow()
 
     /**
+     * Add-mode draft list of pending photos: the picker ran but the tea row does not exist yet,
+     * so we cannot copy the bytes through `PhotoStore.addPhoto(teaId, …)` — we stage the URIs
+     * here and `submit()` materializes them after the tea is saved (one-by-one; a copy failure
+     * is logged + skipped, the tea is still saved). Empty in edit mode.
+     */
+    private val _draftPhotos = MutableStateFlow<List<DraftPhoto>>(emptyList())
+    val draftPhotos: StateFlow<List<DraftPhoto>> = _draftPhotos.asStateFlow()
+
+    /**
+     * Photos visible on the strip. In edit mode this projects from the repository's user-tea
+     * (so a successful `addPhoto`/`removePhoto`/`reorderPhotos` immediately shows up); in add
+     * mode it projects from [_draftPhotos] using `DraftPhoto.id` as the strip id.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val photos: StateFlow<List<TeaPhoto>> = _editingTeaId
+        .flatMapLatest { id ->
+            if (id == null) {
+                _draftPhotos.mapLatest { drafts -> drafts.mapIndexed { i, d -> d.asTeaPhoto(i) } }
+            } else {
+                repository.boards.mapLatest {
+                    repository.tea(id)?.photos.orEmpty()
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
      * Binds the form. Always resets first so a recomposition with new ids cannot leak stale
      * state from a previous binding (the VM is reused across navigations under the host
      * activity's `viewModelStore`). The tea load is async — the form stays empty until the
@@ -53,6 +88,7 @@ class AddTeaViewModel @Inject constructor(
         _editingTeaId.value = teaId
         _form.value = AddTeaForm()
         _placementCount.value = 0
+        _draftPhotos.value = emptyList()
         if (teaId != null) {
             viewModelScope.launch {
                 val tea = repository.tea(teaId)
@@ -109,11 +145,53 @@ class AddTeaViewModel @Inject constructor(
             if (editing != null) {
                 repository.updateTea(editing, form.toTea())
             } else if (board != null) {
-                repository.addTea(board, form.toTea(), form.tierId)
+                val newTeaId = repository.addTea(board, form.toTea(), form.tierId) ?: return@launch
+                // Drain staged photos one-by-one; a copy failure on any single URI is silently
+                // skipped — the tea is already saved and we do not want to roll it back over a
+                // permission glitch on a single picture.
+                _draftPhotos.value.forEach { draft -> repository.addPhoto(newTeaId, draft.uri) }
+                _draftPhotos.value = emptyList()
             } else {
                 return@launch
             }
             onSaved()
+        }
+    }
+
+    /**
+     * Stages a picked photo. In edit mode the bytes are copied + a row inserted right away so
+     * the strip shows it immediately; in add mode it joins the draft list and waits for save.
+     */
+    fun onAddPhoto(uri: Uri) {
+        val editing = _editingTeaId.value
+        if (editing != null) {
+            viewModelScope.launch { repository.addPhoto(editing, uri) }
+        } else {
+            _draftPhotos.update { it + DraftPhoto(id = "draft-${UUID.randomUUID()}", uri = uri) }
+        }
+    }
+
+    /** Removes one strip photo. In add mode this just drops the draft entry. */
+    fun onRemovePhoto(photoId: String) {
+        val editing = _editingTeaId.value
+        if (editing != null) {
+            viewModelScope.launch { repository.removePhoto(editing, photoId) }
+        } else {
+            _draftPhotos.update { drafts -> drafts.filterNot { it.id == photoId } }
+        }
+    }
+
+    /** Reorders the photo strip to match [orderedPhotoIds]. */
+    fun onReorderPhotos(orderedPhotoIds: List<String>) {
+        val editing = _editingTeaId.value
+        if (editing != null) {
+            viewModelScope.launch { repository.reorderPhotos(editing, orderedPhotoIds) }
+        } else {
+            _draftPhotos.update { drafts ->
+                val byId = drafts.associateBy(DraftPhoto::id)
+                val ordered = orderedPhotoIds.mapNotNull(byId::get)
+                ordered + drafts.filterNot { it.id in orderedPhotoIds.toSet() }
+            }
         }
     }
 
@@ -128,4 +206,17 @@ class AddTeaViewModel @Inject constructor(
             onDeleted()
         }
     }
+}
+
+/**
+ * One pending add-mode photo. The id is a stable UI handle for drag-reorder; the URI is what the
+ * picker handed us and what `PhotoStore` will copy in once the tea row exists.
+ */
+data class DraftPhoto(val id: String, val uri: Uri) {
+    fun asTeaPhoto(index: Int): TeaPhoto = TeaPhoto(
+        id = id,
+        uri = uri.toString(),
+        position = index,
+        source = PhotoSource.USER,
+    )
 }

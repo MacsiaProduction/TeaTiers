@@ -197,6 +197,12 @@ private fun TeaDetailBody(tea: Tea, modifier: Modifier = Modifier) {
             Text(text = it, style = MaterialTheme.typography.bodyLarge)
         }
 
+        if (tea.photos.isNotEmpty()) {
+            Section(title = stringResource(R.string.detail_photos_title)) {
+                PhotoGallery(photos = tea.photos, modifier = Modifier.fillMaxWidth())
+            }
+        }
+
         if (tea.flavor.isNotEmpty()) {
             Section(title = stringResource(R.string.detail_flavor_title)) {
                 if (tea.flavor.size >= 3) {

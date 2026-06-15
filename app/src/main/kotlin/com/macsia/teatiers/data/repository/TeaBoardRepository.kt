@@ -1,7 +1,10 @@
 package com.macsia.teatiers.data.repository
 
+import android.net.Uri
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
+import com.macsia.teatiers.data.db.PhotoEntity
+import com.macsia.teatiers.data.db.PhotoPosition
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PlacementMove
 import com.macsia.teatiers.data.db.TeaDao
@@ -11,11 +14,14 @@ import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
 import com.macsia.teatiers.data.db.toSeedEntities
+import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
@@ -45,9 +51,21 @@ import javax.inject.Singleton
 @Singleton
 class TeaBoardRepository @Inject constructor(
     private val dao: TeaDao,
+    private val photoStore: PhotoStore,
     @AppScope private val scope: CoroutineScope,
     seed: SampleBoardProvider,
 ) {
+
+    /**
+     * Wall-clock used when stamping new photo rows. Tests override it with a fixed value via
+     * [setClockForTest] (Hilt can't resolve a function-type binding, so this stays a plain
+     * field rather than a constructor parameter).
+     */
+    private var clock: () -> Long = System::currentTimeMillis
+
+    internal fun setClockForTest(clock: () -> Long) {
+        this.clock = clock
+    }
 
     val boards: StateFlow<List<Board>> = dao.observeBoards()
         .map { rows -> rows.map(BoardWithChildren::toDomain) }
@@ -64,6 +82,7 @@ class TeaBoardRepository @Inject constructor(
                     entities.placements,
                     entities.flavors,
                     entities.purchases,
+                    entities.photos,
                 )
             }
         }
@@ -118,10 +137,12 @@ class TeaBoardRepository @Inject constructor(
      * Adds a placement of [tea] on [boardId]. Resolve-or-create (decisions.md #42): if a
      * matching user-tea already exists by name we reuse it (no overwrite of its fields), else
      * we insert a fresh user-tea. With a known [tierId] the placement joins that tier; an
-     * unknown tier (or null) lands it in the unranked tray. No-op when [boardId] is unknown.
+     * unknown tier (or null) lands it in the unranked tray. Returns the resolved user-tea id
+     * (existing or freshly-created) so callers can attach add-mode draft photos to it; null
+     * when [boardId] is unknown (and nothing was written).
      */
-    suspend fun addTea(boardId: String, tea: Tea, tierId: String?) {
-        val board = board(boardId) ?: return
+    suspend fun addTea(boardId: String, tea: Tea, tierId: String?): String? {
+        val board = board(boardId) ?: return null
         val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
         val existingTeaId = resolveTeaIdForMatch(tea)
 
@@ -146,6 +167,7 @@ class TeaBoardRepository @Inject constructor(
             purchases = teaToInsert?.purchases.orEmpty(),
             placement = placementEntity,
         )
+        return teaIdToPlace
     }
 
     /**
@@ -171,11 +193,66 @@ class TeaBoardRepository @Inject constructor(
 
     /**
      * Deletes the user-tea everywhere: removes the tea row and (via FK cascade) every
-     * placement on every board, plus its flavors and purchases. Used by the destructive
-     * "Удалить чай совсем" action on the detail / edit screens.
+     * placement on every board, plus its flavors, purchases, and photos. The photo files on
+     * disk are deleted *before* the row goes so a half-failed cascade leaves the DB clean —
+     * the file delete is best-effort, the DB delete is the authoritative fact.
      */
     suspend fun deleteTea(teaId: String) {
+        val photoPaths = dao.loadPhotoUrisFor(teaId)
         dao.deleteTea(teaId)
+        photoPaths.filter { it.startsWith("/") }.forEach { runCatching { photoStore.delete(it) } }
+    }
+
+    /**
+     * Adds a new user photo to [teaId]. Copies the bytes via [PhotoStore] (which lands them
+     * under the app-private dir, decisions.md #43), then inserts the row at the next position.
+     * Returns the new photo id, or null if the copy failed (no row is written so a botched
+     * pick never half-creates a placement). No-op when the tea is unknown.
+     */
+    suspend fun addPhoto(teaId: String, source: Uri): String? {
+        if (dao.loadTea(teaId) == null) return null
+        val storedPath = photoStore.copyIn(source) ?: return null
+        val photoId = "photo-${UUID.randomUUID()}"
+        val position = dao.nextPhotoPosition(teaId)
+        dao.addPhoto(
+            PhotoEntity(
+                id = photoId,
+                teaId = teaId,
+                uri = storedPath,
+                position = position,
+                source = PhotoSource.USER.name,
+                license = null,
+                sourceUrl = null,
+                createdAtEpochMs = clock(),
+            ),
+        )
+        return photoId
+    }
+
+    /**
+     * Removes a single photo: deletes the DB row and renumbers the survivors so positions
+     * stay 0..n. The file delete on disk is best-effort and runs *outside* the @Transaction
+     * so SQLite doesn't hold its write lock through filesystem I/O.
+     */
+    suspend fun removePhoto(teaId: String, photoId: String) {
+        val path = dao.loadPhotoUri(photoId) ?: return
+        val survivors = dao.loadPhotos(teaId)
+            .filter { it.id != photoId }
+            .mapIndexed { index, row -> PhotoPosition(row.id, index) }
+        dao.removePhoto(photoId, survivors)
+        if (path.startsWith("/")) runCatching { photoStore.delete(path) }
+    }
+
+    /**
+     * Reorders the photos on [teaId] to match [orderedPhotoIds]. Drops unknown ids, appends
+     * any of the tea's photos the request omitted, and renumbers contiguously. No-op when the
+     * resulting order matches the current one.
+     */
+    suspend fun reorderPhotos(teaId: String, orderedPhotoIds: List<String>) {
+        val current = dao.loadPhotos(teaId)
+        if (current.isEmpty()) return
+        val positions = computePhotoPositions(current.map(PhotoEntity::id), orderedPhotoIds)
+        if (positions.isNotEmpty()) dao.applyPhotoPositions(positions)
     }
 
     /** Appends a new tier (default ramp color) to the end of [boardId]'s tier list. */
@@ -352,4 +429,21 @@ internal fun computeTrayReassignment(board: Board, removedTierId: String): List<
     if (removed.isEmpty()) return emptyList()
     val trayOrder = board.unranked.map { it.placementId } + removed
     return trayOrder.mapIndexed { position, id -> PlacementMove(id, null, position) }
+}
+
+/**
+ * Pure reorder math for [TeaBoardRepository.reorderPhotos]. Drops unknown ids from the
+ * request, appends any tea-side photos the request omitted (in their current relative order),
+ * and renumbers contiguously to 0..n. Returns empty when the resulting order already matches
+ * [currentOrder] so an idle drop writes nothing.
+ */
+internal fun computePhotoPositions(
+    currentOrder: List<String>,
+    requestedOrder: List<String>,
+): List<PhotoPosition> {
+    val known = currentOrder.toSet()
+    val requested = requestedOrder.filter { it in known }.distinct()
+    val full = requested + currentOrder.filterNot { it in requested }
+    if (full == currentOrder) return emptyList()
+    return full.mapIndexed { index, id -> PhotoPosition(id, index) }
 }
