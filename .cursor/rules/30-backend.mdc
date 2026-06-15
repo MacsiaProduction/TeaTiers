@@ -1,0 +1,43 @@
+---
+description: Backend conventions — Kotlin + Spring Boot, REST, JPA/Postgres, tea-database integration
+globs: server/**/*.kt, server/**/build.gradle.kts
+alwaysApply: false
+---
+
+# Backend (Kotlin + Spring Boot)
+
+## Toolchain
+
+- Kotlin 2.x, JDK 21 LTS, Spring Boot 3.x (WebMVC), Gradle Kotlin DSL with a version catalog. Add `kotlin("plugin.jpa")` only when JPA is actually used.
+
+## Idioms
+
+- Prefer `data class`, immutability (`val`), and sealed hierarchies. No `!!`. For expected failures use a sealed `Result`/`Outcome` over throwing.
+- Constructor injection only — never field injection. Logging via slf4j (`LoggerFactory.getLogger(...)`), never `println`.
+- Coroutines: structured concurrency; never `GlobalScope`.
+
+## Layout
+
+- Standard layered packages: `controller/`, `service/`, `domain/`, `repository/`, `config/`. Tests in `src/test/kotlin` mirroring the main package.
+
+## API
+
+- REST under a versioned base path (`/api/v1`). DTOs are separate from entities; validate inputs with Bean Validation. Centralize errors in a `@ControllerAdvice` returning RFC-7807 problem+json.
+
+## Persistence & multilingual data
+
+- Spring Data JPA over PostgreSQL; schema changes via Flyway migrations (never auto `ddl-auto: update` outside dev).
+- Tea names are locale-aware (ru/en/zh) — model them as structured localized fields/rows from the start; never assume a single name. Index the searchable locales.
+
+## Tea-database integration
+
+- Wrap each external tea database behind its own client interface; mirror/cache results locally. Rate-limit and retry with backoff. Record each source's name, URL, and license in `context/`.
+
+## Testing
+
+- JUnit5 + MockK; Testcontainers (PostgreSQL) for integration; slice tests (`@WebMvcTest`, `@DataJpaTest`) over full `@SpringBootTest` where possible.
+
+## Don't
+
+- No Lombok (use Kotlin features). No secrets in code or `application.yml` — source them from env / a secret manager.
+- No business logic in controllers; no N+1 queries (use fetch joins / entity graphs).

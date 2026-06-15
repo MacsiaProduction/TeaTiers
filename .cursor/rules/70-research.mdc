@@ -1,0 +1,25 @@
+---
+description: How to create, organize, prompt for, and rate multi-model deep-research runs under research/ — one folder per run, one verbatim prompt sent to every model, one answer file per model, plus RATING.md and a LEADERBOARD.md win tally. Apply when working anywhere under research/.
+globs: research/**/*.md
+alwaysApply: false
+---
+
+# Research folder workflow (`research/`)
+
+**Canonical, full spec:** `research/README.md` — follow it for anything under
+`research/`. In Cursor it loads via `@research/README.md`.
+
+Essentials:
+
+- **One folder per run:** `research/<NN>-<slug>/` (zero-padded number + kebab slug;
+  first run is `01`). Start by copying `research/_template/`.
+- **`prompt.md`** = the single prompt, sent **verbatim to every model**. Never
+  tailor it per model (fair comparison).
+- **One answer file per model**, family slug: `opus.md`, `gpt.md`, `gemini.md`,
+  `kimi.md`, `grok.md`, `fable.md`. Mode suffix (`-thinking`, `-deepresearch`,
+  `-fast`, `-2`) only when it changes the output. **Paste output verbatim — never
+  edit a model's text.**
+- **`RATING.md`** ranks the models for that run (winner + why + reuse/discard);
+  then update the win tally in `research/LEADERBOARD.md`.
+- Treat findings as syntheses, not primary sources: **cite by path and verify any
+  version pin / API / library / dataset against the real source** before use.

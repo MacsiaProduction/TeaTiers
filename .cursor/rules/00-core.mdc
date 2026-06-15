@@ -1,0 +1,37 @@
+---
+description: TeaTiers project overview, stack, repo layout, and core agent behaviors
+alwaysApply: true
+---
+
+# Project: TeaTiers — tea tier-list app
+
+Goal: an Android app where users catalog teas, rank them into tiers, attach where they bought each one (Google / Yandex / OpenStreetMap geopoint, a marketplace link, or free text), and keep notes. Tea names are multilingual — Russian, English, and Chinese. The backend integrates with (or locally mirrors) public tea databases.
+
+## Stack (defaults; confirm with user before changing)
+
+- Android client: Kotlin (latest stable 2.x) + Jetpack Compose, Gradle Kotlin DSL with a version catalog (`libs.versions.toml`), AGP latest stable on a JDK 17 toolchain. `minSdk`/`targetSdk`/`compileSdk` pinned in the catalog.
+- Backend: Kotlin + Spring Boot 3.x (WebMVC), JDK 21 LTS, Gradle Kotlin DSL with a version catalog. REST API.
+- Database: relational (PostgreSQL by default) for the tea catalog; schema is locale-aware (ru/en/zh) from the start. Migrations via Flyway.
+- A single Linux server hosts the backend; the database runs on the same host or a separate DB server as load requires.
+
+## Repo layout
+
+- `app/` — Android client (Kotlin + Compose). See `20-android`.
+- `server/` — backend service (Kotlin + Spring Boot). See `30-backend`.
+- `context/` — source of truth: requirements, locked decisions, architecture, plans. Append-only for locked decisions; ask before editing existing entries.
+- `research/` — deep-research outputs and ratings (see `70-research`).
+- `scripts/` — automation, incl. `sync-agent-rules.sh`.
+- `task.md` (product spec) and `architecture.md` (high-level architecture) currently live at the repo root.
+
+## Operating rules
+
+- Reasoning, planning, and self-critique: English. Final user-facing output: language of the user's message.
+- User-facing app copy is localized (ru/en/zh) — never hardcode a single language in UI or data.
+- Never push commits, open PRs, or reply to review comments without explicit user instruction.
+- Prefer editing existing files over creating new ones; don't add README/docs unless asked.
+- When unsure, read `context/` and `task.md` first, ask the user second, guess last.
+- Prefer asking a quick question over guessing an API, version, or schema.
+
+## Research before acting (never guess)
+
+When unsure about an API surface, library version, Android SDK level, or an external tea database's schema: check `research/` first, then the library's official docs/source, then ask the user. Don't invent versions or endpoints. Capture reusable findings under `research/` (see `70-research`).

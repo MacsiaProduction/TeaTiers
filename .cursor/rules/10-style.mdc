@@ -1,0 +1,15 @@
+---
+description: Code style essentials applied across the whole repo
+alwaysApply: true
+---
+
+# Code style essentials
+
+- Match the style of the surrounding code in the same module/file.
+- Do not delete existing comments unless they are demonstrably wrong or obsolete.
+- Do not add trivial narration comments (`// increment`, `// init viewmodel`, `// return result`).
+- Add a comment only for non-obvious intent, trade-offs, invariants, or constraints the code itself cannot convey.
+- Code comments in English (this is a public repo). User-facing strings are localized (ru/en/zh) in resource files — never hardcoded in code.
+- No emojis in code, commit messages, or PR descriptions.
+- Prefer expressive names and small, focused functions over comments.
+- Never commit secrets, tokens, API keys, signing keystores, `local.properties`, or service-account JSON. Keep them out of VCS and out of committed `BuildConfig` source.

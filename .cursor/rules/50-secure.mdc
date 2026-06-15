@@ -1,0 +1,33 @@
+---
+description: Secure-coding for the app and backend — input validation, secrets, crypto, auth, privacy
+globs: app/**/*.kt, server/**/*.kt
+alwaysApply: false
+---
+
+# Secure coding (app + backend)
+
+Adapts JVM / OWASP guidance to TeaTiers; reinforces `10-style` (no committed secrets).
+
+## Input & data
+
+- Validate all API inputs (Bean Validation on the backend); never trust client-supplied IDs for authorization.
+- Parameterise all SQL/JPA — no string-built queries. Don't deserialize untrusted data with `ObjectInputStream`; exchange data as JSON via kotlinx.serialization with a schema. XML parsers: disable DTDs and external entities (XXE).
+
+## Secrets & crypto
+
+- No hardcoded keys, tokens, or passwords. Android: store tokens/credentials in the Keystore / `EncryptedSharedPreferences`, never plaintext prefs. API keys come from `BuildConfig` via a non-committed properties file, not VCS.
+- Backend secrets from env / a secret manager. Randomness from `SecureRandom`; no MD5 / SHA-1 / DES. If user accounts exist, hash passwords with bcrypt/argon2.
+
+## Network & privacy
+
+- TLS everywhere; never disable certificate or hostname verification. Consider certificate pinning in the app for your own API.
+- Purchase-location geopoints are sensitive personal data: request runtime permission, store the minimum, document the purpose, and never log it. Don't log tokens or PII.
+
+## Dependencies
+
+- Run OWASP Dependency-Check (or the Gradle versions plugin) as part of `./gradlew check`; keep dependencies patched. Don't add a dependency to bypass a security control you don't understand.
+
+## Don't
+
+- Don't ship verbose / debug logging in release builds.
+- Don't catch-and-ignore security exceptions; surface them.

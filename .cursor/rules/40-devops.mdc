@@ -1,0 +1,29 @@
+---
+description: DevOps — GitHub Actions CI, Docker for the server, release hygiene
+globs: **/.github/workflows/*.yml, **/.github/workflows/*.yaml, **/Dockerfile, **/Dockerfile.*, **/Containerfile, **/.dockerignore, **/Makefile
+alwaysApply: false
+---
+
+# DevOps / CI/CD
+
+## GitHub Actions
+
+- Pin actions to a major tag or commit SHA (`actions/checkout@v4`, `actions/setup-java@v4`). Never `@main`.
+- Declare `permissions:` per workflow; default `contents: read` and widen only as needed.
+- `concurrency:` per branch / PR with `cancel-in-progress: true` for build/test workflows.
+- Cache Gradle (`actions/setup-java` with `cache: gradle`). Required checks: `./gradlew check` for both modules (compile, test, detekt/ktlint, Android lint, `assembleDebug`).
+- Reference secrets only via `${{ secrets.* }}`; never echo them. Android signing keys come from CI secrets, never the repo.
+
+## Docker (backend)
+
+- Multi-stage: builder `gradle:8-jdk21` → runtime `eclipse-temurin:21-jre-jammy` or `gcr.io/distroless/java21-debian12:nonroot`. Run as non-root. Pin base images by digest.
+- No build secrets in `ARG` or layer history; use BuildKit secrets if unavoidable. Ship a `.dockerignore` excluding `.git`, `build/`, `.gradle/`, secrets, and IDE folders.
+
+## Deploy (single Linux server)
+
+- A top-level `Makefile` / `justfile` is the entry point (`make build`, `make run`, `make deploy`); document each target in a one-line comment. Deploy via docker compose or a systemd unit. Scripts are `bash` with `set -euo pipefail`.
+
+## Don't
+
+- Don't `git push --force` to shared branches or bypass branch protection / required checks.
+- Don't generate, write, or commit production credentials from CI.

@@ -1,0 +1,37 @@
+---
+description: Android client conventions — Kotlin + Jetpack Compose, MVVM, coroutines, Room/Retrofit
+globs: app/**/*.kt, app/**/*.kts, app/**/build.gradle.kts
+alwaysApply: false
+---
+
+# Android client (Kotlin + Compose)
+
+## Toolchain
+
+- Kotlin 2.x, Jetpack Compose (BOM-managed), Gradle Kotlin DSL only, all versions pinned in `libs.versions.toml`. AGP latest stable; JDK 17 toolchain for the build.
+- Pin `minSdk` / `targetSdk` / `compileSdk` in the version catalog; justify any unusually low `minSdk` in `context/`.
+
+## Architecture
+
+- Unidirectional data flow + MVVM: the `ViewModel` exposes immutable UI state (`StateFlow<UiState>`); the UI sends events up via lambdas.
+- Layered packages: `ui/` (Compose screens + components), `viewmodel/`, `domain/` (models, use cases), `data/` (repositories + local/remote sources), `di/`.
+- Composables are stateless where possible — hoist state; pass state + callbacks (not `ViewModel`s) into child composables. No business logic, I/O, or navigation decisions inside a `@Composable`.
+
+## Idioms
+
+- Coroutines + Flow only; `viewModelScope` for VM work; collect with `collectAsStateWithLifecycle()`. No `GlobalScope`; no `runBlocking` on the main thread.
+- DI via Hilt. Persistence: Room (local cache) + DataStore (preferences) — not `SharedPreferences` for new code.
+- Networking: Retrofit + OkHttp + kotlinx.serialization, behind a repository; never touch the network on the main thread.
+- Purchase-location: abstract the provider (Google / Yandex / OSM) behind one interface; request location permission at runtime and store the minimum.
+- Multilingual tea names: carry all of ru/en/zh in the model; UI text comes from `res/values[-ru|-zh]/strings.xml`.
+
+## Testing
+
+- JUnit5 + MockK for unit tests; Turbine for Flow; `createComposeRule` for Compose UI tests. Mirror `main` packages under `test` / `androidTest`.
+
+## Don't
+
+- No `!!` — use `requireNotNull` / `checkNotNull` or sealed results.
+- No business logic in composables, Activities, or Fragments.
+- No hardcoded API keys/secrets — inject via `BuildConfig` from a non-committed properties file or a secrets Gradle plugin.
+- No XML-View screens for new UI (Compose-first); no `AsyncTask` / Loaders.
