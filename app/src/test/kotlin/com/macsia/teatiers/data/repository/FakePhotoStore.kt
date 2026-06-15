@@ -2,6 +2,7 @@ package com.macsia.teatiers.data.repository
 
 import android.net.Uri
 import com.macsia.teatiers.data.photos.PhotoStore
+import java.io.InputStream
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -32,5 +33,10 @@ class FakePhotoStore : PhotoStore {
     override suspend fun delete(path: String): Boolean {
         deleted += path
         return true
+    }
+
+    override suspend fun importInto(originalName: String, input: InputStream): String? {
+        input.readBytes()
+        return "/fake/imported-${counter.incrementAndGet()}.jpg"
     }
 }

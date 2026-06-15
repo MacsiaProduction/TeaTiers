@@ -1,7 +1,11 @@
 package com.macsia.teatiers.ui.board
 
+import android.content.Intent
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,20 +20,31 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -40,6 +55,8 @@ import com.macsia.teatiers.BuildConfig
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.ThemeMode
 import com.macsia.teatiers.viewmodel.AppLanguage
+import com.macsia.teatiers.viewmodel.BackupEvent
+import com.macsia.teatiers.viewmodel.BackupViewModel
 import com.macsia.teatiers.viewmodel.SettingsViewModel
 import com.macsia.teatiers.viewmodel.appLanguageOf
 
@@ -54,8 +71,44 @@ fun SettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
+    backupViewModel: BackupViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // LocalResources (not context.getString) so strings re-resolve on a locale/config change.
+    val resources = LocalResources.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showImportConfirm by rememberSaveable { mutableStateOf(false) }
+
+    // SAF "save to" picker: the user chooses where the .zip lands (Files / Yandex Disk / ...).
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri -> uri?.let(backupViewModel::exportTo) }
+
+    // SAF "open" picker for restore. octet-stream is included because some providers report a
+    // .zip with that generic type; BackupManager validates the contents regardless.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let(backupViewModel::importFrom) }
+
+    LaunchedEffect(backupViewModel, snackbarHostState) {
+        backupViewModel.events.collect { event ->
+            when (event) {
+                is BackupEvent.Message ->
+                    snackbarHostState.showSnackbar(resources.getString(event.res))
+                is BackupEvent.Share -> {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, event.uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(
+                        Intent.createChooser(send, resources.getString(R.string.backup_share_chooser)),
+                    )
+                }
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -72,6 +125,7 @@ fun SettingsScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -124,6 +178,24 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsSection(title = stringResource(R.string.settings_data_section)) {
+                ActionRow(
+                    title = stringResource(R.string.backup_export),
+                    hint = stringResource(R.string.backup_export_hint),
+                    onClick = { exportLauncher.launch(defaultBackupName()) },
+                )
+                ActionRow(
+                    title = stringResource(R.string.backup_share),
+                    hint = null,
+                    onClick = backupViewModel::share,
+                )
+                ActionRow(
+                    title = stringResource(R.string.backup_import),
+                    hint = stringResource(R.string.backup_import_hint),
+                    onClick = { showImportConfirm = true },
+                )
+            }
+
             SettingsSection(title = stringResource(R.string.settings_about_section)) {
                 Text(
                     text = stringResource(R.string.app_name),
@@ -148,6 +220,33 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showImportConfirm) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = false },
+            title = { Text(stringResource(R.string.backup_import_confirm_title)) },
+            text = { Text(stringResource(R.string.backup_import_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showImportConfirm = false
+                        importLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                    },
+                ) { Text(stringResource(R.string.backup_import_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+}
+
+/** Suggested SAF file name with a sortable timestamp; the user can rename in the picker. */
+private fun defaultBackupName(): String {
+    val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
+    return "teatiers-backup-$stamp.zip"
 }
 
 private fun AppLanguage.labelRes(): Int = when (this) {
@@ -181,6 +280,28 @@ private fun SettingsSection(title: String, content: @Composable () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.padding(vertical = 8.dp, horizontal = 16.dp)) { content() }
+        }
+    }
+}
+
+@Composable
+private fun ActionRow(title: String, hint: String?, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            if (hint != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

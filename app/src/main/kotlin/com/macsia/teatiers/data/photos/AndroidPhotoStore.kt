@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -61,6 +62,23 @@ class AndroidPhotoStore @Inject constructor(
             null
         }
     }
+
+    override suspend fun importInto(originalName: String, input: InputStream): String? =
+        withContext(Dispatchers.IO) {
+            val ext = originalName.substringAfterLast('.', "").let { if (it.isEmpty()) "jpg" else it }
+            val target = File(rootDir, "${UUID.randomUUID()}.$ext")
+            try {
+                FileOutputStream(target).use { output ->
+                    input.copyTo(output)
+                    output.fd.sync()
+                }
+                target.absolutePath
+            } catch (e: IOException) {
+                Log.w(TAG, "Failed to import $originalName", e)
+                target.delete()
+                null
+            }
+        }
 
     override suspend fun delete(path: String): Boolean = withContext(Dispatchers.IO) {
         val file = File(path)

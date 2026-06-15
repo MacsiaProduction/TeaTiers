@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.photos
 
 import android.net.Uri
+import java.io.InputStream
 
 /**
  * Storage layer for the per-tea photo list (decisions.md #43). The repository delegates here so
@@ -22,4 +23,12 @@ interface PhotoStore {
      * URI from an interrupted earlier delete does not block the row delete on retry.
      */
     suspend fun delete(path: String): Boolean
+
+    /**
+     * Writes [input] into the app-private photo dir under a fresh UUID-based filename, keeping
+     * [originalName]'s extension, and returns the new **absolute file path**. Used by import
+     * (#26) to land a photo bundled in a backup .zip into stable local storage. Returns null on
+     * an I/O failure so the caller can drop that one photo without aborting the whole restore.
+     */
+    suspend fun importInto(originalName: String, input: InputStream): String?
 }
