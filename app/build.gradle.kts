@@ -43,10 +43,11 @@ android {
     }
 
     lint {
-        // Phase 0 can't run lint locally (no Android SDK on this host), so keep it reporting
-        // in CI but don't fail the build on findings yet. A curated baseline + abortOnError
-        // lands in M1 once the screens stabilize. (context/decisions.md)
-        abortOnError = false
+        // Fail the build on lint errors (warnings still only report). If a future upgrade
+        // introduces unavoidable findings, capture them in a committed baseline rather than
+        // muting the check. (context/decisions.md)
+        abortOnError = true
+        warningsAsErrors = false
     }
 }
 
@@ -60,6 +61,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
 
@@ -77,7 +79,7 @@ dependencies {
     // processor can parse Kotlin 2.4.0 metadata (highest version on the processor classpath
     // wins). Mirrors android/nowinandroid's fix for google/dagger#5001.
     ksp(libs.kotlin.metadata.jvm)
-    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
 
     testImplementation(libs.junit)
 }

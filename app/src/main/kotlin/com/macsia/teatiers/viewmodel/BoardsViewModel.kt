@@ -1,19 +1,27 @@
 package com.macsia.teatiers.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.macsia.teatiers.data.sample.SampleBoardProvider
+import androidx.lifecycle.viewModelScope
+import com.macsia.teatiers.data.repository.TeaBoardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-/** Holds the boards-list state (the app's home). */
+/** Holds the boards-list state (the app's home), derived from the repository. */
 @HiltViewModel
 class BoardsViewModel @Inject constructor(
-    sampleBoardProvider: SampleBoardProvider,
+    repository: TeaBoardRepository,
 ) : ViewModel() {
 
-    private val _boards = MutableStateFlow(sampleBoardProvider.boards().map { it.toSummary() })
-    val boards: StateFlow<List<BoardSummary>> = _boards.asStateFlow()
+    val boards: StateFlow<List<BoardSummary>> = repository.boards
+        .map { boards -> boards.map { it.toSummary() } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            // Seed from the current snapshot so the list never flashes empty on open.
+            initialValue = repository.boards.value.map { it.toSummary() },
+        )
 }

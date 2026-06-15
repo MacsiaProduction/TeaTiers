@@ -13,6 +13,44 @@
 
     <string name="a11y_back">Назад</string>
     <string name="cd_liquor">Цвет настоя</string>
+
+    <!-- Tea detail -->
+    <string name="detail_flavor_title">Вкус</string>
+    <string name="detail_notes_title">Заметки</string>
+    <string name="detail_purchase_title">Где купить</string>
+    <string name="detail_purchase_empty">Место покупки не указано.</string>
+    <!-- %1$s — название картографического сервиса в именительном падеже -->
+    <string name="detail_purchase_open_map">Открыть на карте: %1$s</string>
+
+    <!-- Add tea -->
+    <string name="add_tea_action">Добавить чай</string>
+    <string name="add_tea_title">Новый чай</string>
+    <string name="action_save">Сохранить</string>
+    <string name="field_name_ru">Название (рус.)</string>
+    <string name="field_name_ru_hint">Обязательное поле</string>
+    <string name="field_name_en">Название (англ.)</string>
+    <string name="field_pinyin">Пиньинь</string>
+    <string name="field_name_zh">Название (кит.)</string>
+    <string name="field_type">Тип</string>
+    <string name="field_origin">Происхождение</string>
+    <string name="field_flavor">Вкус — быстрая оценка</string>
+    <string name="field_tier">Тир</string>
+    <string name="field_notes">Заметки</string>
+    <string name="field_purchase">Место покупки</string>
+    <string name="field_purchase_label">Название места</string>
+    <string name="field_purchase_text">Описание</string>
+    <string name="field_purchase_url">Ссылка</string>
+    <string name="field_latitude">Широта</string>
+    <string name="field_longitude">Долгота</string>
+    <string name="purchase_kind_text">Текст</string>
+    <string name="purchase_kind_marketplace">Маркетплейс</string>
+    <string name="purchase_kind_geo">На карте</string>
+
+    <!-- Map providers for purchase geopoints (nominative case) -->
+    <string name="geo_provider_google">Google Карты</string>
+    <string name="geo_provider_yandex">Яндекс Карты</string>
+    <string name="geo_provider_osm">OpenStreetMap</string>
+
     <!-- %1$s — вкусовая характеристика, %2$d — её интенсивность от 0 до 5 -->
     <string name="a11y_flavor_dim">%1$s: %2$d из 5</string>
     <!-- %1$s — перечисление характеристик профиля через запятую -->

@@ -12,6 +12,8 @@ import com.macsia.teatiers.domain.model.FlavorDimension.SMOKY
 import com.macsia.teatiers.domain.model.FlavorDimension.SWEETNESS
 import com.macsia.teatiers.domain.model.FlavorDimension.UMAMI
 import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.GeoProvider
+import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
@@ -85,6 +87,11 @@ class SampleBoardProvider @Inject constructor() {
             FlavorScore(SWEETNESS, 3),
             FlavorScore(FLORAL, 2),
         ),
+        notes = "Брал на развес; раскрывается к третьему-четвёртому проливу.",
+        purchaseLocations = listOf(
+            PurchaseLocation.Geo(GeoProvider.YANDEX, 27.7065, 117.9928, "Уишань, чайный рынок"),
+            PurchaseLocation.Marketplace("https://example.com/da-hong-pao", "Тейстудия"),
+        ),
     )
 
     private val longjing = Tea(
@@ -101,6 +108,9 @@ class SampleBoardProvider @Inject constructor() {
             FlavorScore(SWEETNESS, 3),
             FlavorScore(UMAMI, 3),
             FlavorScore(ASTRINGENCY, 1),
+        ),
+        purchaseLocations = listOf(
+            PurchaseLocation.FreeText("Привезён другом из поездки в Ханчжоу"),
         ),
     )
 

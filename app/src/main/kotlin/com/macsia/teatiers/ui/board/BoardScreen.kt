@@ -21,7 +21,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +42,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.Tea
@@ -58,25 +61,35 @@ private val ScreenInset = 16.dp
 
 @Composable
 fun BoardScreen(
+    boardId: String,
     onBack: () -> Unit,
+    onOpenTea: (String) -> Unit,
+    onAddTea: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(boardId) { viewModel.bind(boardId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    BoardContent(state = state, onBack = onBack, modifier = modifier)
+    BoardContent(state = state, onBack = onBack, onOpenTea = onOpenTea, onAddTea = onAddTea, modifier = modifier)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BoardContent(state: BoardUiState, onBack: () -> Unit, modifier: Modifier = Modifier) {
+private fun BoardContent(
+    state: BoardUiState?,
+    onBack: () -> Unit,
+    onOpenTea: (String) -> Unit,
+    onAddTea: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val ramp = TeaTheme.colors.tierRamp
-    val featured = state.tiers.firstOrNull { it.teas.isNotEmpty() }?.teas?.firstOrNull()
+    val featured = state?.tiers?.firstOrNull { it.teas.isNotEmpty() }?.teas?.firstOrNull()
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(state.boardName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(state?.boardName.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -87,35 +100,50 @@ private fun BoardContent(state: BoardUiState, onBack: () -> Unit, modifier: Modi
                 },
             )
         },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onAddTea,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.add_tea_action)) },
+            )
+        },
     ) { innerPadding ->
+        if (state == null) {
+            Box(Modifier.fillMaxSize().padding(innerPadding))
+            return@Scaffold
+        }
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             if (featured != null) {
                 item(key = "featured") {
-                    FeaturedTea(tea = featured, modifier = Modifier.padding(horizontal = ScreenInset))
+                    FeaturedTea(
+                        tea = featured,
+                        onClick = { onOpenTea(featured.id) },
+                        modifier = Modifier.padding(horizontal = ScreenInset),
+                    )
                 }
             }
             items(state.tiers, key = { it.tier.id }) { row ->
                 val rampColor = row.tier.colorArgb?.let { Color(it) }
                     ?: ramp.getOrElse(row.tier.position) { ramp.last() }
-                TierRow(tierWithTeas = row, rampColor = rampColor)
+                TierRow(tierWithTeas = row, rampColor = rampColor, onOpenTea = onOpenTea)
             }
             if (state.unranked.isNotEmpty()) {
-                item(key = "unranked") { UnrankedSection(teas = state.unranked) }
+                item(key = "unranked") { UnrankedSection(teas = state.unranked, onOpenTea = onOpenTea) }
             }
         }
     }
 }
 
 @Composable
-private fun FeaturedTea(tea: Tea, modifier: Modifier = Modifier) {
+private fun FeaturedTea(tea: Tea, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val liquor = TeaTheme.colors.liquorByType[tea.type] ?: MaterialTheme.colorScheme.secondary
-    val secondaryName = listOfNotNull(tea.pinyin, tea.nameZh).joinToString("  ·  ")
 
     Surface(
+        onClick = onClick,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 2.dp,
@@ -132,10 +160,10 @@ private fun FeaturedTea(tea: Tea, modifier: Modifier = Modifier) {
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (secondaryName.isNotEmpty()) {
+                    if (tea.secondaryName.isNotEmpty()) {
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = secondaryName,
+                            text = tea.secondaryName,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -173,7 +201,7 @@ private fun FeaturedTea(tea: Tea, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TierRow(tierWithTeas: TierWithTeas, rampColor: Color) {
+private fun TierRow(tierWithTeas: TierWithTeas, rampColor: Color, onOpenTea: (String) -> Unit) {
     val onRamp = if (rampColor.luminance() > 0.55f) InkOnLight else Color.White
     Row(
         modifier = Modifier
@@ -210,14 +238,14 @@ private fun TierRow(tierWithTeas: TierWithTeas, rampColor: Color) {
                 modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                tierWithTeas.teas.forEach { tea -> TeaCard(tea = tea) }
+                tierWithTeas.teas.forEach { tea -> TeaCard(tea = tea, onClick = { onOpenTea(tea.id) }) }
             }
         }
     }
 }
 
 @Composable
-private fun UnrankedSection(teas: List<Tea>) {
+private fun UnrankedSection(teas: List<Tea>, onOpenTea: (String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.board_unranked),
@@ -230,7 +258,7 @@ private fun UnrankedSection(teas: List<Tea>) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.width(ScreenInset))
-            teas.forEach { tea -> TeaCard(tea = tea) }
+            teas.forEach { tea -> TeaCard(tea = tea, onClick = { onOpenTea(tea.id) }) }
             Spacer(Modifier.width(ScreenInset))
         }
     }

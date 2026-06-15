@@ -4,29 +4,58 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import com.macsia.teatiers.ui.board.AddTeaScreen
 import com.macsia.teatiers.ui.board.BoardScreen
 import com.macsia.teatiers.ui.board.BoardsScreen
+import com.macsia.teatiers.ui.board.TeaDetailScreen
+import com.macsia.teatiers.ui.nav.BackStackSaver
+import com.macsia.teatiers.ui.nav.Destination
 
 /**
- * Top-level destination switch. Phase 0 keeps navigation deliberately tiny (a single nullable
- * "open board" id) to avoid pulling in navigation-compose before it earns its place; a real
- * NavHost with typed routes arrives with the editing flows in M1.
+ * Top-level destination host. Holds a small saveable back stack and renders the top entry;
+ * system back pops it. A NavHost (navigation-compose) can replace this if the graph grows.
  */
 @Composable
 fun TeaTiersApp() {
-    var openBoardId: String? by rememberSaveable { mutableStateOf<String?>(null) }
+    val backStack = rememberSaveable(saver = BackStackSaver) {
+        mutableStateListOf<Destination>(Destination.Boards)
+    }
+
+    fun navigate(destination: Destination) = backStack.add(destination)
+    fun pop() {
+        if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
+    }
 
     Surface(color = MaterialTheme.colorScheme.background) {
-        if (openBoardId == null) {
-            BoardsScreen(onOpenBoard = { openBoardId = it })
-        } else {
-            BoardScreen(onBack = { openBoardId = null })
+        when (val current = backStack.last()) {
+            Destination.Boards ->
+                BoardsScreen(onOpenBoard = { navigate(Destination.Board(it)) })
+
+            is Destination.Board ->
+                BoardScreen(
+                    boardId = current.boardId,
+                    onBack = ::pop,
+                    onOpenTea = { teaId -> navigate(Destination.TeaDetail(current.boardId, teaId)) },
+                    onAddTea = { navigate(Destination.AddTea(current.boardId)) },
+                )
+
+            is Destination.TeaDetail ->
+                TeaDetailScreen(
+                    boardId = current.boardId,
+                    teaId = current.teaId,
+                    onBack = ::pop,
+                )
+
+            is Destination.AddTea ->
+                AddTeaScreen(
+                    boardId = current.boardId,
+                    onBack = ::pop,
+                    onSaved = ::pop,
+                )
         }
     }
 
-    BackHandler(enabled = openBoardId != null) { openBoardId = null }
+    BackHandler(enabled = backStack.size > 1) { pop() }
 }
