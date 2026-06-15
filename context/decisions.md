@@ -353,3 +353,27 @@ deviated.
     - **Package base `com.macsia.teatiers`** (not `fun.macsia.*` — `fun` is a Kotlin keyword).
     - App unit smoke tests use **JUnit4** (Android default, zero extra config); JUnit5 + MockK
       + Turbine adopted in M1 with real ViewModel tests.
+
+## 2026-06-15 (addendum 8) — AGP-9 build wiring (verified green in CI, PR #1)
+
+32. **Corrections to #31 found while making `app` build green in CI** (run `27546775866`,
+    both jobs success). These are deliberate; do not revert without re-breaking AGP 9:
+    - **No `org.jetbrains.kotlin.android` plugin.** AGP 9 ships **built-in Kotlin** and rejects
+      that plugin outright. It is removed from the app plugins block and the version catalog.
+      The **Compose compiler plugin** (`org.jetbrains.kotlin.plugin.compose`, `version.ref =
+      kotlin`) pins the built-in Kotlin Gradle Plugin to our **2.4.0**; the `kotlin { … }` DSL
+      (`jvmToolchain(17)`) remains available.
+    - **`compileSdk` = 37.0, not 36** (supersedes #31's "36" for compileSdk only; `targetSdk`
+      stays 36, `minSdk` 26). The pinned Compose BOM pulls `androidx.core:1.19.0`, which
+      mandates `compileSdk >= 37`; AGP 9.2 supports max API 37.0. Use the block DSL
+      `compileSdk { version = release(37) { minorApiLevel = 0 } }` — CI runners install the
+      platform as `android-37.0`, so the integer `compileSdk = 37` form fails to resolve
+      `android-37`.
+    - **Hilt + Kotlin 2.4 metadata override.** `hiltJavaCompileDebug` fails with "Provided
+      Metadata instance has version 2.4.0, while maximum supported version is 2.3.0" because
+      Dagger 2.59.2 (and 2.60) bundle an older `kotlin-metadata-jvm`. Fix: add
+      `ksp("org.jetbrains.kotlin:kotlin-metadata-jvm")` pinned to the Kotlin version so the
+      highest version wins on the processor classpath (canonical fix per `google/dagger#5001`,
+      mirrors `android/nowinandroid`).
+    - **Known non-fatal warning (M1):** `hiltViewModel()` is deprecated and moved to package
+      `androidx.hilt.lifecycle.viewmodel.compose`; the import migration is an M1 cleanup.
