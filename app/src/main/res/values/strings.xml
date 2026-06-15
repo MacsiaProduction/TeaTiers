@@ -9,7 +9,24 @@
     <string name="tier_empty">Пока пусто</string>
 
     <string name="boards_empty_title">Здесь будут ваши подборки</string>
-    <string name="boards_empty_hint">Создайте подборку и разложите чаи по тирам — от S до D.</string>
+    <string name="boards_empty_hint">Создайте подборку, выберите шаблон тиров и разложите чаи.</string>
+    <string name="boards_empty_action">Создать первую подборку</string>
+
+    <!-- Create board -->
+    <string name="boards_create_action">Создать подборку</string>
+    <string name="boards_create_title">Новая подборка</string>
+    <string name="boards_create_name_label">Название</string>
+    <string name="boards_create_template_label">Шаблон тиров</string>
+    <string name="action_create">Создать</string>
+    <string name="a11y_boards_create">Создать подборку</string>
+
+    <!-- Tier templates: labels stay literal (S/A/B/C/D/F, 1..10) — universal across ru/en/zh. -->
+    <string name="tier_template_f_s">F – S</string>
+    <string name="tier_template_f_s_hint">Шесть тиров: S, A, B, C, D, F</string>
+    <string name="tier_template_one_to_ten">1 – 10</string>
+    <string name="tier_template_one_to_ten_hint">Десять тиров от 10 до 1</string>
+    <string name="tier_template_blank">Без тиров</string>
+    <string name="tier_template_blank_hint">Начать с пустой подборки</string>
 
     <string name="a11y_back">Назад</string>
     <string name="cd_liquor">Цвет настоя</string>

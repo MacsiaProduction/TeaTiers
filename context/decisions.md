@@ -515,3 +515,34 @@ deviated.
       purchase-list helpers, edit-mode bind + submit (calls `updateTea`, not `addTea`), and the
       end-to-end `TeaBoardRepository.updateTea` over `FakeTeaDao` (preserves tier/position,
       replaces flavors + purchases).
+
+## 2026-06-15 (addendum 14) — board creation + tier templates
+
+41. **A board is created from one of three tier templates: F-S, 1-10, or blank** (brainstorm
+    point B, `context/brainstorming.md`). The Phase 0 / M1 build had no user-facing create-board
+    flow at all — boards only came from `SampleBoardProvider`'s seed. This addendum closes that gap
+    *and* settles the default tier set: the brainstorm called for two literal defaults plus a
+    custom path, so F-S replaces the implicit "S/A/B/C/D" we used to seed sample boards.
+    - **`TierTemplate` is a domain enum** (`F_TO_S`, `ONE_TO_TEN`, `BLANK`) with a pure
+      `seedTiers(boardId)` extension that returns the initial `List<Tier>`. Tier ids are
+      namespaced by the board id (`"<boardId>-s"`, `"<boardId>-n10"`, …) because `TierEntity.id`
+      is a global primary key — two boards on the same template would otherwise collide.
+    - **Tier *labels* stay literal Latin / Arabic numerals** ("S/A/B/C/D/F", "1"…"10"). Tier-list
+      shorthand reads identically across ru/en/zh; localising "S" buys nothing and would break the
+      visual identity. The user can rename anything via the tier editor (#39) post-creation.
+    - **`TeaBoardRepository.createBoard(label, template)` validates the label** (trim,
+      blank-is-no-op-returns-null) and writes the board + seeded tiers in one
+      `TeaDao.createBoardWithTiers` `@Transaction` so an interrupted insert never leaves a board
+      without its template's tiers. The new board id is `"board-<uuid8>"` to keep ids
+      human-readable in tests and logs.
+    - **The board-create UI is a Material 3 dialog (name field + radio template picker)** opened
+      from a plain icon-only FAB on `BoardsScreen` (matches the minimalist "Настой" direction).
+      The empty state also exposes a primary "Создать первую подборку" button so first-run users
+      see a CTA without having to discover the FAB. Default-selected template is F-S.
+    - **The boards Flow is hot (`SharingStarted.Eagerly` on `@AppScope`) so a new board appears
+      instantly** without manual refresh. Existing seeded sample boards keep their original
+      S/A/B/C/D shape — they aren't migrated; they're just no longer reachable as a "preset"
+      because S/A/B/C/D is just F-S minus the F.
+    - **Pure-JVM tests cover** each template's seeded tier set and order, the blank-label no-op,
+      tier-id namespacing across two F-S boards, and the VM forwarding the right
+      `(label, template)` to the repository.

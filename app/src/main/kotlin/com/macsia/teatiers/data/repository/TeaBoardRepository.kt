@@ -1,5 +1,6 @@
 package com.macsia.teatiers.data.repository
 
+import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaPlacement
@@ -12,6 +13,8 @@ import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TierTemplate
+import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +55,29 @@ class TeaBoardRepository @Inject constructor(
     }
 
     fun board(boardId: String): Board? = boards.value.firstOrNull { it.id == boardId }
+
+    /**
+     * Creates a new board with [label] (trimmed; blank is a no-op returning null) and seeds it
+     * with the tiers prescribed by [template]. Position is the next slot at the end of the boards
+     * list. Returns the new board id, or null if [label] was blank.
+     */
+    suspend fun createBoard(label: String, template: TierTemplate): String? {
+        val clean = label.trim().ifEmpty { return null }
+        val boardId = "board-${UUID.randomUUID().toString().take(8)}"
+        val position = boards.value.size
+        val boardEntity = BoardEntity(id = boardId, name = clean, position = position)
+        val tierEntities = template.seedTiers(boardId).map { tier ->
+            TierEntity(
+                id = tier.id,
+                boardId = boardId,
+                label = tier.label,
+                position = tier.position,
+                colorArgb = tier.colorArgb,
+            )
+        }
+        dao.createBoardWithTiers(boardEntity, tierEntities)
+        return boardId
+    }
 
     fun tea(boardId: String, teaId: String): Tea? {
         val board = board(boardId) ?: return null

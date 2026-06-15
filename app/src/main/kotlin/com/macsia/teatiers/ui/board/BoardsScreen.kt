@@ -8,26 +8,44 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.viewmodel.BoardSummary
 import com.macsia.teatiers.viewmodel.BoardsViewModel
@@ -40,17 +58,29 @@ fun BoardsScreen(
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
+    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text(stringResource(R.string.boards_title)) }) },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showCreateDialog = true }) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.a11y_boards_create),
+                )
+            }
+        },
     ) { innerPadding ->
         if (boards.isEmpty()) {
-            EmptyBoards(Modifier.fillMaxSize().padding(innerPadding))
+            EmptyBoards(
+                onCreate = { showCreateDialog = true },
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(boards, key = { it.id }) { summary ->
@@ -58,6 +88,16 @@ fun BoardsScreen(
                 }
             }
         }
+    }
+
+    if (showCreateDialog) {
+        CreateBoardDialog(
+            onCreate = { label, template ->
+                viewModel.createBoard(label, template)
+                showCreateDialog = false
+            },
+            onDismiss = { showCreateDialog = false },
+        )
     }
 }
 
@@ -96,7 +136,10 @@ private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit) {
 }
 
 @Composable
-private fun EmptyBoards(modifier: Modifier = Modifier) {
+private fun EmptyBoards(
+    onCreate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
@@ -114,5 +157,100 @@ private fun EmptyBoards(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(20.dp))
+        Button(onClick = onCreate) {
+            Text(stringResource(R.string.boards_empty_action))
+        }
+    }
+}
+
+@Composable
+private fun CreateBoardDialog(
+    onCreate: (label: String, template: TierTemplate) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Label is Saveable so a rotation mid-typing does not erase user input. Template is plain
+    // remember: the dialog's lifecycle is short-lived enough that re-defaulting to F-S on rotation
+    // is acceptable, and skipping a Saver avoids a per-enum custom adapter.
+    var label by rememberSaveable { mutableStateOf("") }
+    var template by remember { mutableStateOf(TierTemplate.F_TO_S) }
+    val canCreate = label.trim().isNotEmpty()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.boards_create_title)) },
+        text = {
+            Column(
+                modifier = Modifier.imePadding(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text(stringResource(R.string.boards_create_name_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = stringResource(R.string.boards_create_template_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TemplateOption(
+                    selected = template == TierTemplate.F_TO_S,
+                    title = stringResource(R.string.tier_template_f_s),
+                    hint = stringResource(R.string.tier_template_f_s_hint),
+                    onSelect = { template = TierTemplate.F_TO_S },
+                )
+                TemplateOption(
+                    selected = template == TierTemplate.ONE_TO_TEN,
+                    title = stringResource(R.string.tier_template_one_to_ten),
+                    hint = stringResource(R.string.tier_template_one_to_ten_hint),
+                    onSelect = { template = TierTemplate.ONE_TO_TEN },
+                )
+                TemplateOption(
+                    selected = template == TierTemplate.BLANK,
+                    title = stringResource(R.string.tier_template_blank),
+                    hint = stringResource(R.string.tier_template_blank_hint),
+                    onSelect = { template = TierTemplate.BLANK },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(label.trim(), template) },
+                enabled = canCreate,
+            ) { Text(stringResource(R.string.action_create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun TemplateOption(
+    selected: Boolean,
+    title: String,
+    hint: String,
+    onSelect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
