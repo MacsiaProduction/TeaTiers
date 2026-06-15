@@ -17,6 +17,25 @@
     <string name="a11y_move_to_tier">Переместить в тир %1$s</string>
     <string name="a11y_move_to_unranked">Переместить в «Без ранга»</string>
 
+    <!-- Tier editor -->
+    <string name="tier_editor_action">Тиры</string>
+    <string name="tier_editor_title">Настройка тиров</string>
+    <string name="tier_new_label">Новый</string>
+    <string name="tier_add">Добавить тир</string>
+    <string name="tier_label_field">Метка</string>
+    <string name="tier_color_title">Цвет тира</string>
+    <string name="tier_color_default">По умолчанию</string>
+    <string name="tier_delete_title">Удалить тир?</string>
+    <!-- %1$s — метка тира -->
+    <string name="tier_delete_message">Чаи из тира «%1$s» переедут в «Без ранга». Сам тир будет удалён.</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <!-- %1$s — метка тира -->
+    <string name="a11y_tier_move_up">Поднять тир «%1$s» выше</string>
+    <string name="a11y_tier_move_down">Опустить тир «%1$s» ниже</string>
+    <string name="a11y_tier_color">Выбрать цвет тира</string>
+    <string name="a11y_tier_delete">Удалить тир</string>
+
     <!-- Tea detail -->
     <string name="detail_flavor_title">Вкус</string>
     <string name="detail_notes_title">Заметки</string>

@@ -3,6 +3,8 @@ package com.macsia.teatiers.data.repository
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaPlacement
+import com.macsia.teatiers.data.db.TierEntity
+import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
 import com.macsia.teatiers.data.db.toSeedEntities
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -76,7 +79,46 @@ class TeaBoardRepository @Inject constructor(
         val placements = computeMovePlacements(board, teaId, targetTierId, targetIndex)
         if (placements.isNotEmpty()) dao.applyPlacements(placements)
     }
+
+    /** Appends a new tier (default ramp color) to the end of [boardId]'s tier list. */
+    suspend fun addTier(boardId: String, label: String) {
+        val clean = label.trim().ifEmpty { return }
+        if (board(boardId) == null) return
+        val position = dao.nextTierPosition(boardId)
+        dao.insertTiers(
+            listOf(TierEntity(id = "tier-${UUID.randomUUID()}", boardId = boardId, label = clean, position = position, colorArgb = null)),
+        )
+    }
+
+    /** Renames a tier; blank labels are ignored so a tier always keeps a usable label. */
+    suspend fun renameTier(boardId: String, tierId: String, label: String) {
+        val clean = label.trim().ifEmpty { return }
+        if (board(boardId)?.hasTier(tierId) != true) return
+        dao.updateTierLabel(tierId, clean)
+    }
+
+    /** Sets a tier's color override, or clears it ([colorArgb] null) to fall back to the ramp. */
+    suspend fun setTierColor(boardId: String, tierId: String, colorArgb: Long?) {
+        if (board(boardId)?.hasTier(tierId) != true) return
+        dao.updateTierColor(tierId, colorArgb)
+    }
+
+    /** Reorders the board's tiers to match [orderedTierIds]; a no-op when nothing changes. */
+    suspend fun reorderTiers(boardId: String, orderedTierIds: List<String>) {
+        val board = board(boardId) ?: return
+        val positions = computeTierPositions(board, orderedTierIds)
+        if (positions.isNotEmpty()) dao.reorderTiers(positions)
+    }
+
+    /** Removes a tier and drops its teas into the unranked tray (open item #11). */
+    suspend fun removeTier(boardId: String, tierId: String) {
+        val board = board(boardId) ?: return
+        if (!board.hasTier(tierId)) return
+        dao.removeTier(tierId, computeTrayReassignment(board, tierId))
+    }
 }
+
+private fun Board.hasTier(tierId: String): Boolean = tiers.any { it.id == tierId }
 
 /**
  * Pure reorder math for [TeaBoardRepository.moveTea], split out so it is unit-testable without a
@@ -114,4 +156,31 @@ internal fun computeMovePlacements(
     return setOf(sourceKey, target).flatMap { key ->
         groups.getValue(key).mapIndexed { position, id -> TeaPlacement(id, key, position) }
     }
+}
+
+/**
+ * Pure reorder math for [TeaBoardRepository.reorderTiers]. Keeps the requested order (dropping
+ * unknown ids), then appends any board tiers the request omitted, and renumbers to contiguous
+ * 0..n. Returns empty when the resulting order already matches the board, so an idle drop writes
+ * nothing.
+ */
+internal fun computeTierPositions(board: Board, orderedTierIds: List<String>): List<TierPosition> {
+    val known = board.tiers.map { it.id }.toSet()
+    val requested = orderedTierIds.filter { it in known }.distinct()
+    val full = requested + board.tiers.map { it.id }.filterNot { it in requested }
+    val current = board.tiers.sortedBy { it.position }.map { it.id }
+    if (full == current) return emptyList()
+    return full.mapIndexed { index, id -> TierPosition(id, index) }
+}
+
+/**
+ * Pure helper for [TeaBoardRepository.removeTier]: the removed tier's teas join the unranked tray
+ * after the teas already there, and the whole tray is renumbered to contiguous 0..n so positions
+ * never collide. Empty when the tier holds no teas (the tier is then simply deleted).
+ */
+internal fun computeTrayReassignment(board: Board, removedTierId: String): List<TeaPlacement> {
+    val removed = board.placements[removedTierId].orEmpty().map { it.id }
+    if (removed.isEmpty()) return emptyList()
+    val trayOrder = board.unranked.map { it.id } + removed
+    return trayOrder.mapIndexed { position, id -> TeaPlacement(id, null, position) }
 }

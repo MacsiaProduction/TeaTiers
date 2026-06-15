@@ -57,4 +57,40 @@ class BoardViewModelTest {
 
         coVerify(exactly = 0) { repository.moveTea(any(), any(), any(), any()) }
     }
+
+    @Test
+    fun `tier actions forward the bound board id to the repository`() = runTest {
+        coEvery { repository.addTier(any(), any()) } just Runs
+        coEvery { repository.renameTier(any(), any(), any()) } just Runs
+        coEvery { repository.setTierColor(any(), any(), any()) } just Runs
+        coEvery { repository.reorderTiers(any(), any()) } just Runs
+        coEvery { repository.removeTier(any(), any()) } just Runs
+        val viewModel = BoardViewModel(repository)
+        viewModel.bind("b")
+
+        viewModel.addTier("Новый")
+        viewModel.renameTier(tierId = "s", label = "Топ")
+        viewModel.setTierColor(tierId = "s", colorArgb = 0xFF356A4BL)
+        viewModel.reorderTiers(orderedTierIds = listOf("a", "s"))
+        viewModel.removeTier(tierId = "a")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.addTier(eq("b"), eq("Новый")) }
+        coVerify(exactly = 1) { repository.renameTier(eq("b"), eq("s"), eq("Топ")) }
+        coVerify(exactly = 1) { repository.setTierColor(eq("b"), eq("s"), eq(0xFF356A4BL)) }
+        coVerify(exactly = 1) { repository.reorderTiers(eq("b"), eq(listOf("a", "s"))) }
+        coVerify(exactly = 1) { repository.removeTier(eq("b"), eq("a")) }
+    }
+
+    @Test
+    fun `tier actions are a no-op when no board is bound`() = runTest {
+        val viewModel = BoardViewModel(repository)
+
+        viewModel.addTier("Новый")
+        viewModel.removeTier(tierId = "a")
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { repository.addTier(any(), any()) }
+        coVerify(exactly = 0) { repository.removeTier(any(), any()) }
+    }
 }

@@ -10,6 +10,7 @@ import com.macsia.teatiers.ui.board.AddTeaScreen
 import com.macsia.teatiers.ui.board.BoardScreen
 import com.macsia.teatiers.ui.board.BoardsScreen
 import com.macsia.teatiers.ui.board.TeaDetailScreen
+import com.macsia.teatiers.ui.board.TierEditorScreen
 import com.macsia.teatiers.ui.nav.BackStackSaver
 import com.macsia.teatiers.ui.nav.Destination
 
@@ -39,6 +40,7 @@ fun TeaTiersApp() {
                     onBack = ::pop,
                     onOpenTea = { teaId -> navigate(Destination.TeaDetail(current.boardId, teaId)) },
                     onAddTea = { navigate(Destination.AddTea(current.boardId)) },
+                    onEditTiers = { navigate(Destination.TierEditor(current.boardId)) },
                 )
 
             is Destination.TeaDetail ->
@@ -53,6 +55,12 @@ fun TeaTiersApp() {
                     boardId = current.boardId,
                     onBack = ::pop,
                     onSaved = ::pop,
+                )
+
+            is Destination.TierEditor ->
+                TierEditorScreen(
+                    boardId = current.boardId,
+                    onBack = ::pop,
                 )
         }
     }

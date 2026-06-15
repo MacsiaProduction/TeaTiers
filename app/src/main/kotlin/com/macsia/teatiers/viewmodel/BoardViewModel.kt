@@ -45,4 +45,29 @@ class BoardViewModel @Inject constructor(
         val board = boardId.value ?: return
         viewModelScope.launch { repository.moveTea(board, teaId, targetTierId, targetIndex) }
     }
+
+    fun addTier(label: String) {
+        val board = boardId.value ?: return
+        viewModelScope.launch { repository.addTier(board, label) }
+    }
+
+    fun renameTier(tierId: String, label: String) {
+        val board = boardId.value ?: return
+        viewModelScope.launch { repository.renameTier(board, tierId, label) }
+    }
+
+    fun setTierColor(tierId: String, colorArgb: Long?) {
+        val board = boardId.value ?: return
+        viewModelScope.launch { repository.setTierColor(board, tierId, colorArgb) }
+    }
+
+    fun reorderTiers(orderedTierIds: List<String>) {
+        val board = boardId.value ?: return
+        viewModelScope.launch { repository.reorderTiers(board, orderedTierIds) }
+    }
+
+    fun removeTier(tierId: String) {
+        val board = boardId.value ?: return
+        viewModelScope.launch { repository.removeTier(board, tierId) }
+    }
 }

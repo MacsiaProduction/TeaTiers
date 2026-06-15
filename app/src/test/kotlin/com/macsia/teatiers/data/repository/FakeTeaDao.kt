@@ -33,6 +33,9 @@ class FakeTeaDao : TeaDao() {
     override suspend fun nextTeaPosition(boardId: String): Int =
         (teas.filter { it.boardId == boardId }.maxOfOrNull { it.position } ?: -1) + 1
 
+    override suspend fun nextTierPosition(boardId: String): Int =
+        (tiers.filter { it.boardId == boardId }.maxOfOrNull { it.position } ?: -1) + 1
+
     override suspend fun insertBoards(boards: List<BoardEntity>) {
         this.boards += boards
         refresh()
@@ -62,6 +65,30 @@ class FakeTeaDao : TeaDao() {
         val index = teas.indexOfFirst { it.id == teaId }
         if (index >= 0) {
             teas[index] = teas[index].copy(tierId = tierId, position = position)
+            refresh()
+        }
+    }
+
+    override suspend fun updateTierLabel(tierId: String, label: String) {
+        updateTier(tierId) { it.copy(label = label) }
+    }
+
+    override suspend fun updateTierColor(tierId: String, colorArgb: Long?) {
+        updateTier(tierId) { it.copy(colorArgb = colorArgb) }
+    }
+
+    override suspend fun updateTierPosition(tierId: String, position: Int) {
+        updateTier(tierId) { it.copy(position = position) }
+    }
+
+    override suspend fun deleteTier(tierId: String) {
+        if (tiers.removeAll { it.id == tierId }) refresh()
+    }
+
+    private fun updateTier(tierId: String, transform: (TierEntity) -> TierEntity) {
+        val index = tiers.indexOfFirst { it.id == tierId }
+        if (index >= 0) {
+            tiers[index] = transform(tiers[index])
             refresh()
         }
     }
