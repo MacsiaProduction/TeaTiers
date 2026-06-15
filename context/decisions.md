@@ -803,3 +803,39 @@ deviated.
       подборках"); two empty states. Each row is `mergeDescendants` for a single TalkBack node.
     - **Strings:** `my_teas_*` + the `my_tea_board_count` plural (ru). **Sharing a tier list as an
       image stays post-MVP** (#27, unchanged).
+
+## 2026-06-16 — settings screen + DataStore + per-app language (M1, #28/#36)
+
+48. **A Settings screen ships in M1** (decisions.md #28), reached from a **gear action in the
+    Boards top bar** (next to the my-teas Search action), as a new `Destination.Settings` on the
+    custom back stack (#33). It exposes appearance, language, and an About/privacy block.
+    - **Theme mode = System / Light / Dark**, plus a **Dynamic color (Material You) opt-in toggle
+      shown only on Android 12+** (`Build.VERSION_CODES.S`). The tea-green brand scheme stays the
+      default; dynamic color, when on, recolors only the Material scheme — the `LocalTeaColors`
+      liquor palette stays brand-fixed regardless (so type swatches never drift with wallpaper).
+      `TeaTiersTheme` now takes `(themeMode, dynamicColor)` and resolves dark via the pure,
+      unit-tested `isDarkTheme(mode, isSystemInDarkTheme())`.
+    - **Persistence = Preferences DataStore (#36 wired now):** new dependency
+      `androidx.datastore:datastore-preferences 1.2.1`. `SettingsRepository` stores `theme_mode`
+      (enum name) + `dynamic_color` (bool) on a private IO scope, falls back to defaults on an
+      `IOException` read, and degrades an unknown stored enum to `SYSTEM`. `SettingsViewModel`
+      exposes `StateFlow<AppSettings>`, collected at the **activity root** (`MainActivity`) so the
+      theme applies app-wide (one-frame default-theme flash on cold start is accepted for MVP).
+    - **In-app language switch = AppCompat per-app locales.** Added `androidx.appcompat 1.7.1`;
+      `MainActivity` now extends `AppCompatActivity` (still 100% Compose-hosted) so
+      `AppCompatDelegate.setApplicationLocales` drives the locale across all API levels. The window
+      themes are reparented to `Theme.AppCompat.*.NoActionBar` (required by AppCompatActivity;
+      colors still come from Compose). Manifest adds `android:localeConfig=@xml/locales_config`
+      (ru/en/zh) and the `AppLocalesMetadataHolderService` + `autoStoreLocales` meta-data so the
+      choice persists on API < 33. Picker offers System / Русский / English / 中文; pure helper
+      `appLanguageOf(tags)` maps the active locale's primary subtag back to the selection.
+    - **Translations gap (deliberate):** only `values/` (Russian) exists today; **`values-en` /
+      `values-zh` land in M5.** Until then the picker switches the locale but every string resolves
+      to Russian — the mechanism + `locales_config` are wired now so M5 only adds resource files. A
+      `settings_language_hint` caption tells the user translations are coming.
+    - **About/privacy:** app name + `Версия <versionName>` (via `BuildConfig`, so
+      `buildConfig = true` is now enabled) + an on-device-only privacy note that explicitly flags
+      purchase geopoints as sensitive + a tea-DB credits line.
+    - **Tests:** pure-JVM `SettingsModelsTest` covers `isDarkTheme` (system follows flag;
+      light/dark ignore it) and `appLanguageOf` (primary-subtag match across region/script,
+      comma-list first-wins, null/empty/unknown → SYSTEM, tag table).

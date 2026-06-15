@@ -16,6 +16,8 @@ junitJupiter = "5.14.4"
 mockk = "1.14.9"
 turbine = "1.2.1"
 coil = "3.5.0"
+datastore = "1.2.1"
+appcompat = "1.7.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -46,6 +48,13 @@ kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-
 # Image loading (M1, photos). coil-compose pulls coil + coil-compose-core; we never load over the
 # network in MVP (#24/#43) so coil-network-* is intentionally absent.
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+
+# Settings persistence (M1, #28/#36). Preferences DataStore stores theme mode + dynamic-color
+# flag; the proto variant is unnecessary for a flat key/value set.
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+# Per-app language switch (M1, #28). AppCompatDelegate.setApplicationLocales backports per-app
+# locales below API 33 and integrates with the system locale picker on 33+.
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 
 # Local persistence (M1). room-ktx adds Flow + suspend support; room-compiler runs via KSP.
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base window theme used before Compose draws; edge-to-edge is enabled in code.
-         Parented to a platform theme to avoid pulling in the Material (View) library. -->
-    <style name="Theme.TeaTiers" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Base window theme used before Compose draws; edge-to-edge is enabled in code. Parented to
+         Theme.AppCompat (required by AppCompatActivity, which hosts the per-app locale switch, #28).
+         App colors come from Compose; this only sets the pre-draw window background. -->
+    <style name="Theme.TeaTiers" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@color/porcelain</item>
     </style>
 </resources>

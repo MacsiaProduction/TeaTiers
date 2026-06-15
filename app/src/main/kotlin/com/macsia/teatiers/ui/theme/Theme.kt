@@ -1,12 +1,18 @@
 package com.macsia.teatiers.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.macsia.teatiers.domain.model.ThemeMode
+import com.macsia.teatiers.viewmodel.isDarkTheme
 
 private val LightColorScheme = lightColorScheme(
     primary = LeafGreen,
@@ -61,15 +67,24 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 /**
- * App theme. Dynamic color (Material You) is intentionally off so the tea-leaf-green
- * brand identity stays consistent across devices; it can be offered as an opt-in later.
+ * App theme. The tea-leaf-green brand scheme is the default; dynamic color (Material You) is an
+ * opt-in (#28) honoured only on Android 12+, where it never touches our [LocalTeaColors] liquor
+ * palette (those stay brand-fixed regardless). [themeMode] overrides the system light/dark choice.
  */
 @Composable
 fun TeaTiersTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val darkTheme = isDarkTheme(themeMode, isSystemInDarkTheme())
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
     val teaColors = if (darkTheme) DarkTeaColors else LightTeaColors
     CompositionLocalProvider(LocalTeaColors provides teaColors) {
         MaterialTheme(

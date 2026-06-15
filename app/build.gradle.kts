@@ -40,6 +40,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Settings "About" reads versionName from the generated BuildConfig (#28).
+        buildConfig = true
     }
 
     lint {
@@ -84,6 +86,9 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.coil.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.appcompat)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
