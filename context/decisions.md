@@ -748,3 +748,31 @@ deviated.
     - **Net:** no schema, API, or architecture change. §6 stays as written; the only
       output of run 08 is this "considered, not adopted" record + the future-revisit
       notes above.
+
+## 2026-06-16 — flavor entry UX: quick-rate + full 11-dim reach
+
+46. **The add/edit form now reaches the full locked 11-dim flavor vocabulary** (decisions
+    #23/#28/#44), not just the six quick-rate axes. The domain enum, labels, radar, and the
+    `setFlavor`/`toTea`/`toForm` data path were already dimension-agnostic; only the form UI
+    was capped at `QuickRateDimensions`, so a user could never record GRASSY / SPICY / SMOKY
+    / EARTHY_NUTTY / UMAMI even though the detail radar draws them. This is a **client-only,
+    no-AI, no-backend** change.
+    - **Quick-rate stays the default short list** (#28): SWEETNESS, BITTERNESS, ASTRINGENCY,
+      FLORAL, FRUITINESS, ROASTED. A **"Показать все вкусы"** toggle reveals the remaining
+      five (`ExtendedRateDimensions` = the enum minus the quick set, in enum order).
+    - **A rated extended axis stays visible when collapsed** — `visibleExtendedDimensions`
+      (pure, unit-tested) shows quick + any extended dim with intensity > 0, so editing a tea
+      that already carries SMOKY never hides it; the toggle only appears when there is
+      something hidden (or it is already expanded). `animateContentSize` makes the reveal
+      non-jarring (consistent with the polish pass, #43).
+    - **Calibration aid, not a 66-string rubric.** Surface only #44's *general* anchor as a
+      one-line legend ("0 — нет · 3 — заметно · 5 — доминирует"). The detailed per-dimension
+      anchors from #44 are the **LLM prompt's** job (M4), not the user form's — keeping the
+      quick-rate flow short. The "catalog reference vs my rating" split (#23/#28) still waits
+      on the backend reference profile (M4).
+    - **A11y:** each `Slider` carries a `contentDescription` (`a11y_flavor_dim` = "<axis>:
+      <n> из 5") so TalkBack announces the axis on an adjustable control, not a bare percent.
+    - **Strings:** `field_flavor` retitled "Вкус"; added `flavor_scale_hint`,
+      `flavor_show_all`, `flavor_show_less` (ru). **Pure-JVM tests** cover the quick/extended
+      partition (exact cover, no overlap) and the collapsed-hides-zero / expanded-shows-all
+      visibility rule.

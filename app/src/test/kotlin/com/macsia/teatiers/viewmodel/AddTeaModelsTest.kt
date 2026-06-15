@@ -85,6 +85,47 @@ class AddTeaModelsTest {
     }
 
     @Test
+    fun `quick-rate plus extended dimensions cover every locked axis exactly once`() {
+        val union = QuickRateDimensions + ExtendedRateDimensions
+        assertEquals(FlavorDimension.entries.toSet(), union.toSet())
+        assertEquals(FlavorDimension.entries.size, union.size) // no overlap, no gaps
+        // The five axes the quick list omits must all be reachable under "show all".
+        assertEquals(
+            listOf(
+                FlavorDimension.GRASSY,
+                FlavorDimension.SPICY,
+                FlavorDimension.SMOKY,
+                FlavorDimension.EARTHY_NUTTY,
+                FlavorDimension.UMAMI,
+            ),
+            ExtendedRateDimensions,
+        )
+    }
+
+    @Test
+    fun `collapsed flavor view hides unrated extended axes but keeps rated ones`() {
+        val flavors = mapOf(
+            FlavorDimension.SWEETNESS to 4, // quick — never part of the extended list
+            FlavorDimension.SMOKY to 3, // extended + rated => stays visible when collapsed
+            FlavorDimension.UMAMI to 0, // extended + zero => hidden when collapsed
+        )
+
+        val collapsed = visibleExtendedDimensions(flavors, expanded = false)
+        assertEquals(listOf(FlavorDimension.SMOKY), collapsed)
+
+        val expanded = visibleExtendedDimensions(flavors, expanded = true)
+        assertEquals(ExtendedRateDimensions, expanded)
+    }
+
+    @Test
+    fun `collapsed view is empty when no extended axis is rated`() {
+        assertTrue(visibleExtendedDimensions(emptyMap(), expanded = false).isEmpty())
+        assertTrue(
+            visibleExtendedDimensions(mapOf(FlavorDimension.BITTERNESS to 5), expanded = false).isEmpty(),
+        )
+    }
+
+    @Test
     fun `Tea toForm preserves every editable field`() {
         val tea = Tea(
             id = "x",

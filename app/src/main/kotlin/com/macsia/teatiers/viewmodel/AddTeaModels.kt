@@ -20,6 +20,26 @@ val QuickRateDimensions: List<FlavorDimension> = listOf(
     FlavorDimension.ROASTED,
 )
 
+/**
+ * The remaining locked dimensions (decisions.md #23/#44) reachable under the "show all" toggle —
+ * the full eleven minus [QuickRateDimensions], kept in enum order. Quick-rate stays the default so
+ * the form is short, but every dimension the radar can draw must be enterable too.
+ */
+val ExtendedRateDimensions: List<FlavorDimension> =
+    FlavorDimension.entries.filter { it !in QuickRateDimensions }
+
+/**
+ * Which extended dimensions to render right now. Collapsed shows only the ones the user (or an
+ * imported tea) already rated above zero, so editing a tea with a recorded smokiness never hides
+ * it; [expanded] reveals the rest. Pure so it is unit-testable without Compose.
+ */
+fun visibleExtendedDimensions(
+    flavors: Map<FlavorDimension, Int>,
+    expanded: Boolean,
+): List<FlavorDimension> =
+    if (expanded) ExtendedRateDimensions
+    else ExtendedRateDimensions.filter { (flavors[it] ?: 0) > 0 }
+
 /** Editable draft for one purchase location row in the add/edit form. */
 data class PurchaseDraft(
     val kind: PurchaseKind = PurchaseKind.TEXT,
