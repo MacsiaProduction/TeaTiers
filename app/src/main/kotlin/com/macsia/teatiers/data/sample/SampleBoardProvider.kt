@@ -12,7 +12,6 @@ import com.macsia.teatiers.domain.model.FlavorDimension.SMOKY
 import com.macsia.teatiers.domain.model.FlavorDimension.SWEETNESS
 import com.macsia.teatiers.domain.model.FlavorDimension.UMAMI
 import com.macsia.teatiers.domain.model.FlavorScore
-import com.macsia.teatiers.domain.model.GeoProvider
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
@@ -20,8 +19,8 @@ import com.macsia.teatiers.domain.model.Tier
 import javax.inject.Inject
 
 /**
- * In-memory demo content for Phase 0 so the screens render real, multilingual teas before
- * Room (M1) and the catalog API (M2/M4) exist. Replaced by repositories later; no I/O here.
+ * Demo content used to seed the Room store on first run (M1) so the screens open with real,
+ * multilingual teas until the catalog API (M2/M4) exists. Pure data, no I/O.
  */
 class SampleBoardProvider @Inject constructor() {
 
@@ -89,7 +88,7 @@ class SampleBoardProvider @Inject constructor() {
         ),
         notes = "Брал на развес; раскрывается к третьему-четвёртому проливу.",
         purchaseLocations = listOf(
-            PurchaseLocation.Geo(GeoProvider.YANDEX, 27.7065, 117.9928, "Уишань, чайный рынок"),
+            PurchaseLocation.FreeText("Чайный рынок в Уишане", "Поездка 2025"),
             PurchaseLocation.Marketplace("https://example.com/da-hong-pao", "Тейстудия"),
         ),
     )
