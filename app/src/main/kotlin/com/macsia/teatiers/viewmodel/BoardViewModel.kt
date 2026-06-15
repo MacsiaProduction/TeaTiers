@@ -2,6 +2,7 @@ package com.macsia.teatiers.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,10 +23,20 @@ class BoardViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
 ) : ViewModel() {
 
+    private val eventHost = UiEventHost()
+    val events get() = eventHost.events
+
     private val boardId = MutableStateFlow<String?>(null)
 
     fun bind(id: String) {
         boardId.value = id
+    }
+
+    /** Wraps a repo mutation; surfaces a generic snackbar on failure so silent drops do not
+     *  hide bugs from the user. Local helper, kept private so VMs do not catch each other. */
+    private fun guarded(block: suspend () -> Unit) = viewModelScope.launch {
+        runCatching { block() }
+            .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
     }
 
     val uiState: StateFlow<BoardUiState?> = combine(repository.boards, boardId) { boards, id ->
@@ -44,7 +55,7 @@ class BoardViewModel @Inject constructor(
      */
     fun movePlacement(placementId: String, targetTierId: String?, targetIndex: Int) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.moveTea(board, placementId, targetTierId, targetIndex) }
+        guarded { repository.moveTea(board, placementId, targetTierId, targetIndex) }
     }
 
     /**
@@ -52,7 +63,7 @@ class BoardViewModel @Inject constructor(
      * their copy). Used by the per-card "Убрать с подборки" action.
      */
     fun removePlacement(placementId: String) {
-        viewModelScope.launch { repository.removePlacement(placementId) }
+        guarded { repository.removePlacement(placementId) }
     }
 
     /**
@@ -60,31 +71,31 @@ class BoardViewModel @Inject constructor(
      * via FK cascade. Destructive; UI gates this behind a confirmation dialog.
      */
     fun deleteTea(teaId: String) {
-        viewModelScope.launch { repository.deleteTea(teaId) }
+        guarded { repository.deleteTea(teaId) }
     }
 
     fun addTier(label: String) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.addTier(board, label) }
+        guarded { repository.addTier(board, label) }
     }
 
     fun renameTier(tierId: String, label: String) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.renameTier(board, tierId, label) }
+        guarded { repository.renameTier(board, tierId, label) }
     }
 
     fun setTierColor(tierId: String, colorArgb: Long?) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.setTierColor(board, tierId, colorArgb) }
+        guarded { repository.setTierColor(board, tierId, colorArgb) }
     }
 
     fun reorderTiers(orderedTierIds: List<String>) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.reorderTiers(board, orderedTierIds) }
+        guarded { repository.reorderTiers(board, orderedTierIds) }
     }
 
     fun removeTier(tierId: String) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.removeTier(board, tierId) }
+        guarded { repository.removeTier(board, tierId) }
     }
 }

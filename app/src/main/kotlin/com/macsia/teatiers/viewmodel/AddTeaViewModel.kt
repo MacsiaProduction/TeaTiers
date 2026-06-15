@@ -3,6 +3,7 @@ package com.macsia.teatiers.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.PhotoSource
@@ -34,6 +35,19 @@ import javax.inject.Inject
 class AddTeaViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
 ) : ViewModel() {
+
+    private val eventHost = UiEventHost()
+    /** One-shot UI events (snackbars). Screen-side `LaunchedEffect` collects this. */
+    val events get() = eventHost.events
+
+    /** Toggled by the screen when the user taps Save with an invalid form. The screen reads
+     *  this once via [consumeNameRequiredFocus] and routes focus to the nameRu field. */
+    private var pendingNameFocus = false
+    fun consumeNameRequiredFocus(): Boolean {
+        val taken = pendingNameFocus
+        pendingNameFocus = false
+        return taken
+    }
 
     private val _form = MutableStateFlow(AddTeaForm())
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
@@ -135,37 +149,58 @@ class AddTeaViewModel @Inject constructor(
         }
     }
 
-    /** Persists the tea (insert in add mode, in-place update in edit mode), then [onSaved]. */
+    /**
+     * Persists the tea (insert in add mode, in-place update in edit mode), then [onSaved].
+     * Invalid forms surface a snackbar + arm focus-on-error so the user knows why nothing
+     * happened (#43 polish lane 2). Repository failures surface a generic snackbar and leave
+     * the form intact so the user can retry without re-typing.
+     */
     fun submit(onSaved: () -> Unit) {
         val form = _form.value
-        if (!form.isValid) return
+        if (!form.isValid) {
+            pendingNameFocus = true
+            eventHost.emit(UiEvent.ShowSnackbar(R.string.add_tea_error_name_required))
+            return
+        }
         val editing = _editingTeaId.value
         val board = boardId.value
         viewModelScope.launch {
-            if (editing != null) {
-                repository.updateTea(editing, form.toTea())
-            } else if (board != null) {
-                val newTeaId = repository.addTea(board, form.toTea(), form.tierId) ?: return@launch
-                // Drain staged photos one-by-one; a copy failure on any single URI is silently
-                // skipped — the tea is already saved and we do not want to roll it back over a
-                // permission glitch on a single picture.
-                _draftPhotos.value.forEach { draft -> repository.addPhoto(newTeaId, draft.uri) }
-                _draftPhotos.value = emptyList()
-            } else {
-                return@launch
+            val ok = runCatching {
+                if (editing != null) {
+                    repository.updateTea(editing, form.toTea())
+                } else if (board != null) {
+                    val newTeaId = repository.addTea(board, form.toTea(), form.tierId) ?: return@runCatching false
+                    // A failed copy on any single picked URI surfaces as a snackbar but does
+                    // not abort the save: the tea row is already in DB.
+                    _draftPhotos.value.forEach { draft ->
+                        val path = repository.addPhoto(newTeaId, draft.uri)
+                        if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
+                    }
+                    _draftPhotos.value = emptyList()
+                } else {
+                    return@runCatching false
+                }
+                true
+            }.getOrElse {
+                eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic))
+                false
             }
-            onSaved()
+            if (ok) onSaved()
         }
     }
 
     /**
      * Stages a picked photo. In edit mode the bytes are copied + a row inserted right away so
      * the strip shows it immediately; in add mode it joins the draft list and waits for save.
+     * A copy failure (e.g. revoked URI permission) surfaces as a snackbar.
      */
     fun onAddPhoto(uri: Uri) {
         val editing = _editingTeaId.value
         if (editing != null) {
-            viewModelScope.launch { repository.addPhoto(editing, uri) }
+            viewModelScope.launch {
+                val path = runCatching { repository.addPhoto(editing, uri) }.getOrNull()
+                if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
+            }
         } else {
             _draftPhotos.update { it + DraftPhoto(id = "draft-${UUID.randomUUID()}", uri = uri) }
         }
@@ -175,7 +210,10 @@ class AddTeaViewModel @Inject constructor(
     fun onRemovePhoto(photoId: String) {
         val editing = _editingTeaId.value
         if (editing != null) {
-            viewModelScope.launch { repository.removePhoto(editing, photoId) }
+            viewModelScope.launch {
+                runCatching { repository.removePhoto(editing, photoId) }
+                    .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+            }
         } else {
             _draftPhotos.update { drafts -> drafts.filterNot { it.id == photoId } }
         }
@@ -185,7 +223,10 @@ class AddTeaViewModel @Inject constructor(
     fun onReorderPhotos(orderedPhotoIds: List<String>) {
         val editing = _editingTeaId.value
         if (editing != null) {
-            viewModelScope.launch { repository.reorderPhotos(editing, orderedPhotoIds) }
+            viewModelScope.launch {
+                runCatching { repository.reorderPhotos(editing, orderedPhotoIds) }
+                    .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+            }
         } else {
             _draftPhotos.update { drafts ->
                 val byId = drafts.associateBy(DraftPhoto::id)
@@ -202,8 +243,9 @@ class AddTeaViewModel @Inject constructor(
     fun deleteTea(onDeleted: () -> Unit) {
         val editing = _editingTeaId.value ?: return
         viewModelScope.launch {
-            repository.deleteTea(editing)
-            onDeleted()
+            val ok = runCatching { repository.deleteTea(editing); true }
+                .getOrElse { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)); false }
+            if (ok) onDeleted()
         }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -53,18 +54,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.theme.TeaTheme
+import com.macsia.teatiers.ui.theme.TierColorPresetsArgb
+import com.macsia.teatiers.ui.theme.pickOnColorArgb
 import com.macsia.teatiers.viewmodel.BoardViewModel
 import com.macsia.teatiers.viewmodel.TierWithPlacements
 
 private val ScreenInset = 16.dp
-private val InkOnLight = Color(0xFF1E1B16)
-
-// Curated tea-toned presets for the color picker (0xAARRGGBB), echoing the "Настой" palette.
-private val TierColorPresets: List<Long> = listOf(
-    0xFF7A3B2EL, 0xFFB05A2CL, 0xFFB5742BL, 0xFFC9A53EL,
-    0xFF5E8C5AL, 0xFF356A4BL, 0xFF55715CL, 0xFF9DAE93L,
-    0xFF6E3520L, 0xFFC46E86L, 0xFF4C7A99L, 0xFF8C8A82L,
-)
+// Re-exported so the rest of the file keeps its short name; the underlying list lives in
+// `ui/theme/TierColorPalette.kt` where the contrast unit test can reach it without pulling
+// in Compose UI.
+private val TierColorPresets: List<Long> = TierColorPresetsArgb
 
 /**
  * Edits the bound board's tiers: rename, recolor, reorder, add, and remove. Reuses [BoardViewModel]
@@ -122,7 +121,14 @@ fun TierEditorScreen(
                     onMoveDown = { viewModel.reorderTiers(order.swap(index, index + 1)) },
                     onColorClick = { colorDialogTierId = row.tier.id },
                     onDeleteClick = { deleteDialogTier = row },
-                    modifier = Modifier.padding(horizontal = ScreenInset),
+                    // animateItem (LazyItemScope) glides each row when the user reorders via the
+                    // up/down arrows, so two presses look like one continuous swap instead of
+                    // two jump-cuts.
+                    modifier = Modifier
+                        .padding(horizontal = ScreenInset)
+                        .animateItem(
+                            placementSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
+                        ),
                 )
             }
             item {
@@ -186,7 +192,7 @@ private fun TierEditRow(
     // Local label state seeded once per tier id; the row keeps the typed text across the board's
     // re-emissions, while each edit also persists through the ViewModel (blank labels are ignored).
     var label by remember(row.tier.id) { mutableStateOf(row.tier.label) }
-    val onRamp = if (rampColor.luminance() > 0.55f) InkOnLight else Color.White
+    val onRamp = Color(pickOnColorArgb(rampColor.luminance()))
     val colorLabel = stringResource(R.string.a11y_tier_color)
 
     Surface(

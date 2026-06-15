@@ -1,5 +1,8 @@
 package com.macsia.teatiers.ui.board
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
@@ -34,6 +37,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,12 +82,13 @@ import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TeaCard
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
+import com.macsia.teatiers.ui.theme.pickOnColorArgb
 import com.macsia.teatiers.viewmodel.BoardUiState
 import com.macsia.teatiers.viewmodel.BoardViewModel
+import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.TierWithPlacements
 import kotlin.math.roundToInt
 
-private val InkOnLight = Color(0xFF1E1B16)
 private val ScreenInset = 16.dp
 
 /** A place a placement can be moved to via the accessibility menu: a tier (by id) or the tray. */
@@ -106,8 +112,11 @@ fun BoardScreen(
 ) {
     LaunchedEffect(boardId) { viewModel.bind(boardId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    CollectUiEvents(viewModel.events, snackbarHostState)
     BoardContent(
         state = state,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onOpenTea = onOpenTea,
         onAddTea = onAddTea,
@@ -123,6 +132,7 @@ fun BoardScreen(
 @Composable
 private fun BoardContent(
     state: BoardUiState?,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
     onAddTea: () -> Unit,
@@ -186,11 +196,21 @@ private fun BoardContent(
                     text = { Text(stringResource(R.string.add_tea_action)) },
                 )
             },
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { innerPadding ->
             if (state == null) {
                 Box(Modifier.fillMaxSize().padding(innerPadding))
                 return@Scaffold
             }
+            val isFullyEmpty = state.tiers.all { it.placements.isEmpty() } && state.unranked.isEmpty()
+            if (isFullyEmpty) {
+                EmptyBoard(
+                    onAddTea = onAddTea,
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                )
+                return@Scaffold
+            }
+            val hasAnyRanked = state.tiers.any { it.placements.isNotEmpty() }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp),
@@ -219,23 +239,34 @@ private fun BoardContent(
                         menuActions = menuActions,
                     )
                 }
-                item(key = "unranked") {
-                    UnrankedSection(
-                        placements = state.unranked,
-                        dragState = dragState,
-                        moveTargets = moveTargets,
-                        groupOrder = groupOrder,
-                        onOpenTea = onOpenTea,
-                        onMove = onMove,
-                        menuActions = menuActions,
-                    )
+                // Hide the unranked tray once everything is ranked — celebrating an empty
+                // tray adds noise. Keep it visible while there is anything unranked OR while
+                // the board has no ranked teas at all (so a brand-new tea can land somewhere).
+                if (state.unranked.isNotEmpty() || !hasAnyRanked) {
+                    item(key = "unranked") {
+                        UnrankedSection(
+                            placements = state.unranked,
+                            dragState = dragState,
+                            moveTargets = moveTargets,
+                            groupOrder = groupOrder,
+                            onOpenTea = onOpenTea,
+                            onMove = onMove,
+                            menuActions = menuActions,
+                        )
+                    }
                 }
             }
         }
 
         // Floating ghost that follows the finger; positioned in the layout phase so a drag move
-        // relayouts the ghost only, without recomposing the board.
+        // relayouts the ghost only, without recomposing the board. The lift (scale + alpha) is
+        // spring-driven so the pickup/drop reads as a "weight shift" instead of a hard pop.
         dragState.dragged?.let { dragged ->
+            val liftScale by animateFloatAsState(
+                targetValue = 1.06f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 600f),
+                label = "ghost-lift",
+            )
             Box(
                 modifier = Modifier
                     .offset {
@@ -245,8 +276,8 @@ private fun BoardContent(
                     .zIndex(1f)
                     .graphicsLayer {
                         alpha = 0.96f
-                        scaleX = 1.04f
-                        scaleY = 1.04f
+                        scaleX = liftScale
+                        scaleY = liftScale
                     },
             ) {
                 TeaCard(tea = dragged.placement.tea)
@@ -329,8 +360,14 @@ private fun TierRow(
     menuActions: PlacementMenuActions,
 ) {
     val key = groupKey(tierWithPlacements.tier.id)
-    val onRamp = if (rampColor.luminance() > 0.55f) InkOnLight else Color.White
-    val highlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val onRamp = Color(pickOnColorArgb(rampColor.luminance()))
+    val highlightColor = MaterialTheme.colorScheme.primary
+    // The hover highlight fades in/out so a fast drag does not flicker the rectangle on/off.
+    val highlightAlpha by animateFloatAsState(
+        targetValue = if (dragState.hoverKey == key) 0.12f else 0f,
+        animationSpec = spring(stiffness = 800f),
+        label = "tier-hover-alpha",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -338,8 +375,11 @@ private fun TierRow(
             .padding(horizontal = ScreenInset)
             .onGloballyPositioned { dragState.reportGroupBounds(key, it.boundsInRoot()) }
             .drawBehind {
-                if (dragState.hoverKey == key) {
-                    drawRoundRect(color = highlight, cornerRadius = CornerRadius(20f, 20f))
+                if (highlightAlpha > 0f) {
+                    drawRoundRect(
+                        color = highlightColor.copy(alpha = highlightAlpha),
+                        cornerRadius = CornerRadius(20f, 20f),
+                    )
                 }
             },
         verticalAlignment = Alignment.Top,
@@ -362,14 +402,22 @@ private fun TierRow(
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Text(
-                    text = stringResource(R.string.tier_empty),
+                    text = stringResource(R.string.tier_empty_drop_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
+            // animateContentSize "breathes" the tier row when a placement enters or leaves the
+            // group: the row width animates from old to new instead of jump-cutting. Cheaper
+            // than per-card placement animations and reads as one cohesive motion.
             Row(
-                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState())
+                    .animateContentSize(
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
+                    ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 tierWithPlacements.placements.forEach { placement ->
@@ -389,6 +437,38 @@ private fun TierRow(
     }
 }
 
+/**
+ * Shown when a board has zero placements (no tiers populated and no unranked teas) — the
+ * default "Пока пусто" / drop-hint chrome reads as broken on a brand-new board. A centered
+ * card with an explicit CTA leaves no ambiguity about the next step.
+ */
+@Composable
+private fun EmptyBoard(onAddTea: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.board_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.board_empty_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(20.dp))
+            TextButton(onClick = onAddTea) {
+                Icon(Icons.Filled.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.add_tea_action))
+            }
+        }
+    }
+}
+
 @Composable
 private fun UnrankedSection(
     placements: List<Placement>,
@@ -399,7 +479,12 @@ private fun UnrankedSection(
     onMove: (String, String?, Int) -> Unit,
     menuActions: PlacementMenuActions,
 ) {
-    val highlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val highlightAlpha by animateFloatAsState(
+        targetValue = if (dragState.hoverKey == UnrankedKey) 0.12f else 0f,
+        animationSpec = spring(stiffness = 800f),
+        label = "unranked-hover-alpha",
+    )
     Column(Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.board_unranked),
@@ -413,11 +498,17 @@ private fun UnrankedSection(
                 .heightIn(min = 64.dp)
                 .onGloballyPositioned { dragState.reportGroupBounds(UnrankedKey, it.boundsInRoot()) }
                 .drawBehind {
-                    if (dragState.hoverKey == UnrankedKey) {
-                        drawRoundRect(color = highlight, cornerRadius = CornerRadius(20f, 20f))
+                    if (highlightAlpha > 0f) {
+                        drawRoundRect(
+                            color = highlightColor.copy(alpha = highlightAlpha),
+                            cornerRadius = CornerRadius(20f, 20f),
+                        )
                     }
                 }
-                .horizontalScroll(rememberScrollState()),
+                .horizontalScroll(rememberScrollState())
+                .animateContentSize(
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {

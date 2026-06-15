@@ -27,6 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +55,7 @@ import com.macsia.teatiers.ui.components.FlavorStrip
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
+import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.TeaDetailViewModel
 
 private val ScreenInset = 16.dp
@@ -70,6 +73,8 @@ fun TeaDetailScreen(
     val tea by viewModel.tea.collectAsStateWithLifecycle()
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    CollectUiEvents(viewModel.events, snackbarHostState)
 
     Scaffold(
         modifier = modifier,
@@ -114,6 +119,7 @@ fun TeaDetailScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
         val current = tea
         if (current == null) {

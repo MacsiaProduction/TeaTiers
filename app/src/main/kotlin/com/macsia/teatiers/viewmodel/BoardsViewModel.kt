@@ -2,6 +2,7 @@ package com.macsia.teatiers.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.TierTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,9 @@ class BoardsViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
 ) : ViewModel() {
 
+    private val eventHost = UiEventHost()
+    val events get() = eventHost.events
+
     val boards: StateFlow<List<BoardSummary>> = repository.boards
         .map { boards -> boards.map { it.toSummary() } }
         .stateIn(
@@ -32,6 +36,9 @@ class BoardsViewModel @Inject constructor(
      * labels are filtered out by the repository, so the dialog can dispatch optimistically.
      */
     fun createBoard(label: String, template: TierTemplate) {
-        viewModelScope.launch { repository.createBoard(label, template) }
+        viewModelScope.launch {
+            runCatching { repository.createBoard(label, template) }
+                .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+        }
     }
 }

@@ -1,5 +1,13 @@
 package com.macsia.teatiers.ui.board
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -11,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -86,16 +96,28 @@ fun PhotoGallery(photos: List<TeaPhoto>, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
+                    val activeColor = MaterialTheme.colorScheme.primary
+                    val inactiveColor = MaterialTheme.colorScheme.outlineVariant
                     repeat(photos.size) { index ->
                         val on = index == pagerState.currentPage
+                        // The active dot stretches into a pill so the indicator slides between
+                        // pages instead of step-toggling between two static dots.
+                        val width by animateDpAsState(
+                            targetValue = if (on) DotSize * 2.25f else DotSize,
+                            animationSpec = spring(stiffness = 700f),
+                            label = "dot-width",
+                        )
+                        val color by animateColorAsState(
+                            targetValue = if (on) activeColor else inactiveColor,
+                            animationSpec = spring(stiffness = 700f),
+                            label = "dot-color",
+                        )
                         Box(
                             modifier = Modifier
-                                .size(DotSize)
+                                .height(DotSize)
+                                .width(width)
                                 .clip(CircleShape)
-                                .background(
-                                    if (on) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.outlineVariant,
-                                ),
+                                .background(color),
                         )
                     }
                 }
@@ -120,29 +142,41 @@ fun PhotoGallery(photos: List<TeaPhoto>, modifier: Modifier = Modifier) {
 @Composable
 private fun PhotoZoomDialog(photos: List<TeaPhoto>, startIndex: Int, onDismiss: () -> Unit) {
     val pagerState = rememberPagerState(initialPage = startIndex, pageCount = { photos.size })
+    // AnimatedVisibility flipped from false -> true after first composition gives the dialog a
+    // fade + scale entrance instead of the platform-default cut. The Dialog itself still owns
+    // the dismiss path, which plays Android's standard exit transition.
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black),
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(animationSpec = spring(stiffness = 600f)) +
+                scaleIn(initialScale = 0.96f, animationSpec = spring(stiffness = 600f)),
+            exit = fadeOut() + scaleOut(targetScale = 0.96f),
         ) {
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                ZoomablePhoto(uri = photos[page].uri)
-            }
-            IconButton(
-                onClick = onDismiss,
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp),
+                    .fillMaxSize()
+                    .background(Color.Black),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Close,
-                    contentDescription = stringResource(R.string.a11y_photo_zoom_close),
-                    tint = Color.White,
-                )
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                    ZoomablePhoto(uri = photos[page].uri)
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.a11y_photo_zoom_close),
+                        tint = Color.White,
+                    )
+                }
             }
         }
     }
