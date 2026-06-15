@@ -15,4 +15,10 @@ data class Tea(
     val origin: String? = null,
     val shortBlurb: String? = null,
     val flavor: List<FlavorScore> = emptyList(),
-)
+    val notes: String? = null,
+    val purchaseLocations: List<PurchaseLocation> = emptyList(),
+) {
+    /** Latin/han secondary line shown under the ru name: "Dà Hóng Páo · 大红袍". */
+    val secondaryName: String
+        get() = listOfNotNull(pinyin, nameZh).joinToString("  ·  ")
+}

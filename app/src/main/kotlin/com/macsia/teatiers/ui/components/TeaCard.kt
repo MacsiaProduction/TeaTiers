@@ -1,5 +1,6 @@
 package com.macsia.teatiers.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,15 +24,17 @@ private val CardWidth = 172.dp
 
 /** A tea as placed on a board: liquor swatch, multilingual names, type, and a compact flavor strip. */
 @Composable
-fun TeaCard(tea: Tea, modifier: Modifier = Modifier) {
+fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val liquor = TeaTheme.colors.liquorByType[tea.type] ?: MaterialTheme.colorScheme.secondary
-    val secondaryName = listOfNotNull(tea.pinyin, tea.nameZh).joinToString("  ·  ")
+    val secondaryName = tea.secondaryName
 
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = modifier.width(CardWidth),
+        modifier = modifier
+            .width(CardWidth)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
