@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 /** Where one tea should sit after a move: its tier (null = the unranked tray) and order within it. */
 data class TeaPlacement(val teaId: String, val tierId: String?, val position: Int)
 
+/** A tier's new order within its board, used when the tier list is reordered. */
+data class TierPosition(val tierId: String, val position: Int)
+
 /**
  * Abstract class (not interface) so the multi-table writes below can run inside a single
  * @Transaction default method.
@@ -25,6 +28,9 @@ abstract class TeaDao {
 
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM teas WHERE boardId = :boardId")
     abstract suspend fun nextTeaPosition(boardId: String): Int
+
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tiers WHERE boardId = :boardId")
+    abstract suspend fun nextTierPosition(boardId: String): Int
 
     @Insert
     abstract suspend fun insertBoards(boards: List<BoardEntity>)
@@ -43,6 +49,18 @@ abstract class TeaDao {
 
     @Query("UPDATE teas SET tierId = :tierId, position = :position WHERE id = :teaId")
     abstract suspend fun updateTeaPlacement(teaId: String, tierId: String?, position: Int)
+
+    @Query("UPDATE tiers SET label = :label WHERE id = :tierId")
+    abstract suspend fun updateTierLabel(tierId: String, label: String)
+
+    @Query("UPDATE tiers SET colorArgb = :colorArgb WHERE id = :tierId")
+    abstract suspend fun updateTierColor(tierId: String, colorArgb: Long?)
+
+    @Query("UPDATE tiers SET position = :position WHERE id = :tierId")
+    abstract suspend fun updateTierPosition(tierId: String, position: Int)
+
+    @Query("DELETE FROM tiers WHERE id = :tierId")
+    abstract suspend fun deleteTier(tierId: String)
 
     @Transaction
     open suspend fun seed(
@@ -74,5 +92,22 @@ abstract class TeaDao {
     @Transaction
     open suspend fun applyPlacements(placements: List<TeaPlacement>) {
         placements.forEach { updateTeaPlacement(it.teaId, it.tierId, it.position) }
+    }
+
+    /** Rewrites the order of every reordered tier in one transaction. */
+    @Transaction
+    open suspend fun reorderTiers(positions: List<TierPosition>) {
+        positions.forEach { updateTierPosition(it.tierId, it.position) }
+    }
+
+    /**
+     * Deletes a tier and reassigns its teas to the unranked tray in one transaction. Teas have no
+     * FK to tiers (only a nullable `tierId` column), so the orphaned teas must be moved explicitly
+     * or they would disappear from the board.
+     */
+    @Transaction
+    open suspend fun removeTier(tierId: String, reassignedTeas: List<TeaPlacement>) {
+        applyPlacements(reassignedTeas)
+        deleteTier(tierId)
     }
 }

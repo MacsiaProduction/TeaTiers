@@ -1,0 +1,304 @@
+package com.macsia.teatiers.ui.board
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.macsia.teatiers.R
+import com.macsia.teatiers.ui.theme.TeaTheme
+import com.macsia.teatiers.viewmodel.BoardViewModel
+import com.macsia.teatiers.viewmodel.TierWithTeas
+
+private val ScreenInset = 16.dp
+private val InkOnLight = Color(0xFF1E1B16)
+
+// Curated tea-toned presets for the color picker (0xAARRGGBB), echoing the "Настой" palette.
+private val TierColorPresets: List<Long> = listOf(
+    0xFF7A3B2EL, 0xFFB05A2CL, 0xFFB5742BL, 0xFFC9A53EL,
+    0xFF5E8C5AL, 0xFF356A4BL, 0xFF55715CL, 0xFF9DAE93L,
+    0xFF6E3520L, 0xFFC46E86L, 0xFF4C7A99L, 0xFF8C8A82L,
+)
+
+/**
+ * Edits the bound board's tiers: rename, recolor, reorder, add, and remove. Reuses [BoardViewModel]
+ * so changes land through the same Room-backed repository the board screen reads. A tier without an
+ * explicit color falls back to the position-based ramp, matching how the board renders it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TierEditorScreen(
+    boardId: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: BoardViewModel = hiltViewModel(),
+) {
+    LaunchedEffect(boardId) { viewModel.bind(boardId) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val tiers = state?.tiers.orEmpty()
+    val order = tiers.map { it.tier.id }
+    val ramp = TeaTheme.colors.tierRamp
+    val newTierLabel = stringResource(R.string.tier_new_label)
+
+    var colorDialogTierId by remember { mutableStateOf<String?>(null) }
+    var deleteDialogTier by remember { mutableStateOf<TierWithTeas?>(null) }
+
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.tier_editor_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.a11y_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding).imePadding(),
+            contentPadding = PaddingValues(vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            itemsIndexed(tiers, key = { _, row -> row.tier.id }) { index, row ->
+                val rampColor = row.tier.colorArgb?.let { Color(it) } ?: ramp.getOrElse(index) { ramp.last() }
+                TierEditRow(
+                    row = row,
+                    rampColor = rampColor,
+                    isFirst = index == 0,
+                    isLast = index == tiers.lastIndex,
+                    onLabelChange = { viewModel.renameTier(row.tier.id, it) },
+                    onMoveUp = { viewModel.reorderTiers(order.swap(index, index - 1)) },
+                    onMoveDown = { viewModel.reorderTiers(order.swap(index, index + 1)) },
+                    onColorClick = { colorDialogTierId = row.tier.id },
+                    onDeleteClick = { deleteDialogTier = row },
+                    modifier = Modifier.padding(horizontal = ScreenInset),
+                )
+            }
+            item {
+                OutlinedButton(
+                    onClick = { viewModel.addTier(newTierLabel) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenInset),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.tier_add))
+                }
+            }
+        }
+    }
+
+    colorDialogTierId?.let { tierId ->
+        val current = tiers.firstOrNull { it.tier.id == tierId }?.tier?.colorArgb
+        TierColorDialog(
+            currentColor = current,
+            onPick = { argb ->
+                viewModel.setTierColor(tierId, argb)
+                colorDialogTierId = null
+            },
+            onDismiss = { colorDialogTierId = null },
+        )
+    }
+
+    deleteDialogTier?.let { row ->
+        AlertDialog(
+            onDismissRequest = { deleteDialogTier = null },
+            title = { Text(stringResource(R.string.tier_delete_title)) },
+            text = { Text(stringResource(R.string.tier_delete_message, row.tier.label)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeTier(row.tier.id)
+                    deleteDialogTier = null
+                }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteDialogTier = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun TierEditRow(
+    row: TierWithTeas,
+    rampColor: Color,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onLabelChange: (String) -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onColorClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Local label state seeded once per tier id; the row keeps the typed text across the board's
+    // re-emissions, while each edit also persists through the ViewModel (blank labels are ignored).
+    var label by remember(row.tier.id) { mutableStateOf(row.tier.label) }
+    val onRamp = if (rampColor.luminance() > 0.55f) InkOnLight else Color.White
+    val colorLabel = stringResource(R.string.a11y_tier_color)
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(rampColor)
+                    .clickable(onClickLabel = colorLabel, onClick = onColorClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label.take(2),
+                    color = onRamp,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            OutlinedTextField(
+                value = label,
+                onValueChange = {
+                    label = it
+                    onLabelChange(it)
+                },
+                label = { Text(stringResource(R.string.tier_label_field)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Column {
+                IconButton(onClick = onMoveUp, enabled = !isFirst) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.a11y_tier_move_up, row.tier.label),
+                    )
+                }
+                IconButton(onClick = onMoveDown, enabled = !isLast) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.a11y_tier_move_down, row.tier.label),
+                    )
+                }
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.a11y_tier_delete),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TierColorDialog(
+    currentColor: Long?,
+    onPick: (Long?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tier_color_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                TierColorPresets.chunked(4).forEach { rowColors ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        rowColors.forEach { argb ->
+                            val selected = currentColor == argb
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(argb))
+                                    .border(
+                                        width = if (selected) 3.dp else 1.dp,
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant
+                                        },
+                                        shape = CircleShape,
+                                    )
+                                    .clickable { onPick(argb) },
+                            )
+                        }
+                    }
+                }
+                TextButton(onClick = { onPick(null) }) {
+                    Text(stringResource(R.string.tier_color_default))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+/** Returns a copy with the items at [i] and [j] swapped; the original if either index is invalid. */
+private fun List<String>.swap(i: Int, j: Int): List<String> {
+    if (i !in indices || j !in indices) return this
+    return toMutableList().also {
+        it[i] = this[j]
+        it[j] = this[i]
+    }
+}

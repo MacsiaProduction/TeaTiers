@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +89,7 @@ fun BoardScreen(
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
     onAddTea: () -> Unit,
+    onEditTiers: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardViewModel = hiltViewModel(),
 ) {
@@ -98,6 +100,7 @@ fun BoardScreen(
         onBack = onBack,
         onOpenTea = onOpenTea,
         onAddTea = onAddTea,
+        onEditTiers = onEditTiers,
         onMove = viewModel::moveTea,
         modifier = modifier,
     )
@@ -110,6 +113,7 @@ private fun BoardContent(
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
     onAddTea: () -> Unit,
+    onEditTiers: () -> Unit,
     onMove: (String, String?, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -141,6 +145,13 @@ private fun BoardContent(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.a11y_back),
                             )
+                        }
+                    },
+                    actions = {
+                        if (state != null) {
+                            TextButton(onClick = onEditTiers) {
+                                Text(stringResource(R.string.tier_editor_action))
+                            }
                         }
                     },
                 )

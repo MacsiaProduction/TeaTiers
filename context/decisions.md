@@ -464,3 +464,27 @@ deviated.
     - **Accessibility.** Each card carries TalkBack custom actions ("move to tier X" / "to
       unranked") for every other group, so ranking never *requires* a precise drag. The tray is a
       permanent drop target (rendered even when empty) so a tea can always be dragged back out.
+
+## 2026-06-15 (addendum 12) — customizable tiers
+
+39. **Tiers are user-editable (rename / recolor / reorder / add / remove) on a dedicated editor
+    screen**, reached from a "Тиры" action in the board's top bar. A new `Destination.TierEditor`
+    follows the custom back-stack nav (#33); the editor reuses `BoardViewModel` (same Room-backed
+    repository the board reads), not a new VM.
+    - **Delete drops teas into the tray, never deletes them** (open item #11). `teas.tierId` is a
+      plain nullable column with **no FK to `tiers`** (only the board FK cascades), so a deleted
+      tier would orphan its teas — `toDomain` would place them in neither a tier nor the tray and
+      they'd vanish. So `TeaDao.removeTier` reassigns the tier's teas to the tray (`tierId = null`,
+      appended after the existing tray, renumbered 0..n) **and** deletes the tier in one
+      `@Transaction`. A confirmation dialog states this before deleting.
+    - **Reorder = contiguous positions, one transaction** (mirrors drag-to-rank #38). The editor's
+      up/down buttons send the new id order; `TeaBoardRepository.reorderTiers` calls a pure,
+      unit-tested `computeTierPositions` (drops unknown ids, appends omitted tiers, renumbers
+      0..n, no-ops when unchanged) and `TeaDao.reorderTiers` writes it. The reassignment math is
+      `computeTrayReassignment`, also pure + unit-tested.
+    - **Color override stays optional** (#6). The picker offers a curated tea-toned palette plus
+      "По умолчанию" which clears `colorArgb` back to null → the position-based ramp. Labels are
+      trimmed and **blank renames are ignored** so a tier always keeps a usable label.
+    - **Icons restricted to `material-icons-core`** (the only icons dependency): Add /
+      KeyboardArrowUp / KeyboardArrowDown / Delete are all present; the extended icon set is not a
+      dependency.

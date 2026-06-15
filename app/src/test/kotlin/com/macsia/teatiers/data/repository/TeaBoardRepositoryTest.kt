@@ -110,4 +110,69 @@ class TeaBoardRepositoryTest {
         assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.nameRu })
         assertTrue(board.unranked.any { it.nameRu == "green" })
     }
+
+    @Test
+    fun `addTier appends a new tier to the board`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.addTier("b", label = "  Эксперимент  ")
+        advanceUntilIdle()
+
+        val tiers = repository.boards.value.single().tiers
+        assertEquals(listOf("S", "A", "Эксперимент"), tiers.map { it.label })
+        assertEquals(2, tiers.last().position)
+    }
+
+    @Test
+    fun `renameTier trims the label and ignores blanks`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.renameTier("b", tierId = "s", label = "  Топ  ")
+        repository.renameTier("b", tierId = "a", label = "   ")
+        advanceUntilIdle()
+
+        val tiers = repository.boards.value.single().tiers.associateBy { it.id }
+        assertEquals("Топ", tiers.getValue("s").label)
+        assertEquals("A", tiers.getValue("a").label)
+    }
+
+    @Test
+    fun `setTierColor sets then clears the override`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.setTierColor("b", tierId = "s", colorArgb = 0xFF356A4BL)
+        advanceUntilIdle()
+        assertEquals(0xFF356A4BL, repository.boards.value.single().tiers.first { it.id == "s" }.colorArgb)
+
+        repository.setTierColor("b", tierId = "s", colorArgb = null)
+        advanceUntilIdle()
+        assertEquals(null, repository.boards.value.single().tiers.first { it.id == "s" }.colorArgb)
+    }
+
+    @Test
+    fun `reorderTiers moves a tier to the front`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.reorderTiers("b", orderedTierIds = listOf("a", "s"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "s"), repository.boards.value.single().tiers.map { it.id })
+    }
+
+    @Test
+    fun `removeTier deletes the tier and drops its teas into the tray`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.removeTier("b", tierId = "s")
+        advanceUntilIdle()
+
+        val board = repository.boards.value.single()
+        assertEquals(listOf("a"), board.tiers.map { it.id })
+        assertTrue(board.unranked.any { it.nameRu == "green" })
+    }
 }
