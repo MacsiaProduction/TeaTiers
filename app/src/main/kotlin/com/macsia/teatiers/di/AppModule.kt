@@ -1,6 +1,10 @@
 package com.macsia.teatiers.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import coil3.ImageLoader
 import coil3.request.crossfade
@@ -46,6 +50,17 @@ object AppModule {
     @Singleton
     @AppScope
     fun provideAppScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Single Preferences DataStore for appearance settings (#28/#36). Reads/writes run on a private
+     * IO scope so disk access never blocks the @AppScope (Default-dispatcher) seeding work.
+     */
+    @Provides
+    @Singleton
+    fun provideSettingsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        ) { context.preferencesDataStoreFile("settings") }
 
     /**
      * Coil loader for the photo strip / detail gallery / card thumbnail (decisions.md #43). MVP

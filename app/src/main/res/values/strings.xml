@@ -36,6 +36,31 @@
     <string name="a11y_my_teas_open">Мои чаи</string>
     <string name="a11y_search_clear">Очистить поиск</string>
 
+    <!-- Settings (decisions.md #28). Reached from the gear in the Boards top bar. -->
+    <string name="settings_title">Настройки</string>
+    <string name="a11y_settings_open">Настройки</string>
+
+    <string name="settings_theme_section">Оформление</string>
+    <string name="settings_theme_mode">Тема</string>
+    <string name="settings_theme_system">Как в системе</string>
+    <string name="settings_theme_light">Светлая</string>
+    <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_dynamic_color">Цвета системы</string>
+    <string name="settings_dynamic_color_hint">Подобрать палитру под обои (Android 12+).</string>
+
+    <string name="settings_language_section">Язык</string>
+    <string name="settings_language_system">Как в системе</string>
+    <string name="settings_language_ru">Русский</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_zh">中文</string>
+    <string name="settings_language_hint">Переводы интерфейса появятся позже; пока доступен русский.</string>
+
+    <string name="settings_about_section">О приложении</string>
+    <!-- %1$s — versionName (e.g. 0.1.0). -->
+    <string name="settings_about_version">Версия %1$s</string>
+    <string name="settings_about_privacy">Все данные хранятся только на этом устройстве и никуда не отправляются. Места покупки (геоточки) — чувствительные данные: они остаются локально и не выгружаются.</string>
+    <string name="settings_about_credits">Названия чаёв и описания — из открытых баз чая; источники указаны в проекте.</string>
+
     <!-- Create board -->
     <string name="boards_create_action">Создать подборку</string>
     <string name="boards_create_title">Новая подборка</string>

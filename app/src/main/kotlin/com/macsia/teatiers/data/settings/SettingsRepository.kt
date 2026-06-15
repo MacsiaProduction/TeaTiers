@@ -1,0 +1,53 @@
+package com.macsia.teatiers.data.settings
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.macsia.teatiers.domain.model.AppSettings
+import com.macsia.teatiers.domain.model.ThemeMode
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
+import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Reads/writes the appearance preferences (#28/#36). A corrupt-read falls back to defaults instead
+ * of crashing the UI; an unknown stored theme value also degrades to [ThemeMode.SYSTEM] so a future
+ * enum rename never bricks startup.
+ */
+@Singleton
+class SettingsRepository @Inject constructor(
+    private val dataStore: DataStore<Preferences>,
+) {
+    val settings: Flow<AppSettings> = dataStore.data
+        .catch { error ->
+            if (error is IOException) emit(emptyPreferences()) else throw error
+        }
+        .map { prefs ->
+            AppSettings(
+                themeMode = prefs[KEY_THEME_MODE]?.toThemeModeOrDefault() ?: ThemeMode.SYSTEM,
+                dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: false,
+            )
+        }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { it[KEY_THEME_MODE] = mode.name }
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        dataStore.edit { it[KEY_DYNAMIC_COLOR] = enabled }
+    }
+
+    private fun String.toThemeModeOrDefault(): ThemeMode =
+        runCatching { ThemeMode.valueOf(this) }.getOrDefault(ThemeMode.SYSTEM)
+
+    private companion object {
+        val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+    }
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Languages offered by the in-app picker (#28) and the system per-app language settings on
+     API 33+. Russian is the default/source locale; en and zh translations land in M5. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ru" />
+    <locale android:name="en" />
+    <locale android:name="zh" />
+</locale-config>

@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,7 @@ import com.macsia.teatiers.viewmodel.CollectUiEvents
 fun BoardsScreen(
     onOpenBoard: (String) -> Unit,
     onOpenMyTeas: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
@@ -80,6 +82,12 @@ fun BoardsScreen(
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = stringResource(R.string.a11y_my_teas_open),
+                        )
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = stringResource(R.string.a11y_settings_open),
                         )
                     }
                 },
