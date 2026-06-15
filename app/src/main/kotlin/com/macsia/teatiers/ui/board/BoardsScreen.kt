@@ -16,11 +16,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -59,6 +61,7 @@ import com.macsia.teatiers.viewmodel.CollectUiEvents
 @Composable
 fun BoardsScreen(
     onOpenBoard: (String) -> Unit,
+    onOpenMyTeas: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
@@ -69,7 +72,19 @@ fun BoardsScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.boards_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.boards_title)) },
+                actions = {
+                    IconButton(onClick = onOpenMyTeas) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.a11y_my_teas_open),
+                        )
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(

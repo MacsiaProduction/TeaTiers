@@ -46,6 +46,15 @@ abstract class TeaDao {
     @Query("SELECT * FROM teas WHERE id = :teaId")
     abstract suspend fun loadTea(teaId: String): TeaWithChildren?
 
+    /**
+     * Every user-tea (the cross-board "my teas" collection, decisions.md #27), including teas
+     * with no placement left on any board (removed from every board but not deleted — #42).
+     * Ordering is cosmetic and applied in Kotlin so Russian uppercase sorts correctly.
+     */
+    @Transaction
+    @Query("SELECT * FROM teas")
+    abstract fun observeAllTeas(): Flow<List<TeaWithChildren>>
+
     @Query("SELECT id, nameRu, nameZh, pinyin FROM teas")
     abstract suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow>
 

@@ -26,6 +26,16 @@
     <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
     <string name="a11y_board_summary">Подборка %1$s, %2$d %3$s</string>
 
+    <!-- My teas: cross-board collection view (decisions.md #27). -->
+    <string name="my_teas_title">Мои чаи</string>
+    <string name="my_teas_search_hint">Поиск по названию</string>
+    <string name="my_teas_empty_title">Здесь будут все ваши чаи</string>
+    <string name="my_teas_empty_hint">Добавьте чай на любую подборку — он появится здесь.</string>
+    <string name="my_teas_none_found">Ничего не найдено</string>
+    <string name="my_teas_no_board">Не в подборках</string>
+    <string name="a11y_my_teas_open">Мои чаи</string>
+    <string name="a11y_search_clear">Очистить поиск</string>
+
     <!-- Create board -->
     <string name="boards_create_action">Создать подборку</string>
     <string name="boards_create_title">Новая подборка</string>
@@ -138,6 +148,14 @@
         <item quantity="few">%d чая</item>
         <item quantity="many">%d чаёв</item>
         <item quantity="other">%d чая</item>
+    </plurals>
+
+    <!-- How many boards a tea sits on, in the "my teas" list. %d — board count. -->
+    <plurals name="my_tea_board_count">
+        <item quantity="one">на %d подборке</item>
+        <item quantity="few">на %d подборках</item>
+        <item quantity="many">на %d подборках</item>
+        <item quantity="other">на %d подборках</item>
     </plurals>
 
     <!-- Tea types. ru tea convention: 红茶 = «красный» (BLACK), 黑茶 = «чёрный» (DARK). -->
