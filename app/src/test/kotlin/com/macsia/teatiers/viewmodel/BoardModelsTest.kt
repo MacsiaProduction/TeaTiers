@@ -4,8 +4,8 @@ import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
 class BoardModelsTest {
 
