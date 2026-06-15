@@ -9,7 +9,15 @@ plugins {
 
 android {
     namespace = "com.macsia.teatiers"
-    compileSdk = 36
+    // API 37 is published with a minor version (platform "android-37.0"), so the integer
+    // `compileSdk = 37` form resolves "android-37" and fails on CI runners that only ship
+    // "android-37.0". The release(37){minorApiLevel = 0} block targets it explicitly.
+    // 37 is required: the pinned Compose BOM pulls androidx.core 1.19.0 (needs compileSdk >= 37).
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 0
+        }
+    }
 
     defaultConfig {
         applicationId = "com.macsia.teatiers"
