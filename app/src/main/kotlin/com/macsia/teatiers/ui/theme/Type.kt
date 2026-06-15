@@ -1,6 +1,7 @@
 package com.macsia.teatiers.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -14,6 +15,8 @@ import com.macsia.teatiers.R
 // is an instance of the `wght` axis (needs API 26+, which matches our minSdk). Hanzi has no glyphs
 // here and falls back to the platform CJK font automatically. License + attribution:
 // app/src/main/assets/licenses/GolosText-OFL.txt.
+// The FontVariation axis API is still ExperimentalTextApi, hence the opt-in.
+@OptIn(ExperimentalTextApi::class)
 private val GolosText = FontFamily(
     Font(R.font.golos_text, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
     Font(R.font.golos_text, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
