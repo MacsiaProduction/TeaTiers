@@ -30,6 +30,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -50,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
+import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
@@ -75,6 +80,12 @@ fun AddTeaScreen(
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    CollectUiEvents(viewModel.events, snackbarHostState)
+    // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
+    // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
+    // to the nameRu field so the user knows where to look. Snackbar covers the "why".
+    val nameRuFocusRequester = remember { FocusRequester() }
 
     Scaffold(
         modifier = modifier,
@@ -93,8 +104,14 @@ fun AddTeaScreen(
                 },
                 actions = {
                     TextButton(
-                        onClick = { viewModel.submit(onSaved) },
-                        enabled = form.isValid,
+                        // Save stays tappable even when the form is invalid so the user gets
+                        // the snackbar + focus pump instead of silently disabled UI.
+                        onClick = {
+                            viewModel.submit(onSaved)
+                            if (viewModel.consumeNameRequiredFocus()) {
+                                nameRuFocusRequester.requestFocus()
+                            }
+                        },
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
@@ -121,6 +138,7 @@ fun AddTeaScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -147,7 +165,9 @@ fun AddTeaScreen(
                 singleLine = true,
                 isError = form.nameRu.isBlank(),
                 supportingText = { Text(stringResource(R.string.field_name_ru_hint)) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(nameRuFocusRequester),
             )
             OutlinedTextField(
                 value = form.nameEn,

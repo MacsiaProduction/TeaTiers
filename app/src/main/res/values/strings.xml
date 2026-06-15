@@ -12,6 +12,20 @@
     <string name="boards_empty_hint">Создайте подборку, выберите шаблон тиров и разложите чаи.</string>
     <string name="boards_empty_action">Создать первую подборку</string>
 
+    <!-- Empty board (polish): shown when a board has no placements at all. -->
+    <string name="board_empty_title">В этой подборке пока нет чаёв</string>
+    <string name="board_empty_hint">Нажмите «Добавить чай», чтобы начать раскладку.</string>
+    <!-- Empty tier (polish): replaces the generic "Пока пусто" with a drop hint. -->
+    <string name="tier_empty_drop_hint">Перетащите чай сюда</string>
+
+    <!-- Snackbar / inline error copy (polish, lane 2). -->
+    <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
+    <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
+    <string name="add_tea_error_name_required">Укажите название чая (русское поле обязательно).</string>
+
+    <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
+    <string name="a11y_board_summary">Подборка %1$s, %2$d %3$s</string>
+
     <!-- Create board -->
     <string name="boards_create_action">Создать подборку</string>
     <string name="boards_create_title">Новая подборка</string>

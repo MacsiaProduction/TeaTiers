@@ -4,6 +4,10 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
@@ -44,7 +48,9 @@ import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -94,12 +100,20 @@ fun PhotoStripField(
                 .fillMaxWidth()
                 .height(ThumbSize + 16.dp),
         ) {
+            // animateContentSize lets the inner Row breathe when a thumb is added or removed:
+            // the strip width animates and the trailing tiles slide in/out instead of popping.
+            // We still cannot get a true exit animation on the removed thumbnail without
+            // converting to LazyRow, but the layout-level animation is enough to read as
+            // intentional motion.
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .animateContentSize(
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 photos.forEachIndexed { index, photo ->
@@ -153,13 +167,27 @@ private fun PhotoThumbnail(
     onRemove: () -> Unit,
 ) {
     val a11yLabel = stringResource(R.string.a11y_photo_thumbnail, index + 1, total)
+    val removeLabel = stringResource(R.string.a11y_remove_photo)
     val isDragging = state.draggedId == photo.id
+
+    // While the finger is down we follow it 1:1 (snap spec); when the user releases the
+    // thumbnail we spring the offset back to 0 so a no-op drop glides instead of teleports.
+    val animatedOffsetX by animateFloatAsState(
+        targetValue = if (isDragging) state.dragOffsetXPx else 0f,
+        animationSpec = if (isDragging) snap() else spring(dampingRatio = 0.7f, stiffness = 700f),
+        label = "photo-thumb-offset",
+    )
+    val a11yActions = remember(photo.id, onRemove) {
+        listOf(
+            CustomAccessibilityAction(removeLabel) { onRemove(); true },
+        )
+    }
 
     Box(
         modifier = Modifier
             .size(ThumbSize)
             .onGloballyPositioned { state.recordCenter(photo.id, it.boundsInParent().center.x) }
-            .graphicsLayer { translationX = if (isDragging) state.dragOffsetXPx else 0f }
+            .graphicsLayer { translationX = animatedOffsetX }
             .pointerInput(photo.id) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { state.startDrag(photo.id) },
@@ -174,7 +202,10 @@ private fun PhotoThumbnail(
                     onDragCancel = { state.cancelDrag() },
                 )
             }
-            .semantics { contentDescription = a11yLabel },
+            .semantics {
+                contentDescription = a11yLabel
+                customActions = a11yActions
+            },
         contentAlignment = Alignment.Center,
     ) {
         Surface(

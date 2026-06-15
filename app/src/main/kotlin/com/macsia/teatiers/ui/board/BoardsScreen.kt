@@ -25,6 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,6 +53,7 @@ import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.viewmodel.BoardSummary
 import com.macsia.teatiers.viewmodel.BoardsViewModel
+import com.macsia.teatiers.viewmodel.CollectUiEvents
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +64,8 @@ fun BoardsScreen(
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    CollectUiEvents(viewModel.events, snackbarHostState)
 
     Scaffold(
         modifier = modifier,
@@ -71,6 +78,7 @@ fun BoardsScreen(
                 )
             }
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
         if (boards.isEmpty()) {
             EmptyBoards(
@@ -103,18 +111,25 @@ fun BoardsScreen(
 
 @Composable
 private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit) {
+    val countText = pluralStringResource(R.plurals.tea_count, summary.teaCount, summary.teaCount)
+    // TalkBack reads the whole card as a single button instead of three siblings (title +
+    // count + signature swatches). The signature swatches lose their default semantics; the
+    // textual count already conveys "this board has N teas" so the swatches are decorative.
+    val a11yLabel = stringResource(R.string.a11y_board_summary, summary.name, summary.teaCount, countText)
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = a11yLabel },
     ) {
         Column(Modifier.padding(20.dp)) {
             Text(text = summary.name, style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = pluralStringResource(R.plurals.tea_count, summary.teaCount, summary.teaCount),
+                text = countText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

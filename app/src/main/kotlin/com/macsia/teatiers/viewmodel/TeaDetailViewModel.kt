@@ -2,6 +2,7 @@ package com.macsia.teatiers.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Tea
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,9 @@ import javax.inject.Inject
 class TeaDetailViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
 ) : ViewModel() {
+
+    private val eventHost = UiEventHost()
+    val events get() = eventHost.events
 
     private val teaId = MutableStateFlow<String?>(null)
 
@@ -53,8 +57,9 @@ class TeaDetailViewModel @Inject constructor(
     fun deleteTea(onDeleted: () -> Unit) {
         val id = teaId.value ?: return
         viewModelScope.launch {
-            repository.deleteTea(id)
-            onDeleted()
+            val ok = runCatching { repository.deleteTea(id); true }
+                .getOrElse { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)); false }
+            if (ok) onDeleted()
         }
     }
 }
