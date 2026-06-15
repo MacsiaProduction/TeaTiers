@@ -1,6 +1,7 @@
 plugins {
+    // AGP 9 has built-in Kotlin, so the kotlin-android plugin is intentionally absent; the
+    // Compose compiler plugin below pins the built-in Kotlin version to our catalog's 2.4.0.
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
