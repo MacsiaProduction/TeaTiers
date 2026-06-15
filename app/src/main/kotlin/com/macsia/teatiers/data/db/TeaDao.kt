@@ -6,6 +6,9 @@ import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
+/** Where one tea should sit after a move: its tier (null = the unranked tray) and order within it. */
+data class TeaPlacement(val teaId: String, val tierId: String?, val position: Int)
+
 /**
  * Abstract class (not interface) so the multi-table writes below can run inside a single
  * @Transaction default method.
@@ -38,6 +41,9 @@ abstract class TeaDao {
     @Insert
     abstract suspend fun insertPurchases(purchases: List<PurchaseLocationEntity>)
 
+    @Query("UPDATE teas SET tierId = :tierId, position = :position WHERE id = :teaId")
+    abstract suspend fun updateTeaPlacement(teaId: String, tierId: String?, position: Int)
+
     @Transaction
     open suspend fun seed(
         boards: List<BoardEntity>,
@@ -62,5 +68,11 @@ abstract class TeaDao {
         insertTeas(listOf(tea))
         insertFlavors(flavors)
         insertPurchases(purchases)
+    }
+
+    /** Rewrites tier + order for every affected tea in one transaction (used by drag-to-rank). */
+    @Transaction
+    open suspend fun applyPlacements(placements: List<TeaPlacement>) {
+        placements.forEach { updateTeaPlacement(it.teaId, it.tierId, it.position) }
     }
 }

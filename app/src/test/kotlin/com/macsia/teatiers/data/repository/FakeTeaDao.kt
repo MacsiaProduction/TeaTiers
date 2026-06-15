@@ -58,6 +58,14 @@ class FakeTeaDao : TeaDao() {
         refresh()
     }
 
+    override suspend fun updateTeaPlacement(teaId: String, tierId: String?, position: Int) {
+        val index = teas.indexOfFirst { it.id == teaId }
+        if (index >= 0) {
+            teas[index] = teas[index].copy(tierId = tierId, position = position)
+            refresh()
+        }
+    }
+
     private fun refresh() {
         state.value = boards.sortedBy { it.position }.map { board ->
             BoardWithChildren(

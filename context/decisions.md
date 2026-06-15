@@ -441,3 +441,26 @@ deviated.
       against AGP 9 + JDK 17. Instrumented Room/Compose tests are a later (M-test) milestone.
     - **Coroutine tests** use `runTest` + `UnconfinedTestDispatcher`; ViewModel tests set the
       Main dispatcher (`Dispatchers.setMain`/`resetMain`) and assert flows with Turbine.
+
+## 2026-06-15 (addendum 11) — drag-to-rank (tier-list core)
+
+38. **Drag-to-rank is hand-rolled, no new dependency** (consistent with the custom nav back stack
+    in #33). The board's tier rows + the unranked tray are drop targets; a long press picks up a
+    `TeaCard` (so it does not fight the row's horizontal scroll or the column's vertical scroll),
+    a floating ghost follows the finger, and dropping re-ranks the tea.
+    - **Geometry in root coordinates.** A small composition-scoped `BoardDragState` tracks the
+      pointer, the per-group bounds (`onGloballyPositioned`/`boundsInRoot`), and each card's
+      center-x. Per-frame values are read from layout/draw lambdas (`offset {}`, `drawBehind {}`,
+      `graphicsLayer {}`) so a drag move never recomposes the board. Drag state lives in the UI,
+      not the ViewModel — only the resolved drop calls back.
+    - **Drop resolution.** The target group is the row whose vertical band holds the pointer
+      (nearest band as a fallback for gaps); the insertion index is the count of the *other* teas
+      whose center-x is left of the drop point. An unknown/!valid tier resolves to the tray.
+    - **Persistence = per-tier contiguous positions, one transaction.** `TeaDao.applyPlacements`
+      rewrites `(tierId, position)` for every tea in the affected group(s) to `0..n`. Only ordering
+      *within* a group matters (`toDomain` sorts each group by position), so untouched groups are
+      left alone and absolute position values may differ across groups — never a collision.
+      `TeaBoardRepository.moveTea` calls a pure, unit-tested `computeMovePlacements`.
+    - **Accessibility.** Each card carries TalkBack custom actions ("move to tier X" / "to
+      unranked") for every other group, so ranking never *requires* a precise drag. The tray is a
+      permanent drop target (rendered even when empty) so a tea can always be dragged back out.

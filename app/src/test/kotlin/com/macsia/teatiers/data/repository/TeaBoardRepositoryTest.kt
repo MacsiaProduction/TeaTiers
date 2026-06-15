@@ -84,4 +84,30 @@ class TeaBoardRepositoryTest {
         assertEquals("green", repository.tea("b", "b-green")?.nameRu)
         assertEquals(null, repository.tea("b", "missing"))
     }
+
+    @Test
+    fun `moveTea re-ranks a tea into another tier`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.moveTea("b", teaId = "b-green", targetTierId = "a", targetIndex = 0)
+        advanceUntilIdle()
+
+        val board = repository.boards.value.single()
+        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.nameRu })
+        assertEquals(listOf("green"), board.placements.getValue("a").map { it.nameRu })
+    }
+
+    @Test
+    fun `moveTea can drop a tea back into the unranked tray`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.moveTea("b", teaId = "b-green", targetTierId = null, targetIndex = 0)
+        advanceUntilIdle()
+
+        val board = repository.boards.value.single()
+        assertEquals(emptyList<String>(), board.placements.getValue("s").map { it.nameRu })
+        assertTrue(board.unranked.any { it.nameRu == "green" })
+    }
 }
