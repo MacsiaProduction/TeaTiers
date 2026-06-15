@@ -32,6 +32,9 @@ androidx-compose-material-icons-core = { group = "androidx.compose.material", na
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+# Pinned to the Kotlin version so Hilt's KSP processor can read our 2.4.0 class metadata
+# (Dagger bundles an older copy). See google/dagger#5001.
+kotlin-metadata-jvm = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

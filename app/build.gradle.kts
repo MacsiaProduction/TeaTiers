@@ -73,6 +73,10 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    // Overrides the older kotlin-metadata-jvm bundled by hilt-compiler so the KSP/Hilt
+    // processor can parse Kotlin 2.4.0 metadata (highest version on the processor classpath
+    // wins). Mirrors android/nowinandroid's fix for google/dagger#5001.
+    ksp(libs.kotlin.metadata.jvm)
     implementation(libs.androidx.hilt.navigation.compose)
 
     testImplementation(libs.junit)
