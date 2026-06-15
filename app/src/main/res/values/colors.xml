@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window backgrounds (pre-Compose draw). Compose owns the rest of the palette. -->
+    <color name="porcelain">#FFF3F4F0</color>
+    <color name="steep">#FF14110E</color>
+    <!-- Launcher adaptive-icon background: tea-leaf green. -->
+    <color name="ic_launcher_background">#FF356A4B</color>
+</resources>

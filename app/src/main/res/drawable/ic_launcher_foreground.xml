@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A single tea leaf, porcelain on the green adaptive background. -->
+    <path
+        android:fillColor="#FFF3F4F0"
+        android:pathData="M54,26 C69,41 73,63 54,84 C35,63 39,41 54,26 Z" />
+    <path
+        android:strokeColor="#FF356A4B"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,33 L54,79" />
+</vector>

@@ -1,0 +1,10 @@
+.git
+.gradle
+.kotlin
+build
+bin
+*.iml
+.idea
+.DS_Store
+Dockerfile
+README.md
