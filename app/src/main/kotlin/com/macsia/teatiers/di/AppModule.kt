@@ -25,7 +25,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): TeaDatabase =
-        Room.databaseBuilder(context, TeaDatabase::class.java, "teatiers.db").build()
+        Room.databaseBuilder(context, TeaDatabase::class.java, "teatiers.db")
+            // v1 -> v2 (shared-teas, decisions.md #42) is destructive while we are pre-launch;
+            // first launch on the new schema drops the v1 data and the sample provider reseeds.
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides
     fun provideTeaDao(database: TeaDatabase): TeaDao = database.teaDao()

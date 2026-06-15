@@ -1,8 +1,9 @@
 package com.macsia.teatiers.data.repository
 
-import com.macsia.teatiers.data.db.TeaPlacement
+import com.macsia.teatiers.data.db.PlacementMove
 import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
@@ -12,15 +13,20 @@ import org.junit.jupiter.api.Test
 
 class TierEditTest {
 
-    private fun tea(id: String) = Tea(id = id, nameRu = id, type = TeaType.GREEN)
+    private fun placement(id: String): Placement =
+        Placement(placementId = "p-$id", tea = Tea(id = id, nameRu = id, type = TeaType.GREEN))
 
     /** board with tiers s -> [g1, g2], a -> [b1], b -> [], and an unranked tray [u1]. */
     private fun board() = Board(
         id = "b",
         name = "B",
         tiers = listOf(Tier("s", "S", 0), Tier("a", "A", 1), Tier("b", "B", 2)),
-        placements = mapOf("s" to listOf(tea("g1"), tea("g2")), "a" to listOf(tea("b1")), "b" to emptyList()),
-        unranked = listOf(tea("u1")),
+        placements = mapOf(
+            "s" to listOf(placement("g1"), placement("g2")),
+            "a" to listOf(placement("b1")),
+            "b" to emptyList(),
+        ),
+        unranked = listOf(placement("u1")),
     )
 
     @Test
@@ -44,12 +50,17 @@ class TierEditTest {
     }
 
     @Test
-    fun `removing a tier moves its teas to the end of the tray`() {
+    fun `removing a tier moves its placements to the end of the tray`() {
         val result = computeTrayReassignment(board(), removedTierId = "s")
 
-        // existing tray (u1) keeps the lead; the removed tier's teas follow, all tray-bound (null).
+        // Existing tray (p-u1) keeps the lead; the removed tier's placements follow, all
+        // tray-bound (null tier).
         assertEquals(
-            listOf(TeaPlacement("u1", null, 0), TeaPlacement("g1", null, 1), TeaPlacement("g2", null, 2)),
+            listOf(
+                PlacementMove("p-u1", null, 0),
+                PlacementMove("p-g1", null, 1),
+                PlacementMove("p-g2", null, 2),
+            ),
             result,
         )
     }

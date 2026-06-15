@@ -24,6 +24,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -65,6 +69,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
@@ -74,14 +79,20 @@ import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.viewmodel.BoardUiState
 import com.macsia.teatiers.viewmodel.BoardViewModel
-import com.macsia.teatiers.viewmodel.TierWithTeas
+import com.macsia.teatiers.viewmodel.TierWithPlacements
 import kotlin.math.roundToInt
 
 private val InkOnLight = Color(0xFF1E1B16)
 private val ScreenInset = 16.dp
 
-/** A place a tea can be moved to via the accessibility menu: a tier (by id) or the unranked tray. */
+/** A place a placement can be moved to via the accessibility menu: a tier (by id) or the tray. */
 private data class MoveTarget(val tierId: String?, val label: String)
+
+/** Per-card overflow callbacks; gathered here so the menu items stay short. */
+private data class PlacementMenuActions(
+    val onRemoveFromBoard: (placementId: String) -> Unit,
+    val onDeleteEverywhere: (teaId: String) -> Unit,
+)
 
 @Composable
 fun BoardScreen(
@@ -101,7 +112,9 @@ fun BoardScreen(
         onOpenTea = onOpenTea,
         onAddTea = onAddTea,
         onEditTiers = onEditTiers,
-        onMove = viewModel::moveTea,
+        onMove = viewModel::movePlacement,
+        onRemovePlacement = viewModel::removePlacement,
+        onDeleteTea = viewModel::deleteTea,
         modifier = modifier,
     )
 }
@@ -115,10 +128,16 @@ private fun BoardContent(
     onAddTea: () -> Unit,
     onEditTiers: () -> Unit,
     onMove: (String, String?, Int) -> Unit,
+    onRemovePlacement: (String) -> Unit,
+    onDeleteTea: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ramp = TeaTheme.colors.tierRamp
-    val featured = state?.tiers?.firstOrNull { it.teas.isNotEmpty() }?.teas?.firstOrNull()
+    val featured = state?.tiers
+        ?.firstOrNull { it.placements.isNotEmpty() }
+        ?.placements
+        ?.firstOrNull()
+        ?.tea
     val dragState = remember { BoardDragState() }
 
     val unrankedLabel = stringResource(R.string.board_unranked)
@@ -127,11 +146,15 @@ private fun BoardContent(
     }
     val groupOrder: (String) -> List<String> = { key ->
         if (key == UnrankedKey) {
-            state?.unranked?.map { it.id }.orEmpty()
+            state?.unranked?.map { it.placementId }.orEmpty()
         } else {
-            state?.tiers?.firstOrNull { it.tier.id == key }?.teas?.map { it.id }.orEmpty()
+            state?.tiers?.firstOrNull { it.tier.id == key }?.placements?.map { it.placementId }.orEmpty()
         }
     }
+    val menuActions = PlacementMenuActions(
+        onRemoveFromBoard = onRemovePlacement,
+        onDeleteEverywhere = onDeleteTea,
+    )
 
     Box(modifier.fillMaxSize()) {
         Scaffold(
@@ -186,23 +209,25 @@ private fun BoardContent(
                     val rampColor = row.tier.colorArgb?.let { Color(it) }
                         ?: ramp.getOrElse(row.tier.position) { ramp.last() }
                     TierRow(
-                        tierWithTeas = row,
+                        tierWithPlacements = row,
                         rampColor = rampColor,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
                         onOpenTea = onOpenTea,
                         onMove = onMove,
+                        menuActions = menuActions,
                     )
                 }
                 item(key = "unranked") {
                     UnrankedSection(
-                        teas = state.unranked,
+                        placements = state.unranked,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
                         onOpenTea = onOpenTea,
                         onMove = onMove,
+                        menuActions = menuActions,
                     )
                 }
             }
@@ -224,7 +249,7 @@ private fun BoardContent(
                         scaleY = 1.04f
                     },
             ) {
-                TeaCard(tea = dragged.tea)
+                TeaCard(tea = dragged.placement.tea)
             }
         }
     }
@@ -294,15 +319,16 @@ private fun FeaturedTea(tea: Tea, onClick: () -> Unit, modifier: Modifier = Modi
 
 @Composable
 private fun TierRow(
-    tierWithTeas: TierWithTeas,
+    tierWithPlacements: TierWithPlacements,
     rampColor: Color,
     dragState: BoardDragState,
     moveTargets: List<MoveTarget>,
     groupOrder: (String) -> List<String>,
     onOpenTea: (String) -> Unit,
     onMove: (String, String?, Int) -> Unit,
+    menuActions: PlacementMenuActions,
 ) {
-    val key = groupKey(tierWithTeas.tier.id)
+    val key = groupKey(tierWithPlacements.tier.id)
     val onRamp = if (rampColor.luminance() > 0.55f) InkOnLight else Color.White
     val highlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     Row(
@@ -327,10 +353,10 @@ private fun TierRow(
                 .background(rampColor),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = tierWithTeas.tier.label, color = onRamp, style = MaterialTheme.typography.titleMedium)
+            Text(text = tierWithPlacements.tier.label, color = onRamp, style = MaterialTheme.typography.titleMedium)
         }
         Spacer(Modifier.width(12.dp))
-        if (tierWithTeas.teas.isEmpty()) {
+        if (tierWithPlacements.placements.isEmpty()) {
             Box(
                 modifier = Modifier.weight(1f).heightIn(min = 64.dp),
                 contentAlignment = Alignment.CenterStart,
@@ -346,15 +372,16 @@ private fun TierRow(
                 modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                tierWithTeas.teas.forEach { tea ->
+                tierWithPlacements.placements.forEach { placement ->
                     DraggableTeaCard(
-                        tea = tea,
+                        placement = placement,
                         currentKey = key,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
                         onOpenTea = onOpenTea,
                         onMove = onMove,
+                        menuActions = menuActions,
                     )
                 }
             }
@@ -364,12 +391,13 @@ private fun TierRow(
 
 @Composable
 private fun UnrankedSection(
-    teas: List<Tea>,
+    placements: List<Placement>,
     dragState: BoardDragState,
     moveTargets: List<MoveTarget>,
     groupOrder: (String) -> List<String>,
     onOpenTea: (String) -> Unit,
     onMove: (String, String?, Int) -> Unit,
+    menuActions: PlacementMenuActions,
 ) {
     val highlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     Column(Modifier.fillMaxWidth()) {
@@ -394,22 +422,23 @@ private fun UnrankedSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.width(ScreenInset))
-            if (teas.isEmpty()) {
+            if (placements.isEmpty()) {
                 Text(
                     text = stringResource(R.string.tier_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                teas.forEach { tea ->
+                placements.forEach { placement ->
                     DraggableTeaCard(
-                        tea = tea,
+                        placement = placement,
                         currentKey = UnrankedKey,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
                         onOpenTea = onOpenTea,
                         onMove = onMove,
+                        menuActions = menuActions,
                     )
                 }
             }
@@ -419,49 +448,64 @@ private fun UnrankedSection(
 }
 
 /**
- * A [TeaCard] that opens the tea on tap and is picked up by a long press to drag between tiers.
- * The original is hidden (alpha 0) while its ghost is dragged. TalkBack users get one custom
- * action per other group ("move to tier X" / "to unranked"), so ranking never requires a drag.
+ * A [TeaCard] that opens the tea on tap, is picked up by a long press to drag between tiers,
+ * and offers an overflow with "Убрать с подборки" / "Удалить чай совсем". The original is
+ * hidden (alpha 0) while its ghost is dragged. TalkBack users get one custom action per other
+ * group ("move to tier X" / "to unranked"), so ranking never requires a drag.
  */
 @Composable
 private fun DraggableTeaCard(
-    tea: Tea,
+    placement: Placement,
     currentKey: String,
     dragState: BoardDragState,
     moveTargets: List<MoveTarget>,
     groupOrder: (String) -> List<String>,
     onOpenTea: (String) -> Unit,
     onMove: (String, String?, Int) -> Unit,
+    menuActions: PlacementMenuActions,
 ) {
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     val moveToTierTemplate = stringResource(R.string.a11y_move_to_tier)
     val moveToUnrankedLabel = stringResource(R.string.a11y_move_to_unranked)
-    val actions = remember(currentKey, moveTargets, tea.id, onMove) {
-        moveTargets
+    val removeFromBoardLabel = stringResource(R.string.a11y_remove_placement)
+    val deleteTeaLabel = stringResource(R.string.a11y_delete_tea)
+    val actions = remember(currentKey, moveTargets, placement.placementId, onMove, menuActions) {
+        val moveActions = moveTargets
             .filter { groupKey(it.tierId) != currentKey }
             .map { target ->
                 val label =
                     if (target.tierId == null) moveToUnrankedLabel else moveToTierTemplate.format(target.label)
                 // Int.MAX_VALUE => append to the end of the target group (the repository clamps it).
                 CustomAccessibilityAction(label) {
-                    onMove(tea.id, target.tierId, Int.MAX_VALUE)
+                    onMove(placement.placementId, target.tierId, Int.MAX_VALUE)
                     true
                 }
             }
+        val removeAction = CustomAccessibilityAction(removeFromBoardLabel) {
+            menuActions.onRemoveFromBoard(placement.placementId)
+            true
+        }
+        val deleteAction = CustomAccessibilityAction(deleteTeaLabel) {
+            menuActions.onDeleteEverywhere(placement.tea.id)
+            true
+        }
+        moveActions + removeAction + deleteAction
     }
 
     Box(
         modifier = Modifier
             .onGloballyPositioned { c ->
                 coords = c
-                dragState.reportCardCenterX(tea.id, c.boundsInRoot().center.x)
+                dragState.reportCardCenterX(placement.placementId, c.boundsInRoot().center.x)
             }
-            .graphicsLayer { alpha = if (dragState.draggedTeaId == tea.id) 0f else 1f }
-            .pointerInput(tea.id) {
+            .graphicsLayer { alpha = if (dragState.draggedPlacementId == placement.placementId) 0f else 1f }
+            .pointerInput(placement.placementId) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { touch ->
-                        dragState.start(tea, currentKey, coords?.positionInRoot() ?: Offset.Zero, touch)
+                        dragState.start(placement, currentKey, coords?.positionInRoot() ?: Offset.Zero, touch)
                     },
                     onDrag = { change, amount ->
                         change.consume()
@@ -473,8 +517,61 @@ private fun DraggableTeaCard(
             }
             .semantics { customActions = actions },
     ) {
-        // Tap still opens the tea (keeps the ripple + click semantics); the long press above
-        // starts a drag without conflicting, because it only fires after the press timeout.
-        TeaCard(tea = tea, onClick = { onOpenTea(tea.id) })
+        Box {
+            // Tap still opens the tea (keeps the ripple + click semantics); the long press above
+            // starts a drag without conflicting, because it only fires after the press timeout.
+            TeaCard(tea = placement.tea, onClick = { onOpenTea(placement.tea.id) })
+            IconButton(
+                onClick = { menuExpanded = true },
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(R.string.a11y_card_menu),
+                )
+            }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_remove_from_board)) },
+                    onClick = {
+                        menuExpanded = false
+                        menuActions.onRemoveFromBoard(placement.placementId)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_delete_tea_forever)) },
+                    onClick = {
+                        menuExpanded = false
+                        confirmDelete = true
+                    },
+                )
+            }
+        }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.delete_tea_confirm_title)) },
+            text = {
+                Text(stringResource(R.string.delete_tea_confirm_message, placement.tea.nameRu))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    menuActions.onDeleteEverywhere(placement.tea.id)
+                }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }

@@ -37,13 +37,30 @@ class BoardViewModel @Inject constructor(
     )
 
     /**
-     * Re-ranks a tea after a drag (or an accessibility move action). [targetTierId] is null for the
-     * unranked tray; [targetIndex] is the slot among the other teas in the target group. The Room
-     * write re-emits [uiState] with the new order.
+     * Re-ranks a placement after a drag (or an accessibility move action). [targetTierId] is null
+     * for the unranked tray; [targetIndex] is the slot among the other placements in the target
+     * group. The Room write re-emits [uiState] with the new order. Identified by placementId so
+     * the same user-tea on a different board is not affected (decisions.md #42).
      */
-    fun moveTea(teaId: String, targetTierId: String?, targetIndex: Int) {
+    fun movePlacement(placementId: String, targetTierId: String?, targetIndex: Int) {
         val board = boardId.value ?: return
-        viewModelScope.launch { repository.moveTea(board, teaId, targetTierId, targetIndex) }
+        viewModelScope.launch { repository.moveTea(board, placementId, targetTierId, targetIndex) }
+    }
+
+    /**
+     * Removes one placement from this board (the user-tea row stays so any other boards keep
+     * their copy). Used by the per-card "Убрать с подборки" action.
+     */
+    fun removePlacement(placementId: String) {
+        viewModelScope.launch { repository.removePlacement(placementId) }
+    }
+
+    /**
+     * Deletes the user-tea everywhere — every board the tea was placed on loses its placement
+     * via FK cascade. Destructive; UI gates this behind a confirmation dialog.
+     */
+    fun deleteTea(teaId: String) {
+        viewModelScope.launch { repository.deleteTea(teaId) }
     }
 
     fun addTier(label: String) {

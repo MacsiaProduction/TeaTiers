@@ -18,6 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -33,6 +37,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -53,17 +60,20 @@ private val ScreenInset = 16.dp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTeaScreen(
-    boardId: String,
+    boardId: String?,
     onBack: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
     teaId: String? = null,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(boardId, teaId) { viewModel.bind(boardId, teaId) }
+    LaunchedEffect(boardId, teaId) { viewModel.bind(boardId = boardId, teaId = teaId) }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()
+    val placementCount by viewModel.placementCount.collectAsStateWithLifecycle()
     val isEdit = teaId != null
+    var menuExpanded by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -87,6 +97,26 @@ fun AddTeaScreen(
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
+                    if (isEdit) {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = stringResource(R.string.a11y_card_menu),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_delete_tea_forever)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    confirmDelete = true
+                                },
+                            )
+                        }
+                    }
                 },
             )
         },
@@ -100,6 +130,15 @@ fun AddTeaScreen(
                 .padding(horizontal = ScreenInset, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // Ripple notice (decisions.md #42): only when the tea sits on >1 board, so editing
+            // a single-placement tea does not nag with an irrelevant warning.
+            if (isEdit && placementCount > 1) {
+                Text(
+                    text = stringResource(R.string.edit_ripple_caption),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             OutlinedTextField(
                 value = form.nameRu,
                 onValueChange = { v -> viewModel.update { it.copy(nameRu = v) } },
@@ -196,6 +235,29 @@ fun AddTeaScreen(
             )
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(stringResource(R.string.delete_tea_confirm_title)) },
+            text = {
+                Text(stringResource(R.string.delete_tea_confirm_message, form.nameRu))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    viewModel.deleteTea(onDeleted = onBack)
+                }) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 

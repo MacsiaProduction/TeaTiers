@@ -30,9 +30,22 @@
 
     <string name="a11y_back">Назад</string>
     <string name="cd_liquor">Цвет настоя</string>
+    <string name="a11y_card_menu">Действия с чаем</string>
     <!-- Drag-to-rank accessibility actions. %1$s — метка тира (S, A, B…). -->
     <string name="a11y_move_to_tier">Переместить в тир %1$s</string>
     <string name="a11y_move_to_unranked">Переместить в «Без ранга»</string>
+    <string name="a11y_remove_placement">Убрать с подборки</string>
+    <string name="a11y_delete_tea">Удалить чай совсем</string>
+
+    <!-- Per-card overflow / detail menu (shared-teas, decisions.md #42). -->
+    <string name="action_remove_from_board">Убрать с подборки</string>
+    <string name="action_delete_tea_forever">Удалить чай совсем</string>
+    <string name="delete_tea_confirm_title">Удалить чай?</string>
+    <!-- %1$s — название чая на русском. Удаление сносит чай со всех подборок и стирает данные. -->
+    <string name="delete_tea_confirm_message">Чай «%1$s» исчезнет со всех подборок вместе с заметками и местами покупки. Действие необратимо.</string>
+
+    <!-- Edit screen ripple notice (shared-teas): shown only when the tea sits on >1 board. -->
+    <string name="edit_ripple_caption">Изменения видны во всех подборках, где есть этот чай.</string>
 
     <!-- Tier editor -->
     <string name="tier_editor_action">Тиры</string>
