@@ -776,3 +776,30 @@ deviated.
       `flavor_show_all`, `flavor_show_less` (ru). **Pure-JVM tests** cover the quick/extended
       partition (exact cover, no overlap) and the collapsed-hides-zero / expanded-shows-all
       visibility rule.
+
+## 2026-06-16 — cross-board "my teas" view (M1, #27)
+
+47. **A cross-board "Мои чаи" view ships in M1** (decisions.md #27): a read-only, searchable,
+    type-filterable list of every user-tea across all boards. Reached from a **Search action in
+    the Boards top bar** (a second top-level `Destination.MyTeas` on the existing dependency-free
+    back stack, #33); tapping a row opens the shared `TeaDetail`, which already owns edit/delete.
+    Client-only, no AI/backend.
+    - **Source = new `TeaDao.observeAllTeas()`** (`SELECT * FROM teas`, ordered in Kotlin), exposed
+      as `TeaBoardRepository.allTeas: Flow<List<Tea>>` — a **cold** Room flow (unlike the eager
+      `boards`, it has no synchronous reader, so the query only runs while the screen is open).
+      It includes **teas with zero placements** (removed from every board but not deleted, #42),
+      which finally makes orphaned teas reachable + deletable — previously they were unreachable
+      from any screen.
+    - **Pure, unit-tested helpers** in `MyTeasModels`: `filterMyTeas` (type filter + case-
+      insensitive substring over ru/en/pinyin/zh, sorted by `nameRu.lowercase()` so Russian
+      uppercase orders correctly — SQLite's ASCII `LOWER`/`NOCASE` cannot) and `placementCounts`
+      (per-tea board tally from the `boards` snapshot; a tea on no board is absent → count 0).
+    - **`MyTeasViewModel`** combines `allTeas` + `boards` + query + type filter into one
+      `MyTeasUiState` (items with a per-tea board count, the set of types actually present for the
+      filter chips, and a `collectionEmpty` flag distinguishing "no teas" from "no matches").
+    - **UI:** search field (leading Search icon + clear), horizontally-scrollable type filter
+      chips (only for present types; tapping the active chip clears it), and a `LazyColumn` of
+      full-width rows (photo/liquor-swatch + names + type chip + "на N подборках" / "Не в
+      подборках"); two empty states. Each row is `mergeDescendants` for a single TalkBack node.
+    - **Strings:** `my_teas_*` + the `my_tea_board_count` plural (ru). **Sharing a tier list as an
+      image stays post-MVP** (#27, unchanged).

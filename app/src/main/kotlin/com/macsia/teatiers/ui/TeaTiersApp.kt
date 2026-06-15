@@ -9,6 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import com.macsia.teatiers.ui.board.AddTeaScreen
 import com.macsia.teatiers.ui.board.BoardScreen
 import com.macsia.teatiers.ui.board.BoardsScreen
+import com.macsia.teatiers.ui.board.MyTeasScreen
 import com.macsia.teatiers.ui.board.TeaDetailScreen
 import com.macsia.teatiers.ui.board.TierEditorScreen
 import com.macsia.teatiers.ui.nav.BackStackSaver
@@ -32,7 +33,16 @@ fun TeaTiersApp() {
     Surface(color = MaterialTheme.colorScheme.background) {
         when (val current = backStack.last()) {
             Destination.Boards ->
-                BoardsScreen(onOpenBoard = { navigate(Destination.Board(it)) })
+                BoardsScreen(
+                    onOpenBoard = { navigate(Destination.Board(it)) },
+                    onOpenMyTeas = { navigate(Destination.MyTeas) },
+                )
+
+            Destination.MyTeas ->
+                MyTeasScreen(
+                    onBack = ::pop,
+                    onOpenTea = { teaId -> navigate(Destination.TeaDetail(teaId)) },
+                )
 
             is Destination.Board ->
                 BoardScreen(

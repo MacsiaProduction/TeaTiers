@@ -36,8 +36,11 @@ class FakeTeaDao : TeaDao() {
     private val photos = mutableListOf<PhotoEntity>()
 
     private val state = MutableStateFlow<List<BoardWithChildren>>(emptyList())
+    private val allTeasState = MutableStateFlow<List<TeaWithChildren>>(emptyList())
 
     override fun observeBoards(): Flow<List<BoardWithChildren>> = state
+
+    override fun observeAllTeas(): Flow<List<TeaWithChildren>> = allTeasState
 
     override suspend fun loadTea(teaId: String): TeaWithChildren? =
         teas.firstOrNull { it.id == teaId }?.let { tea ->
@@ -203,6 +206,14 @@ class FakeTeaDao : TeaDao() {
     }
 
     private fun refresh() {
+        allTeasState.value = teas.map { tea ->
+            TeaWithChildren(
+                tea = tea,
+                flavors = flavors.filter { it.teaId == tea.id },
+                purchases = purchases.filter { it.teaId == tea.id },
+                photos = photos.filter { it.teaId == tea.id },
+            )
+        }
         state.value = boards.sortedBy { it.position }.map { board ->
             BoardWithChildren(
                 board = board,

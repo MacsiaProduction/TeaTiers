@@ -25,6 +25,7 @@ import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -70,6 +71,14 @@ class TeaBoardRepository @Inject constructor(
     val boards: StateFlow<List<Board>> = dao.observeBoards()
         .map { rows -> rows.map(BoardWithChildren::toDomain) }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * The user's whole tea collection across boards (decisions.md #27), as a cold Room flow —
+     * the "my teas" screen collects it while open. Unlike [boards] this has no synchronous
+     * reader, so it is not eagerly shared.
+     */
+    val allTeas: Flow<List<Tea>> = dao.observeAllTeas()
+        .map { rows -> rows.map { it.toDomain() } }
 
     init {
         scope.launch {
