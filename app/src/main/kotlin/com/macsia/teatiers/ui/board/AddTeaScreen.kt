@@ -1,5 +1,6 @@
 package com.macsia.teatiers.ui.board
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -55,9 +58,11 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
 import com.macsia.teatiers.viewmodel.CollectUiEvents
+import com.macsia.teatiers.viewmodel.ExtendedRateDimensions
 import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
+import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
 import kotlin.math.roundToInt
 
 private val ScreenInset = 16.dp
@@ -80,6 +85,7 @@ fun AddTeaScreen(
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var flavorsExpanded by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
@@ -219,13 +225,44 @@ fun AddTeaScreen(
                 onReorder = viewModel::onReorderPhotos,
             )
 
-            FieldLabel(stringResource(R.string.field_flavor))
-            QuickRateDimensions.forEach { dimension ->
-                FlavorSlider(
-                    label = stringResource(dimension.labelRes),
-                    value = form.flavors[dimension] ?: 0,
-                    onValue = { viewModel.setFlavor(dimension, it) },
+            // Quick-rate (decisions.md #28) is the default short list; "show all" reveals the rest
+            // of the locked 11-dim vocabulary (#23/#44) so every axis the radar draws is enterable.
+            // A rated extended dimension stays visible even when collapsed (see visibleExtendedDimensions).
+            Column(
+                modifier = Modifier.fillMaxWidth().animateContentSize(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                FieldLabel(stringResource(R.string.field_flavor))
+                Text(
+                    text = stringResource(R.string.flavor_scale_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
+                QuickRateDimensions.forEach { dimension ->
+                    FlavorSlider(
+                        label = stringResource(dimension.labelRes),
+                        value = form.flavors[dimension] ?: 0,
+                        onValue = { viewModel.setFlavor(dimension, it) },
+                    )
+                }
+                visibleExtendedDimensions(form.flavors, flavorsExpanded).forEach { dimension ->
+                    FlavorSlider(
+                        label = stringResource(dimension.labelRes),
+                        value = form.flavors[dimension] ?: 0,
+                        onValue = { viewModel.setFlavor(dimension, it) },
+                    )
+                }
+                val hiddenExtended = ExtendedRateDimensions.count { (form.flavors[it] ?: 0) == 0 }
+                if (flavorsExpanded || hiddenExtended > 0) {
+                    TextButton(onClick = { flavorsExpanded = !flavorsExpanded }) {
+                        Text(
+                            stringResource(
+                                if (flavorsExpanded) R.string.flavor_show_less else R.string.flavor_show_all,
+                            ),
+                        )
+                    }
+                }
             }
 
             // Tier picker is hidden in edit mode: drag-to-rank owns placement on the board, and
@@ -398,6 +435,8 @@ private fun ChipRow(content: @Composable () -> Unit) {
 
 @Composable
 private fun FlavorSlider(label: String, value: Int, onValue: (Int) -> Unit) {
+    // Label the adjustable slider for TalkBack (the value digit alone is shown only visually).
+    val description = stringResource(R.string.a11y_flavor_dim, label, value)
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(text = label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
@@ -408,6 +447,7 @@ private fun FlavorSlider(label: String, value: Int, onValue: (Int) -> Unit) {
             onValueChange = { onValue(it.roundToInt()) },
             valueRange = 0f..5f,
             steps = 4,
+            modifier = Modifier.semantics { contentDescription = description },
         )
     }
 }

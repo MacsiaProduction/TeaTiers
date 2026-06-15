@@ -115,7 +115,10 @@
     <string name="field_name_zh">Название (кит.)</string>
     <string name="field_type">Тип</string>
     <string name="field_origin">Происхождение</string>
-    <string name="field_flavor">Вкус — быстрая оценка</string>
+    <string name="field_flavor">Вкус</string>
+    <string name="flavor_scale_hint">0 — нет · 3 — заметно · 5 — доминирует</string>
+    <string name="flavor_show_all">Показать все вкусы</string>
+    <string name="flavor_show_less">Свернуть дополнительные</string>
     <string name="field_tier">Тир</string>
     <string name="field_notes">Заметки</string>
     <string name="field_purchase">Место покупки</string>
