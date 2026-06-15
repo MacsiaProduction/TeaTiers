@@ -103,6 +103,16 @@ abstract class TeaDao {
         insertPurchases(purchases)
     }
 
+    /**
+     * Atomic board create: inserts the board row and its seeded tiers (may be empty for a blank
+     * template) so an interrupted write never leaves a board without its template's tiers.
+     */
+    @Transaction
+    open suspend fun createBoardWithTiers(board: BoardEntity, tiers: List<TierEntity>) {
+        insertBoards(listOf(board))
+        if (tiers.isNotEmpty()) insertTiers(tiers)
+    }
+
     @Transaction
     open suspend fun addTea(
         tea: TeaEntity,
