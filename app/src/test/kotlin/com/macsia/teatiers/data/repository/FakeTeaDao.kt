@@ -85,6 +85,39 @@ class FakeTeaDao : TeaDao() {
         if (tiers.removeAll { it.id == tierId }) refresh()
     }
 
+    override suspend fun updateTeaFields(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        notes: String?,
+    ) {
+        val index = teas.indexOfFirst { it.id == teaId }
+        if (index >= 0) {
+            teas[index] = teas[index].copy(
+                nameRu = nameRu,
+                nameZh = nameZh,
+                pinyin = pinyin,
+                nameEn = nameEn,
+                type = type,
+                origin = origin,
+                notes = notes,
+            )
+            refresh()
+        }
+    }
+
+    override suspend fun deleteFlavorsFor(teaId: String) {
+        if (flavors.removeAll { it.teaId == teaId }) refresh()
+    }
+
+    override suspend fun deletePurchasesFor(teaId: String) {
+        if (purchases.removeAll { it.teaId == teaId }) refresh()
+    }
+
     private fun updateTier(tierId: String, transform: (TierEntity) -> TierEntity) {
         val index = tiers.indexOfFirst { it.id == tierId }
         if (index >= 0) {

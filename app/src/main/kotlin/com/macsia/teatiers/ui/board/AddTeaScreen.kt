@@ -10,19 +10,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -38,8 +42,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaType
-import com.macsia.teatiers.viewmodel.AddTeaForm
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
+import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
 import kotlin.math.roundToInt
@@ -53,17 +57,21 @@ fun AddTeaScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
+    teaId: String? = null,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(boardId) { viewModel.bind(boardId) }
+    LaunchedEffect(boardId, teaId) { viewModel.bind(boardId, teaId) }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()
+    val isEdit = teaId != null
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.add_tea_title)) },
+                title = {
+                    Text(stringResource(if (isEdit) R.string.edit_tea_title else R.string.add_tea_title))
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -153,19 +161,23 @@ fun AddTeaScreen(
                 )
             }
 
-            FieldLabel(stringResource(R.string.field_tier))
-            ChipRow {
-                FilterChip(
-                    selected = form.tierId == null,
-                    onClick = { viewModel.update { it.copy(tierId = null) } },
-                    label = { Text(stringResource(R.string.board_unranked)) },
-                )
-                tiers.forEach { tier ->
+            // Tier picker is hidden in edit mode: drag-to-rank owns placement on the board, and
+            // the form's tierId is ignored on save when editing an existing tea.
+            if (!isEdit) {
+                FieldLabel(stringResource(R.string.field_tier))
+                ChipRow {
                     FilterChip(
-                        selected = form.tierId == tier.id,
-                        onClick = { viewModel.update { it.copy(tierId = tier.id) } },
-                        label = { Text(tier.label) },
+                        selected = form.tierId == null,
+                        onClick = { viewModel.update { it.copy(tierId = null) } },
+                        label = { Text(stringResource(R.string.board_unranked)) },
                     )
+                    tiers.forEach { tier ->
+                        FilterChip(
+                            selected = form.tierId == tier.id,
+                            onClick = { viewModel.update { it.copy(tierId = tier.id) } },
+                            label = { Text(tier.label) },
+                        )
+                    }
                 }
             }
 
@@ -176,59 +188,106 @@ fun AddTeaScreen(
                 modifier = Modifier.fillMaxWidth().height(112.dp),
             )
 
-            PurchaseEditor(form = form, onUpdate = viewModel::update)
+            PurchaseEditor(
+                purchases = form.purchases,
+                onAdd = viewModel::addPurchase,
+                onRemove = viewModel::removePurchase,
+                onUpdateAt = viewModel::updatePurchase,
+            )
             Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun PurchaseEditor(form: AddTeaForm, onUpdate: ((AddTeaForm) -> AddTeaForm) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.field_purchase),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f),
-        )
-        Switch(
-            checked = form.includePurchase,
-            onCheckedChange = { on -> onUpdate { it.copy(includePurchase = on) } },
-        )
-    }
-    if (!form.includePurchase) return
-
-    val draft = form.purchase
-    ChipRow {
-        PurchaseKind.entries.forEach { kind ->
-            FilterChip(
-                selected = kind == draft.kind,
-                onClick = { onUpdate { it.copy(purchase = it.purchase.copy(kind = kind)) } },
-                label = { Text(stringResource(kind.labelRes())) },
-            )
-        }
-    }
-    OutlinedTextField(
-        value = draft.label,
-        onValueChange = { v -> onUpdate { it.copy(purchase = it.purchase.copy(label = v)) } },
-        label = { Text(stringResource(R.string.field_purchase_label)) },
-        singleLine = true,
+private fun PurchaseEditor(
+    purchases: List<PurchaseDraft>,
+    onAdd: () -> Unit,
+    onRemove: (Int) -> Unit,
+    onUpdateAt: (Int, (PurchaseDraft) -> PurchaseDraft) -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.field_purchase),
+        style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.fillMaxWidth(),
     )
-    when (draft.kind) {
-        PurchaseKind.TEXT -> OutlinedTextField(
-            value = draft.text,
-            onValueChange = { v -> onUpdate { it.copy(purchase = it.purchase.copy(text = v)) } },
-            label = { Text(stringResource(R.string.field_purchase_text)) },
-            modifier = Modifier.fillMaxWidth(),
+    purchases.forEachIndexed { index, draft ->
+        PurchaseDraftCard(
+            draft = draft,
+            onRemove = { onRemove(index) },
+            onUpdate = { transform -> onUpdateAt(index) { transform(it) } },
         )
-        PurchaseKind.MARKETPLACE -> OutlinedTextField(
-            value = draft.url,
-            onValueChange = { v -> onUpdate { it.copy(purchase = it.purchase.copy(url = v)) } },
-            label = { Text(stringResource(R.string.field_purchase_url)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            modifier = Modifier.fillMaxWidth(),
-        )
+    }
+    OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
+        Icon(Icons.Filled.Add, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.purchase_add))
+    }
+}
+
+@Composable
+private fun PurchaseDraftCard(
+    draft: PurchaseDraft,
+    onRemove: () -> Unit,
+    onUpdate: ((PurchaseDraft) -> PurchaseDraft) -> Unit,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                ) {
+                    PurchaseKind.entries.forEach { kind ->
+                        FilterChip(
+                            selected = kind == draft.kind,
+                            onClick = { onUpdate { it.copy(kind = kind) } },
+                            label = { Text(stringResource(kind.labelRes())) },
+                        )
+                    }
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Filled.Clear,
+                        contentDescription = stringResource(R.string.a11y_purchase_remove),
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = draft.label,
+                onValueChange = { v -> onUpdate { it.copy(label = v) } },
+                label = { Text(stringResource(R.string.field_purchase_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            when (draft.kind) {
+                PurchaseKind.TEXT -> OutlinedTextField(
+                    value = draft.text,
+                    onValueChange = { v -> onUpdate { it.copy(text = v) } },
+                    label = { Text(stringResource(R.string.field_purchase_text)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PurchaseKind.MARKETPLACE -> OutlinedTextField(
+                    value = draft.url,
+                    onValueChange = { v -> onUpdate { it.copy(url = v) } },
+                    label = { Text(stringResource(R.string.field_purchase_url)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

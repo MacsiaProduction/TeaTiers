@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ fun TeaDetailScreen(
     boardId: String,
     teaId: String,
     onBack: () -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TeaDetailViewModel = hiltViewModel(),
 ) {
@@ -71,6 +73,16 @@ fun TeaDetailScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.a11y_back),
                         )
+                    }
+                },
+                actions = {
+                    if (tea != null) {
+                        IconButton(onClick = { onEdit(teaId) }) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = stringResource(R.string.a11y_edit_tea),
+                            )
+                        }
                     }
                 },
             )

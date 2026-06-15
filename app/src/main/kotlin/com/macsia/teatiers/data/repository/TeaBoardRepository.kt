@@ -116,6 +116,31 @@ class TeaBoardRepository @Inject constructor(
         if (!board.hasTier(tierId)) return
         dao.removeTier(tierId, computeTrayReassignment(board, tierId))
     }
+
+    /**
+     * Rewrites the editable fields and child rows (flavors, purchases) of [teaId] on [boardId].
+     * The DAO never touches `tierId` / `position` / `boardId` / `shortBlurb`, so editing the form
+     * never moves the tea on the board. No-op when the board or tea is unknown.
+     */
+    suspend fun updateTea(boardId: String, teaId: String, tea: Tea) {
+        if (this.tea(boardId, teaId) == null) return
+        // toEntities also builds a TeaEntity, but the DAO @Transaction only reads the scalar
+        // columns from `tea` and never writes the entity itself, so the rowId/boardId/tier/position
+        // values plumbed in here are inert; we still need flavor + purchase rows keyed by teaId.
+        val entities = tea.toEntities(rowId = teaId, boardId = boardId, tierId = null, position = 0)
+        dao.updateTea(
+            teaId = teaId,
+            nameRu = tea.nameRu,
+            nameZh = tea.nameZh,
+            pinyin = tea.pinyin,
+            nameEn = tea.nameEn,
+            type = tea.type.name,
+            origin = tea.origin,
+            notes = tea.notes,
+            flavors = entities.flavors,
+            purchases = entities.purchases,
+        )
+    }
 }
 
 private fun Board.hasTier(tierId: String): Boolean = tiers.any { it.id == tierId }

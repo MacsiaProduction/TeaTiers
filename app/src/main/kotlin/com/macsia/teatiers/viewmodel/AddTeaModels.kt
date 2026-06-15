@@ -20,7 +20,7 @@ val QuickRateDimensions: List<FlavorDimension> = listOf(
     FlavorDimension.ROASTED,
 )
 
-/** Editable draft for one optional purchase location. */
+/** Editable draft for one purchase location row in the add/edit form. */
 data class PurchaseDraft(
     val kind: PurchaseKind = PurchaseKind.TEXT,
     val label: String = "",
@@ -28,7 +28,7 @@ data class PurchaseDraft(
     val url: String = "",
 )
 
-/** Mutable state of the add-tea form. [isValid] gates the Save action. */
+/** Mutable state of the add/edit form. [isValid] gates the Save action. */
 data class AddTeaForm(
     val nameRu: String = "",
     val nameEn: String = "",
@@ -39,8 +39,7 @@ data class AddTeaForm(
     val notes: String = "",
     val flavors: Map<FlavorDimension, Int> = emptyMap(),
     val tierId: String? = null,
-    val includePurchase: Boolean = false,
-    val purchase: PurchaseDraft = PurchaseDraft(),
+    val purchases: List<PurchaseDraft> = emptyList(),
 ) {
     val isValid: Boolean get() = nameRu.isNotBlank()
 }
@@ -53,6 +52,14 @@ fun PurchaseDraft.toLocation(): PurchaseLocation? {
         PurchaseKind.MARKETPLACE ->
             url.trim().ifBlank { null }?.let { PurchaseLocation.Marketplace(it, cleanLabel) }
     }
+}
+
+/** Inverse of [PurchaseDraft.toLocation], for prefilling the form when editing an existing tea. */
+fun PurchaseLocation.toDraft(): PurchaseDraft = when (this) {
+    is PurchaseLocation.FreeText ->
+        PurchaseDraft(kind = PurchaseKind.TEXT, label = label.orEmpty(), text = text)
+    is PurchaseLocation.Marketplace ->
+        PurchaseDraft(kind = PurchaseKind.MARKETPLACE, label = label.orEmpty(), url = url)
 }
 
 fun AddTeaForm.toTea(): Tea {
@@ -69,6 +76,23 @@ fun AddTeaForm.toTea(): Tea {
         origin = origin.trim().ifBlank { null },
         flavor = flavorScores,
         notes = notes.trim().ifBlank { null },
-        purchaseLocations = if (includePurchase) listOfNotNull(purchase.toLocation()) else emptyList(),
+        purchaseLocations = purchases.mapNotNull { it.toLocation() },
     )
 }
+
+/**
+ * Prefill the form for editing [Tea]. The tier picker is hidden in edit mode (drag-to-rank owns
+ * placement), so [AddTeaForm.tierId] stays null and is ignored on save.
+ */
+fun Tea.toForm(): AddTeaForm = AddTeaForm(
+    nameRu = nameRu,
+    nameEn = nameEn.orEmpty(),
+    pinyin = pinyin.orEmpty(),
+    nameZh = nameZh.orEmpty(),
+    type = type,
+    origin = origin.orEmpty(),
+    notes = notes.orEmpty(),
+    flavors = flavor.associate { it.dimension to it.intensity },
+    tierId = null,
+    purchases = purchaseLocations.map { it.toDraft() },
+)

@@ -45,6 +45,11 @@
     <!-- Add tea -->
     <string name="add_tea_action">Добавить чай</string>
     <string name="add_tea_title">Новый чай</string>
+    <string name="edit_tea_title">Редактирование</string>
+    <string name="edit_tea_action">Изменить</string>
+    <string name="a11y_edit_tea">Редактировать чай</string>
+    <string name="purchase_add">Добавить место</string>
+    <string name="a11y_purchase_remove">Удалить место покупки</string>
     <string name="action_save">Сохранить</string>
     <string name="field_name_ru">Название (рус.)</string>
     <string name="field_name_ru_hint">Обязательное поле</string>
