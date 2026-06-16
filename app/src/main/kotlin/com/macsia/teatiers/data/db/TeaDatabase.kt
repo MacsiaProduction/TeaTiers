@@ -10,6 +10,9 @@ import androidx.room.RoomDatabase
  * launch and the sample provider reseeds. Acceptable pre-launch; a real Migration(2, 3)
  * (and the still-pending Migration(1, 2)) become mandatory the moment we ship to a real user.
  *
+ * v4 (catalog integration, M3): adds the `catalog_cache` table — read-only shared-catalog rows
+ * cached for offline search reuse (plan §4b). Still destructive on bump (pre-launch).
+ *
  * exportSchema stays false until we ship to real users — at that point flip it on with
  * room.schemaLocation + a committed JSON baseline so migration tests have something to diff.
  */
@@ -22,10 +25,12 @@ import androidx.room.RoomDatabase
         FlavorEntity::class,
         PurchaseLocationEntity::class,
         PhotoEntity::class,
+        CatalogCacheEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class TeaDatabase : RoomDatabase() {
     abstract fun teaDao(): TeaDao
+    abstract fun catalogDao(): CatalogDao
 }

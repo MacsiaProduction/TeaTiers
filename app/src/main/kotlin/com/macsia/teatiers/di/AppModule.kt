@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import coil3.ImageLoader
 import coil3.request.crossfade
+import com.macsia.teatiers.data.db.CatalogDao
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
 import com.macsia.teatiers.data.photos.AndroidPhotoStore
@@ -44,6 +45,9 @@ object AppModule {
 
     @Provides
     fun provideTeaDao(database: TeaDatabase): TeaDao = database.teaDao()
+
+    @Provides
+    fun provideCatalogDao(database: TeaDatabase): CatalogDao = database.catalogDao()
 
     // Outlives any ViewModel so first-run seeding completes even if the opening screen leaves.
     @Provides

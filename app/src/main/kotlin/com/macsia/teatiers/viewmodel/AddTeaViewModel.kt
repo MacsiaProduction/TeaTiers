@@ -4,20 +4,28 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
+import com.macsia.teatiers.data.repository.CatalogRepository
+import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.Tier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -34,6 +42,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AddTeaViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
+    private val catalogRepository: CatalogRepository,
 ) : ViewModel() {
 
     private val eventHost = UiEventHost()
@@ -51,6 +60,30 @@ class AddTeaViewModel @Inject constructor(
 
     private val _form = MutableStateFlow(AddTeaForm())
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
+
+    /**
+     * Catalog search box (add mode only). Typing here queries the shared catalog; picking a result
+     * prefills the form. Debounced + min-length so we never hit the API per keystroke (plan §6).
+     */
+    private val _catalogQuery = MutableStateFlow("")
+    val catalogQuery: StateFlow<String> = _catalogQuery.asStateFlow()
+
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    val catalogSearch: StateFlow<CatalogSearchUiState> = _catalogQuery
+        .map { it.trim() }
+        .distinctUntilChanged()
+        .debounce { query -> if (query.isEmpty()) 0L else CATALOG_SEARCH_DEBOUNCE_MS }
+        .flatMapLatest { query ->
+            if (query.length < MIN_CATALOG_QUERY_LEN) {
+                flowOf<CatalogSearchUiState>(CatalogSearchUiState.Idle)
+            } else {
+                flow {
+                    emit(CatalogSearchUiState.Loading)
+                    emit(catalogRepository.search(query).toUiState())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogSearchUiState.Idle)
 
     private val boardId = MutableStateFlow<String?>(null)
     private val _editingTeaId = MutableStateFlow<String?>(null)
@@ -103,6 +136,7 @@ class AddTeaViewModel @Inject constructor(
         _form.value = AddTeaForm()
         _placementCount.value = 0
         _draftPhotos.value = emptyList()
+        _catalogQuery.value = ""
         if (teaId != null) {
             viewModelScope.launch {
                 val tea = repository.tea(teaId)
@@ -129,6 +163,43 @@ class AddTeaViewModel @Inject constructor(
 
     fun setFlavor(dimension: FlavorDimension, intensity: Int) {
         _form.update { it.copy(flavors = it.flavors + (dimension to intensity)) }
+    }
+
+    /** Updates the catalog search query; the [catalogSearch] flow debounces + runs the search. */
+    fun onCatalogQuery(query: String) {
+        _catalogQuery.value = query
+    }
+
+    /** Clears the catalog search box (e.g. the user dismisses results without picking). */
+    fun clearCatalogSearch() {
+        _catalogQuery.value = ""
+    }
+
+    /**
+     * Prefills the form from a chosen catalog tea (names + type + origin) and collapses the search.
+     * The values are editable suggestions, never authoritative (#21) — the user owns their board.
+     * Flavors/blurb need the detail endpoint and stay for a later M3 slice; this is search + prefill.
+     */
+    fun pickCatalogTea(tea: CatalogTea) {
+        _form.update { form ->
+            form.copy(
+                nameRu = tea.nameRu ?: tea.displayName,
+                nameEn = tea.nameEn.orEmpty(),
+                pinyin = tea.pinyin.orEmpty(),
+                nameZh = tea.nameZh.orEmpty(),
+                type = tea.type,
+                origin = tea.originCountry ?: form.origin,
+            )
+        }
+        _catalogQuery.value = ""
+    }
+
+    private fun CatalogSearchResult.toUiState(): CatalogSearchUiState = when (this) {
+        is CatalogSearchResult.Loaded ->
+            if (teas.isEmpty()) CatalogSearchUiState.Empty
+            else CatalogSearchUiState.Results(teas, fromCache)
+        CatalogSearchResult.Offline -> CatalogSearchUiState.Offline
+        CatalogSearchResult.Error -> CatalogSearchUiState.Error
     }
 
     fun addPurchase() {

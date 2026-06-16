@@ -1058,3 +1058,36 @@ deviated.
     - All three workflows are **inert until their secrets exist** (documented in `infra/README.md`);
       the user must add: pusher `YC_SA_KEY` + `YC_REGISTRY_ID` var (publish), `AWS_ACCESS_KEY_ID`/
       `AWS_SECRET_ACCESS_KEY` + folder-editor `YC_SA_KEY` (infra). Untested in this environment.
+
+## 2026-06-16 — M3 start: catalog client + add-tea search
+
+59. **M3 first slice = networking foundation + add-tea catalog search** (app-side; plan §M3). Scope
+    deliberately stops at search + prefill — tea-card visuals, the detail screen, the search-miss CTA,
+    and the attributions screen are later M3 slices.
+    - **Client stack:** Retrofit 3.0.0 + the first-party `converter-kotlinx-serialization`, OkHttp via
+      the **5.4.0 BOM** (5.x is source-compatible with the 4.12 Retrofit 3 declares; latest stable
+      verified on Maven Central — the bare `latestVersion` query returns an `alpha`, so it was read
+      from `maven-metadata.xml`). One Retrofit instance in `NetworkModule`; logging interceptor is
+      `BASIC` and **gated to debug** (rule 50: no verbose logging shipped, the query is user input).
+      The catalog API is read-only + holds no user data, so **no auth** here.
+    - **Base URL** = `BuildConfig.CATALOG_BASE_URL`, default `https://tea.macsia.fun/api/v1/`,
+      overridable per build via a Gradle property (so a local server or staging needs no code change).
+    - **Contract verified live** before writing DTOs (rule 00: never guess a schema). `GET
+      /teas/search` returns `type` as the **uppercase enum name** (`"GREEN"`; the server DTO types it
+      as the `TeaType` enum, Jackson serializes `name()`), the boolean name flag serializes as
+      **`primary`** (Jackson strips the `is` from `isPrimary`), locales are `en`/`ru`/`zh-Hans`/
+      `pinyin`. DTOs keep `type` as a **raw String** and fold unknown values to `TeaType.OTHER` in the
+      mapper, so a new server category never breaks deserialization on an old client.
+    - **Repository** is **network-first with an offline fallback**: on success it caches the page; on
+      `IOException` it returns cached rows (`fromCache=true`) or `Offline`, on `HttpException` cached
+      rows or `Error`. The `catalog_cache` Room table (**DB v4**, still `fallbackToDestructiveMigration`
+      pre-launch) denormalizes every name into a lowercased `searchText` so the offline `LIKE` matches
+      any locale (SQLite `LIKE` only case-folds ASCII) and keeps the structured names as JSON.
+    - **UX:** Add-Tea (add mode only — edit is local-only) gets a debounced search box (**≥2 chars,
+      300 ms**, `flatMapLatest` cancels stale requests). Picking a result prefills names/type/origin as
+      **editable suggestions, never authoritative** (#21) — the user owns their board; flavors/blurb
+      wait for the detail-endpoint slice.
+    - **Tests:** MockWebServer covers the repo (hit caches, blank-query short-circuit, 5xx→Error vs
+      cache, network-down→Offline); ViewModel tests cover debounce/min-length/empty/offline + prefill
+      (`Loading` is asserted tolerantly — a `StateFlow` conflates it away when the mocked search
+      resolves synchronously). `lint` + 126 unit tests green; not yet shipped as a PR.

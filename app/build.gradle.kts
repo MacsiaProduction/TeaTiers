@@ -27,6 +27,13 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Catalog API base URL (M3). Not a secret. Defaults to the live deploy; override per build
+        // with -PcatalogBaseUrl=... (e.g. http://10.0.2.2:8080/api/v1/ for a local server). A local
+        // cleartext (http) URL also needs a debug network-security-config; the default is HTTPS.
+        val catalogBaseUrl = (project.findProperty("catalogBaseUrl") as? String)
+            ?: "https://tea.macsia.fun/api/v1/"
+        buildConfigField("String", "CATALOG_BASE_URL", "\"$catalogBaseUrl\"")
     }
 
     buildTypes {
@@ -92,6 +99,12 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.serialization.json)
 
+    implementation(platform(libs.okhttp.bom))
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
@@ -110,4 +123,5 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }

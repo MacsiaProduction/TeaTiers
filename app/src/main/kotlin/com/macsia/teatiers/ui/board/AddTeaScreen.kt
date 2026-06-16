@@ -11,16 +11,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,8 +59,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.TeaType
+import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
+import com.macsia.teatiers.viewmodel.CatalogSearchUiState
 import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.ExtendedRateDimensions
 import com.macsia.teatiers.viewmodel.PurchaseDraft
@@ -82,6 +89,8 @@ fun AddTeaScreen(
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()
     val placementCount by viewModel.placementCount.collectAsStateWithLifecycle()
     val photos by viewModel.photos.collectAsStateWithLifecycle()
+    val catalogQuery by viewModel.catalogQuery.collectAsStateWithLifecycle()
+    val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -162,6 +171,17 @@ fun AddTeaScreen(
                     text = stringResource(R.string.edit_ripple_caption),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // Catalog search (M3): add mode only. Editing an existing tea is local-only, so the
+            // catalog box would just be noise there. Picking a result prefills the fields below.
+            if (!isEdit) {
+                CatalogSearchField(
+                    query = catalogQuery,
+                    state = catalogSearch,
+                    onQuery = viewModel::onCatalogQuery,
+                    onClear = viewModel::clearCatalogSearch,
+                    onPick = viewModel::pickCatalogTea,
                 )
             }
             OutlinedTextField(
@@ -414,6 +434,106 @@ private fun PurchaseDraftCard(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CatalogSearchField(
+    query: String,
+    state: CatalogSearchUiState,
+    onQuery: (String) -> Unit,
+    onClear: () -> Unit,
+    onPick: (CatalogTea) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQuery,
+            label = { Text(stringResource(R.string.catalog_search_label)) },
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = onClear) {
+                        Icon(
+                            imageVector = Icons.Filled.Clear,
+                            contentDescription = stringResource(R.string.a11y_catalog_clear),
+                        )
+                    }
+                }
+            },
+            supportingText = { Text(stringResource(R.string.catalog_search_hint)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        when (state) {
+            CatalogSearchUiState.Idle -> Unit
+            CatalogSearchUiState.Loading ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+            is CatalogSearchUiState.Results -> {
+                if (state.fromCache) {
+                    CatalogHint(stringResource(R.string.catalog_search_from_cache))
+                }
+                state.teas.forEach { tea ->
+                    CatalogResultRow(tea = tea, onClick = { onPick(tea) })
+                }
+            }
+            CatalogSearchUiState.Empty -> CatalogHint(stringResource(R.string.catalog_search_empty))
+            CatalogSearchUiState.Offline -> CatalogHint(stringResource(R.string.catalog_search_offline))
+            CatalogSearchUiState.Error -> CatalogHint(stringResource(R.string.catalog_search_error))
+        }
+    }
+}
+
+@Composable
+private fun CatalogHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun CatalogResultRow(tea: CatalogTea, onClick: () -> Unit) {
+    val pickDescription = stringResource(R.string.a11y_catalog_pick, tea.displayName)
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = pickDescription },
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = tea.displayName, style = MaterialTheme.typography.titleSmall)
+                if (tea.secondaryName.isNotBlank()) {
+                    Text(
+                        text = tea.secondaryName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (tea.isUnverified) {
+                    Text(
+                        text = stringResource(R.string.catalog_result_unverified),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            TypeChip(type = tea.type)
         }
     }
 }

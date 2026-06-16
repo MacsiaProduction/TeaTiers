@@ -19,6 +19,8 @@ coil = "3.5.0"
 datastore = "1.2.1"
 appcompat = "1.7.1"
 kotlinxSerialization = "1.11.0"
+retrofit = "3.0.0"
+okhttp = "5.4.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -60,6 +62,16 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 # JSON for the export/import backup bundle (M1, #26). The compiler plugin (kotlin-serialization
 # below, pinned to the Kotlin version) generates the serializers for the @Serializable DTOs.
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# Catalog API client (M3). Retrofit 3 + the first-party kotlinx.serialization converter; OkHttp is
+# BOM-managed (okhttp 5.x is source-compatible with the 4.12 Retrofit 3 declares). mockwebserver
+# (test-only) stubs the catalog server for the repository tests.
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-converter-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
+okhttp-bom = { group = "com.squareup.okhttp3", name = "okhttp-bom", version.ref = "okhttp" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp" }
+okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver" }
 
 # Local persistence (M1). room-ktx adds Flow + suspend support; room-compiler runs via KSP.
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

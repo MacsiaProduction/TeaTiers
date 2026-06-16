@@ -305,6 +305,18 @@ hanzi** → **search-miss → "add it / paste a description"** CTA → **attribu
 screen (CC-BY-SA/ODbL/CC images + per-item source links). Outcome: teas resolve from the
 shared catalog; custom teas still work.
 
+*Progress ✅ **search foundation + add-tea search** (decision #59). Retrofit 3 + OkHttp 5 (BOM) +
+kotlinx.serialization client behind `CatalogRepository` (network-first, offline-cache fallback);
+base URL is a `BuildConfig.CATALOG_BASE_URL` (defaults to the live API, override via a Gradle
+property). DTOs mirror the live contract verified against `https://tea.macsia.fun` (`type` =
+uppercase enum, `primary` boolean, `zh-Hans`/`pinyin` locales). New `catalog_cache` Room table
+(DB v4, destructive-migrate, pre-launch) keeps seen teas searchable offline. The Add-Tea screen
+now has a debounced (≥2 chars, 300 ms) catalog search box; picking a result prefills
+names/type/origin as **editable suggestions** (#21, never authoritative). MockWebServer repo
+tests + ViewModel search tests added; lint + 126 unit tests green. **Still open in M3:** tea-card
+visuals, the detail screen (descriptions + attribution), the search-miss "add it / paste a
+description" CTA, and the attributions/licenses screen.*
+
 **M4 — Enrichment, flavor & photos (needs M3).**
 Backend: `POST /teas/resolve` **enrich-on-miss** (Wikidata → YandexGPT Lite → Yandex-native
 Qwen3/DeepSeek booster, logging off) + grounded **`sourceText`** + **upsert dedup** + per-IP

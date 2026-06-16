@@ -2,8 +2,12 @@ package com.macsia.teatiers.viewmodel
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.macsia.teatiers.data.repository.CatalogRepository
+import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.CatalogName
+import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
@@ -21,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -45,13 +50,21 @@ class AddTeaViewModelTest {
     )
 
     private val repository = mockk<TeaBoardRepository>()
+    private val catalogRepository = mockk<CatalogRepository>()
+
+    // Shared scheduler between Main and the catalog tests so `debounce` virtual time advances.
+    private val mainDispatcher = UnconfinedTestDispatcher()
 
     @BeforeEach
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(mainDispatcher)
         every { repository.boards } returns MutableStateFlow(listOf(board))
         // Default for any code path that calls placementCountForTea(teaId) (e.g. bind on edit).
         coEvery { repository.placementCountForTea(any()) } returns 1
+        // Default: catalog search returns nothing unless a test overrides it. Only fires when a
+        // subscriber collects catalogSearch and the query is long enough.
+        coEvery { catalogRepository.search(any(), any()) } returns
+            CatalogSearchResult.Loaded(emptyList(), fromCache = false)
     }
 
     @AfterEach
@@ -61,7 +74,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `tiers expose the bound board's tiers sorted by position`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
 
         viewModel.tiers.test {
             viewModel.bind(boardId = "b")
@@ -76,7 +89,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit persists the mapped tea and notifies on success`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns "tea-1"
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао", tierId = "a") }
 
@@ -92,7 +105,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `submit is a no-op when the ru name is blank`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
 
         var saved = false
@@ -105,7 +118,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `submit is a no-op when no board is bound (add flow)`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         // Add flow with no boardId means we cannot place anywhere — submit must bail.
         viewModel.update { it.copy(nameRu = "Чай") }
 
@@ -119,7 +132,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `purchase helpers add update and remove drafts`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
 
         viewModel.addPurchase()
@@ -136,7 +149,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `purchase helpers ignore out-of-range indices`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
 
         viewModel.removePurchase(5)
@@ -158,7 +171,7 @@ class AddTeaViewModelTest {
         )
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
 
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
@@ -178,7 +191,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 3
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
 
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
@@ -192,7 +205,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 2
         coEvery { repository.updateTea(any(), any()) } just Runs
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
         viewModel.update { it.copy(nameRu = "Новый чай", notes = "обновлено") }
@@ -216,7 +229,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN, notes = "заметка")
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
         // simulate the user navigating away from edit and into the add flow on the same VM
@@ -236,7 +249,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
         coEvery { repository.deleteTea(eq("t1")) } just Runs
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -250,7 +263,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `deleteTea is a no-op when not in edit mode`() = runTest {
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
 
         var deleted = false
@@ -266,7 +279,7 @@ class AddTeaViewModelTest {
         coEvery { repository.addTea(eq("b"), any(), any()) } returns "tea-new"
         coEvery { repository.addPhoto(any(), any()) } returns "photo-id"
 
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао") }
 
@@ -298,7 +311,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.addPhoto(eq("t1"), any()) } returns "photo-id"
 
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -318,7 +331,7 @@ class AddTeaViewModelTest {
         coEvery { repository.removePhoto(eq("t1"), any()) } just Runs
         coEvery { repository.reorderPhotos(eq("t1"), any()) } just Runs
 
-        val viewModel = AddTeaViewModel(repository)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -330,5 +343,126 @@ class AddTeaViewModelTest {
         coVerify(exactly = 1) { repository.removePhoto("t1", "photo-1") }
         coVerify(exactly = 1) { repository.reorderPhotos("t1", capture(orderedSlot)) }
         assertEquals(listOf("a", "b", "c"), orderedSlot.captured)
+    }
+
+    private fun catalogTea(
+        id: Long,
+        ru: String? = null,
+        en: String? = null,
+        pinyin: String? = null,
+        type: TeaType = TeaType.GREEN,
+        origin: String? = null,
+        verification: String = "verified",
+    ): CatalogTea = CatalogTea(
+        id = id,
+        type = type,
+        originCountry = origin,
+        brand = null,
+        verificationStatus = verification,
+        names = buildList {
+            ru?.let { add(CatalogName("ru", it, isPrimary = true)) }
+            en?.let { add(CatalogName("en", it, isPrimary = true)) }
+            pinyin?.let { add(CatalogName("pinyin", it, isPrimary = false)) }
+        },
+    )
+
+    @Test
+    fun `catalog search debounces a short-then-valid query into loading then results`() =
+        runTest(mainDispatcher) {
+            val tea = catalogTea(1, ru = "Лунцзин", pinyin = "lóngjǐng", origin = "Китай")
+            coEvery { catalogRepository.search(eq("лунц"), any()) } returns
+                CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
+            val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("лунц")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                // `Loading` may be conflated away by the StateFlow when the (mocked) search
+                // resolves synchronously; skip it and assert the settled state.
+                var settled = awaitItem()
+                if (settled == CatalogSearchUiState.Loading) settled = awaitItem()
+                assertTrue(settled is CatalogSearchUiState.Results)
+                settled as CatalogSearchUiState.Results
+                assertFalse(settled.fromCache)
+                assertEquals(listOf("Лунцзин"), settled.teas.map { it.displayName })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `catalog search ignores queries below the minimum length`() =
+        runTest(mainDispatcher) {
+            val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("л")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify(exactly = 0) { catalogRepository.search(any(), any()) }
+        }
+
+    @Test
+    fun `catalog search surfaces empty results when nothing matches`() =
+        runTest(mainDispatcher) {
+            coEvery { catalogRepository.search(eq("zzzz"), any()) } returns
+                CatalogSearchResult.Loaded(emptyList(), fromCache = false)
+            val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("zzzz")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                var settled = awaitItem()
+                if (settled == CatalogSearchUiState.Loading) settled = awaitItem()
+                assertEquals(CatalogSearchUiState.Empty, settled)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `catalog search reports offline when the repository falls back with nothing`() =
+        runTest(mainDispatcher) {
+            coEvery { catalogRepository.search(eq("чай"), any()) } returns CatalogSearchResult.Offline
+            val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("чай")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                var settled = awaitItem()
+                if (settled == CatalogSearchUiState.Loading) settled = awaitItem()
+                assertEquals(CatalogSearchUiState.Offline, settled)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `pickCatalogTea prefills names type and origin and clears the search box`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+        viewModel.bind(boardId = "b")
+        viewModel.onCatalogQuery("лунц")
+
+        viewModel.pickCatalogTea(
+            catalogTea(
+                1,
+                ru = "Лунцзин",
+                en = "Dragon Well",
+                pinyin = "lóngjǐng",
+                type = TeaType.GREEN,
+                origin = "Китай",
+            ),
+        )
+
+        val form = viewModel.form.value
+        assertEquals("Лунцзин", form.nameRu)
+        assertEquals("Dragon Well", form.nameEn)
+        assertEquals("lóngjǐng", form.pinyin)
+        assertEquals(TeaType.GREEN, form.type)
+        assertEquals("Китай", form.origin)
+        assertEquals("", viewModel.catalogQuery.value)
     }
 }
