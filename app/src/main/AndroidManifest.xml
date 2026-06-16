@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Local-first MVP: no permissions yet. INTERNET is added with catalog search (M3). -->
+    <!-- Catalog search reads the shared catalog API over HTTPS (M3). User data stays on-device;
+         only a typed query string ever leaves the app (plan privacy note). -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".TeaTiersApplication"
