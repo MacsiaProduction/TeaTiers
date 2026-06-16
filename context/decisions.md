@@ -1346,3 +1346,27 @@ deviated.
       (MockWebServer), and `AddTeaViewModelTest` dispatch gating (created vs auto-linked). **Full app suite =
       148 unit tests green; lint + debug APK build.** *Still open in M4 (unchanged): the "paste a description"
       field UI, the reference-vs-mine flavor split (#23), zh-source/grounded gold sets.*
+
+70. **Architecture review (2026-06-17) — disposition + open decisions** (`context/review/`). Reviewed the
+    plan/decisions + app/backend/infra shape; full per-item disposition in
+    `context/review/2026-06-17-disposition.md`, the explicit ship checklist in plan **§7.1 MVP release gate**.
+    - **Done autonomously:** backup now round-trips the v5 enrichment fields (#69); the release gate +
+      this disposition are written.
+    - **Planned autonomously (separate verified PRs, no decision needed):** (a) a **global daily LLM
+      ceiling** (per-IP rate limit alone is weak behind NAT — add a global daily enrichment-call cap that
+      fails closed to Wikidata-only); (b) **`catalogTeaId`-first local dedup** (link a picked catalog tea by
+      `catalogTeaId`, block a duplicate non-null `catalogTeaId`, name-match as fallback); (c) **WorkManager**
+      for durable `QUEUED`/`PENDING` enrichment retry (the app-scope manager stays for in-app optimistic
+      patching). Search typo-tolerance stays gated on **run 09** (#67); ghcr on **#68**.
+    - **OPEN — needs your decision (not actioned; recorded as unresolved):**
+      - **#70.1 Room public-schema cutover.** Pick the "public schema starts at vN" line (likely v5), turn on
+        `exportSchema` + commit the baseline, drop the destructive fallback for future bumps. Until then
+        internal builds keep wiping on upgrade. *Release blocker once an APK reaches a real user.*
+      - **#70.2 Catalog image list (backend).** Is a backend `tea_image` *list* table in MVP scope, or do
+        catalog teas stay single-`image_url` until post-MVP? (Web image fetching stays banned regardless.)
+      - **#70.3 Off-box DB backup.** `/resolve` writes non-seed rows, so the DB is no longer reproducible from
+        VCS — enable Object Storage `pg_dump` off-box backups, or accept local-only in writing.
+      - **#70.4 Curated seed expansion (13 → ~300, #10).** Prioritize the curated-seed content effort vs lean
+        on fuzzy search + Wikidata resolve first. Content effort, not code.
+      - **#70.5 en/zh UI timing.** Ship `values-en`/`values-zh` for the release, or keep ru-only with explicit
+        picker copy (M5).

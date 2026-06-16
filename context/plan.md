@@ -426,6 +426,28 @@ consideration). Outcome: release-ready MVP.
 (Yandex Disk via SAF, no accounts — #26) · promote **Alice Flash** to primary if it
 benchmarks better (#18).
 
+### 7.1 MVP release gate (first public APK)
+
+The explicit checklist for "the first public/RuStore/sideload APK may ship" (from the
+2026-06-17 architecture review; see `context/review/2026-06-17-disposition.md`). Until every
+line is ✅ or a deliberate written waiver, the build stays internal-only.
+
+- [ ] **Room migrations:** destructive fallback removed for future public schema changes;
+  `exportSchema` on + a committed baseline; "public schema starts at vN" declared (open #70.1).
+- [ ] **Backup fidelity:** export/import round-trips all current columns incl. the v5
+  enrichment fields ✅ (#69) and photos ✅ (#26) — re-verify on each new column.
+- [ ] **Typo-tolerant catalog search** implemented + passes a ru/en/pinyin/zh search-gold set
+  (run 09, #67).
+- [ ] **Queued enrichment** is either durable (WorkManager) or the UI copy honestly says
+  "runs only while the app is open."
+- [ ] **`/resolve` contract** aligned with the client (async `ENRICHING` ✅ #66) + a **global
+  daily LLM ceiling** that fails closed.
+- [ ] **Dependency/security check** (OWASP Dependency-Check) wired, or deferred with a date.
+- [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
+- [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).
+- [ ] **i18n:** `values-en`/`values-zh` shipped, or the picker copy makes ru-only explicit (open #70.5).
+- [ ] **Release hardening:** no debug logging, signing via CI secrets, cert-pinning considered (M5).
+
 ## 8. Cross-cutting
 
 - **i18n:** ru UI at MVP (`res/values-ru` as default + `values` fallback), en/zh
