@@ -58,6 +58,10 @@ abstract class TeaDao {
     @Query("SELECT id, nameRu, nameZh, pinyin FROM teas")
     abstract suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow>
 
+    /** The user-tea already linked to this catalog id, if any — the strongest dedup key (#42). */
+    @Query("SELECT id FROM teas WHERE catalogTeaId = :catalogTeaId LIMIT 1")
+    abstract suspend fun findTeaIdByCatalogId(catalogTeaId: Long): String?
+
     @Query("SELECT COUNT(*) FROM placements WHERE teaId = :teaId")
     abstract suspend fun placementCountForTea(teaId: String): Int
 

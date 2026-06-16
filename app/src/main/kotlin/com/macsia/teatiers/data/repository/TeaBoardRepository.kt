@@ -341,6 +341,9 @@ class TeaBoardRepository @Inject constructor(
      * candidate set into memory keeps the rule correct without an ICU build.
      */
     private suspend fun resolveTeaIdForMatch(candidate: Tea): String? {
+        // Catalog identity wins over name matching (#42): two adds of the same catalog tea — even with
+        // differently-typed names — resolve to one user-tea, and a second catalog-linked row is prevented.
+        candidate.catalogTeaId?.let { id -> dao.findTeaIdByCatalogId(id)?.let { return it } }
         val candidateKey = candidate.matchKey() ?: return null
         return dao.loadTeaMatchKeys()
             .firstOrNull { row -> row.matches(candidateKey) }

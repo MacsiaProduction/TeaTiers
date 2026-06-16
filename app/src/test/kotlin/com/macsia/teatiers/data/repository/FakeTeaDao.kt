@@ -55,6 +55,9 @@ class FakeTeaDao : TeaDao() {
     override suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow> =
         teas.map { TeaMatchKeyRow(id = it.id, nameRu = it.nameRu, nameZh = it.nameZh, pinyin = it.pinyin) }
 
+    override suspend fun findTeaIdByCatalogId(catalogTeaId: Long): String? =
+        teas.firstOrNull { it.catalogTeaId == catalogTeaId }?.id
+
     override suspend fun placementCountForTea(teaId: String): Int =
         placements.count { it.teaId == teaId }
 

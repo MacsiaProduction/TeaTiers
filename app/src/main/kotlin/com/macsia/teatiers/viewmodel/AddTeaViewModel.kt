@@ -232,6 +232,7 @@ class AddTeaViewModel @Inject constructor(
                 nameZh = tea.nameZh.orEmpty(),
                 type = tea.type,
                 origin = tea.originCountry ?: form.origin,
+                catalogTeaId = tea.id,
             )
         }
         _catalogQuery.value = ""
@@ -319,9 +320,10 @@ class AddTeaViewModel @Inject constructor(
                         if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
                     }
                     _draftPhotos.value = emptyList()
-                    // Optimistic background enrichment (#21): only for a genuinely new tea, never an
-                    // auto-linked existing one. Fire-and-forget on the app scope; the card shows status.
-                    if (added.created) enrichmentManager.enrich(added.teaId, tea.nameRu)
+                    // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT
+                    // already catalog-linked (a catalog pick carries its names + id, so a re-resolve is
+                    // redundant). Never an auto-linked existing one. Fire-and-forget on the app scope.
+                    if (added.created && tea.catalogTeaId == null) enrichmentManager.enrich(added.teaId, tea.nameRu)
                 } else {
                     return@runCatching false
                 }

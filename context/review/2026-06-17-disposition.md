@@ -12,7 +12,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 | P1 | Queued enrichment isn't durable (app-scope only) | 🛠 **planned** — add **WorkManager** for durable `QUEUED`/`PENDING` retry (keep the manager for in-app optimistic patch). |
 | P1 | `/resolve` contract drift (sourceText ignored; async status) | partly ✅: the async `ENRICHING` status + server stub shipped in **#66**; `sourceText` is now consumed by the LLM tier. Remaining: the **"paste a description" UI field** (#25) and a **global daily LLM ceiling** (below). |
 | P1 | Catalog image model behind app photo list | ❓ **needs decision** — whether a backend `tea_image` *list* is in scope (vs the single `image_url` triple). See Open decisions. |
-| P1 | Local dedup should prefer `catalogTeaId` | 🛠 **planned** — link by `catalogTeaId` first; block a second local tea with the same non-null `catalogTeaId`; keep name-match as fallback. |
+| P1 | Local dedup should prefer `catalogTeaId` | ✅ **done** (#72) — `addTea` matches by `catalogTeaId` first (then name); a catalog pick carries the id + skips re-resolve. |
 | P1 | Release gate not explicit | ✅ **done** — added **plan.md §7.1 "MVP release gate"** (this PR). |
 | P1 | Missing global daily LLM ceiling | ✅ **done** (#71) — `LlmDailyBudget` global daily cap; a miss fails closed to `UNRESOLVED` when exhausted. |
 | P2 | GHCR migration | ⏳ **planned** (decision #68) — GH Actions push to `ghcr.io`, digest pins, verify VM pull before retiring YCR. |
@@ -47,5 +47,5 @@ rather than being done autonomously. Mirrored as **decision #70** in `decisions.
 
 Being implemented as separate verified PRs off `main`, in this order:
 1. Global daily LLM ceiling (backend cost protection). ✅ #71
-2. `catalogTeaId`-first local dedup linking.
+2. `catalogTeaId`-first local dedup linking. ✅ #72
 3. WorkManager durable queued/pending enrichment retry.
