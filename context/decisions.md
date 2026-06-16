@@ -1029,3 +1029,32 @@ deviated.
     unless-stopped`. Verified externally: `https://tea.macsia.fun/actuator/health` = UP, `/teas/search`
     serves the 13 seeded teas, valid Let's Encrypt cert. **M2 is done** (read-only catalog API
     deployed); remaining catalog-data tasks (live Wikidata re-sync, OFF taxonomy) are optional/M-later.
+
+## 2026-06-16 — post-deploy infra hardening (CI, digests, backups)
+
+58. **Infra hardening after the live deploy (rule 40-devops).** Five follow-ups to the #57 deploy,
+    no behavior change to the running app:
+    - **CI runners off Node 20.** GitHub forces Node-20 JS actions to Node 24 starting 2026-06-16, so
+      `ci.yml` bumps `actions/checkout@v4 -> v6`, `actions/setup-java@v4 -> v5`,
+      `android-actions/setup-android@v3 -> v4` (latest majors verified on the registry; rule 40 still
+      satisfied — pinned to a major tag).
+    - **Base images pinned by digest** (the #50/#57 `server/Dockerfile` TODO): both `eclipse-temurin`
+      stages + `caddy:2-alpine` + `postgres:16-alpine` (in `infra/deploy/docker-compose.prod.yml`) now
+      pin the **multi-arch index digest** (`tag@sha256:…`, tag kept for readability; refresh via
+      `docker manifest inspect --verbose`). The repo-root *dev* compose stays on tags (dev convenience,
+      matches the Testcontainers tag).
+    - **Image publish in CI** (`publish-image.yml`): GH runners are native amd64, so building there
+      sidesteps the local podman cross-arch problem (#57). Pushes `:latest` + `:<sha>` to CR on
+      push-to-main touching `server/**` (or manual). **Guarded** — no-ops unless secret `YC_SA_KEY`
+      (a *pusher* SA, separate from the VM's `teatiers-puller`, least privilege) and variable
+      `YC_REGISTRY_ID` exist, so main never goes red before the user wires them.
+    - **OpenTofu in CI** (`infra.yml`): `plan` on infra PRs, **`apply` only via manual dispatch** —
+      apply-on-main is intentionally not automatic (single operator + `prevent_destroy` on VM/IP make
+      an unattended apply risky). Guarded on `AWS_*` (state backend) + `YC_SA_KEY`.
+    - **Postgres backup** (`infra/deploy/backup.sh` + `teatiers-backup.{service,timer}`): daily
+      container `pg_dump` -> gzip under `/opt/teatiers/backups`, 14-day retention. **Local-on-disk by
+      default** (the catalog is reproducible from Flyway + the committed seed); off-box copy to Object
+      Storage is opt-in via `BACKUP_S3_URI`. Installed on the VM is a credentialed step (README).
+    - All three workflows are **inert until their secrets exist** (documented in `infra/README.md`);
+      the user must add: pusher `YC_SA_KEY` + `YC_REGISTRY_ID` var (publish), `AWS_ACCESS_KEY_ID`/
+      `AWS_SECRET_ACCESS_KEY` + folder-editor `YC_SA_KEY` (infra). Untested in this environment.

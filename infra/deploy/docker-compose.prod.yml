@@ -2,9 +2,11 @@
 # cloud-init at /opt/teatiers/docker-compose.yml; values come from /opt/teatiers/.env. Unlike the
 # repo-root dev compose, the server image is pulled from Container Registry (not built here) and
 # the only published ports are Caddy's 80/443.
+# Base images pinned by multi-arch index digest (rule 40-devops); tags kept for readability.
+# Refresh with: docker manifest inspect --verbose <image> | jq '.[0].Descriptor.digest'
 services:
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:4679412ccd2114dca9f3017e2c460f76c9d8eb9e1850e72fb9ecda672e05c629
     container_name: teatiers-caddy
     restart: unless-stopped
     ports:
@@ -37,7 +39,7 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:79950da386bda7fcc9d57aa9aa9be6c6d7407596a9b8f68014b09a778a9ab316
     container_name: teatiers-db
     restart: unless-stopped
     environment:

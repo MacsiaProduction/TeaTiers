@@ -1,0 +1,10 @@
+[Unit]
+Description=TeaTiers Postgres logical backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# backup.sh reads /opt/teatiers/.env for DB name/user. Override BACKUP_S3_URI/RETENTION_DAYS here
+# (Environment=) to enable off-box upload or change retention.
+ExecStart=/opt/teatiers/backup.sh
