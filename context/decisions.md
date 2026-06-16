@@ -1321,6 +1321,9 @@ deviated.
       `enrichmentState` string backed by a new domain enum **`EnrichmentState { NONE, PENDING, QUEUED,
       DONE, FAILED }`** (the plan §4b `none|pending|queued|done|failed`). New DAO ops: `updateEnrichmentState`,
       `patchEnrichment` (merge non-blank catalog fields), `teasNeedingEnrichment` (resume sweep), `loadTeaRow`.
+      The **backup bundle** (#49) carries both new fields (`BackupTea` + round-trip tests) so a restore
+      keeps catalog linkage + enrichment state; `formatVersion` stays 1 (defaulted, so a pre-v5 backup
+      restores as an un-enriched custom tea).
     - **Network.** App `CatalogApi.resolve` `POST /teas/resolve` + `ResolveRequestDto`/`ResolveResponseDto`;
       `enrichmentState` added to the detail DTO/`CatalogTeaDetail`. `CatalogRepository.resolve(name, locale?,
       sourceText?)` returns a sealed `ResolveResult` (Matched / Enriching(catalogId) / Unresolved / Offline /

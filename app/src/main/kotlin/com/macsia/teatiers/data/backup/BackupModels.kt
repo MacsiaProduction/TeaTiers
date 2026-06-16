@@ -62,6 +62,10 @@ data class BackupTea(
     val origin: String? = null,
     val shortBlurb: String? = null,
     val notes: String? = null,
+    // Catalog linkage + enrichment lifecycle (Room v5, decisions.md #69) — defaulted so a pre-v5
+    // backup restores as an un-enriched custom tea (null / NONE), which is its correct state.
+    val catalogTeaId: Long? = null,
+    val enrichmentState: String = "NONE",
 )
 
 @Serializable
@@ -121,7 +125,10 @@ fun SeedEntities.toBundle(exportedAtEpochMs: Long, appVersion: String): BackupBu
     boards = boards.map { BackupBoard(it.id, it.name, it.position) },
     tiers = tiers.map { BackupTier(it.id, it.boardId, it.label, it.position, it.colorArgb) },
     teas = teas.map {
-        BackupTea(it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes)
+        BackupTea(
+            it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
+            it.catalogTeaId, it.enrichmentState,
+        )
     },
     placements = placements.map { BackupPlacement(it.id, it.boardId, it.teaId, it.tierId, it.position) },
     flavors = flavors.map { BackupFlavor(it.teaId, it.dimension, it.intensity, it.position) },
@@ -155,7 +162,10 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
     boards = boards.map { BoardEntity(it.id, it.name, it.position) },
     tiers = tiers.map { TierEntity(it.id, it.boardId, it.label, it.position, it.colorArgb) },
     teas = teas.map {
-        TeaEntity(it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes)
+        TeaEntity(
+            it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
+            it.catalogTeaId, it.enrichmentState,
+        )
     },
     placements = placements.map { PlacementEntity(it.id, it.boardId, it.teaId, it.tierId, it.position) },
     flavors = flavors.map { FlavorEntity(it.teaId, it.dimension, it.intensity, it.position) },
