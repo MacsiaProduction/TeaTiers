@@ -1,21 +1,53 @@
-# Phase 0: runs the catalog service alone. PostgreSQL + Flyway join in M2 when the schema
-# lands (context/plan.md); add a `db` service and DATASOURCE env then.
+# Backend catalog service + self-hosted PostgreSQL (M2). The same stack runs locally and on the
+# Yandex Cloud VM (context/decisions.md #18, run 05). Credentials come from the environment / a
+# local .env file (rule 50-secure: never commit secrets); the defaults below are dev-only and
+# match server/src/main/resources/application.yml.
 services:
+  db:
+    # 16-alpine matches the Testcontainers image the integration tests run against.
+    image: postgres:16-alpine
+    container_name: teatiers-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-teatiers}
+      POSTGRES_USER: ${POSTGRES_USER:-teatiers}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teatiers}
+    volumes:
+      - teatiers-pgdata:/var/lib/postgresql/data
+    # No published ports: only the server (on the compose network) needs the DB.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-teatiers} -d ${POSTGRES_DB:-teatiers}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     image: teatiers/server:dev
     container_name: teatiers-server
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75.0"
       SPRING_PROFILES_ACTIVE: default
+      # Flyway migrates + Hibernate validates against this DB on startup.
+      POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-teatiers}
+      POSTGRES_USER: ${POSTGRES_USER:-teatiers}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teatiers}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 15s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      # First boot runs Flyway + seeding, so allow a generous grace window.
+      start_period: 40s
     restart: unless-stopped
+
+volumes:
+  teatiers-pgdata:

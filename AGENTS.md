@@ -26,7 +26,7 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 ## Stack (defaults; confirm with user before changing)
 
 - Android client: Kotlin (latest stable 2.x) + Jetpack Compose, Gradle Kotlin DSL with a version catalog (`libs.versions.toml`), AGP latest stable on a JDK 17 toolchain. `minSdk`/`targetSdk`/`compileSdk` pinned in the catalog.
-- Backend: Kotlin + Spring Boot 3.x (WebMVC), JDK 21 LTS, Gradle Kotlin DSL with a version catalog. REST API.
+- Backend: Kotlin + Spring Boot 4.x (WebMVC), JDK 21 LTS, Gradle Kotlin DSL with a version catalog. REST API. (Pinned to 4.1.0 — see `context/decisions.md` #29/#53.)
 - Database: relational (PostgreSQL by default) for the tea catalog; schema is locale-aware (ru/en/zh) from the start. Migrations via Flyway.
 - A single Linux server hosts the backend; the database runs on the same host or a separate DB server as load requires.
 
@@ -114,7 +114,7 @@ Source: `.cursor/rules/30-backend.mdc`; description: Backend conventions — Kot
 
 ## Toolchain
 
-- Kotlin 2.x, JDK 21 LTS, Spring Boot 3.x (WebMVC), Gradle Kotlin DSL with a version catalog. Add `kotlin("plugin.jpa")` only when JPA is actually used.
+- Kotlin 2.x, JDK 21 LTS, Spring Boot 4.x (WebMVC), Gradle Kotlin DSL with a version catalog. Add `kotlin("plugin.jpa")` only when JPA is actually used. Boot 4 modularized auto-config + test slices: migrations need `spring-boot-starter-flyway`, `@WebMvcTest` needs `spring-boot-starter-webmvc-test`, and the auto-configured `ObjectMapper` is Jackson 3 (`tools.jackson`) — see `context/decisions.md` #50/#51/#52/#53.
 
 ## Idioms
 

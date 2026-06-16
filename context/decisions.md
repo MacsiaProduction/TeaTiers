@@ -960,3 +960,28 @@ deviated.
     - **Tests:** `CatalogSeederIT` (Testcontainers) asserts the first run inserts the curated teas, a second
       run inserts nothing (idempotent), and a seeded tea round-trips its localized names + flavors +
       descriptions; `DedupKeysTest` covers normalization (diacritics, whitespace, pinyin slug).
+
+53. **Stack docs aligned to Spring Boot 4 (ratifies #29).** The `00-core` / `30-backend` rules and
+    plan `§2` still read "Spring Boot 3.x" even though the build has been on **4.1.0** since Phase 0
+    (decision #29). Updated all three to "Spring Boot 4.x" and regenerated `AGENTS.md` via
+    `scripts/sync-agent-rules.sh`, so the canonical stack line stops misleading future work. The
+    `research/*/prompt.md` files keep "3.x" verbatim — they are historical research artifacts
+    (rule `70-research`: never edit a sent prompt). Concrete Boot-4 consequences surfaced while
+    building the catalog service, consolidated here: (a) Boot 4 modularized auto-config and test
+    slices, so `spring-boot-starter-flyway` (migrations no longer trigger from bare `flyway-core`)
+    and `spring-boot-starter-webmvc-test` (`@WebMvcTest`) are explicit deps (#50/#51); (b) the
+    auto-configured `ObjectMapper` bean is now **Jackson 3** (`tools.jackson`), so code needing the
+    classic `com.fasterxml.jackson` mapper builds its own (the seeder, #52).
+
+54. **Backend deploy stack = docker-compose (server + self-hosted Postgres) (M2).** The Phase-0
+    `docker-compose.yml` ran the server alone; now that the schema/seed have landed it carries a
+    `db` (`postgres:16-alpine`, matching the Testcontainers image) with a named volume and a
+    `pg_isready` healthcheck, and the server waits on `depends_on: condition: service_healthy`. The
+    DB port is **not** published (only the server, on the compose network, reaches it); the server
+    reads `POSTGRES_URL/USER/PASSWORD` from the environment (compose defaults are dev-only, rule
+    50-secure — real values come from env/Lockbox on the VM). Verified end-to-end locally: image
+    builds, Flyway migrates `v1`, the seeder inserts 13 teas and is idempotent across a restart, and
+    `/teas/search` + `/facets` return the seeded data. Still open in M2: image delivery to the VM
+    (build-on-VM vs Yandex Container Registry), TLS/reverse-proxy for `tea.macsia.fun` (80/443 are
+    the only open ingress; 8080 is not), and the `infra/` Terraform + `terraform import` of the
+    hand-created VM/SG/IP.
