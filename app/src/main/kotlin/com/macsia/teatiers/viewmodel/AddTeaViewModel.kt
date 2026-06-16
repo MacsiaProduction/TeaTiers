@@ -4,10 +4,12 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
+import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.TeaPhoto
@@ -85,6 +87,30 @@ class AddTeaViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogSearchUiState.Idle)
 
+    /**
+     * Catalog detail sheet (add mode). [_catalogDetailId] holds the open tea's id (null = closed);
+     * [_catalogDetailRetry] is a bump counter so "retry" re-runs the fetch for the same id (a plain
+     * id re-set would be conflated by the StateFlow). The sheet stays mounted under the add form, so
+     * opening it never re-binds the form or drops the in-progress search.
+     */
+    private val _catalogDetailId = MutableStateFlow<Long?>(null)
+    private val _catalogDetailRetry = MutableStateFlow(0)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val catalogDetail: StateFlow<CatalogDetailUiState> =
+        combine(_catalogDetailId, _catalogDetailRetry) { id, _ -> id }
+            .flatMapLatest { id ->
+                if (id == null) {
+                    flowOf<CatalogDetailUiState>(CatalogDetailUiState.Hidden)
+                } else {
+                    flow {
+                        emit(CatalogDetailUiState.Loading)
+                        emit(catalogRepository.detail(id).toUiState())
+                    }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogDetailUiState.Hidden)
+
     private val boardId = MutableStateFlow<String?>(null)
     private val _editingTeaId = MutableStateFlow<String?>(null)
     val editingTeaId: StateFlow<String?> = _editingTeaId.asStateFlow()
@@ -137,6 +163,7 @@ class AddTeaViewModel @Inject constructor(
         _placementCount.value = 0
         _draftPhotos.value = emptyList()
         _catalogQuery.value = ""
+        _catalogDetailId.value = null
         if (teaId != null) {
             viewModelScope.launch {
                 val tea = repository.tea(teaId)
@@ -200,6 +227,33 @@ class AddTeaViewModel @Inject constructor(
             else CatalogSearchUiState.Results(teas, fromCache)
         CatalogSearchResult.Offline -> CatalogSearchUiState.Offline
         CatalogSearchResult.Error -> CatalogSearchUiState.Error
+    }
+
+    /** Opens the detail sheet for a catalog tea id; the [catalogDetail] flow fetches and shows it. */
+    fun openCatalogDetail(id: Long) {
+        _catalogDetailId.value = id
+    }
+
+    /** Closes the detail sheet without picking. */
+    fun closeCatalogDetail() {
+        _catalogDetailId.value = null
+    }
+
+    /** Re-runs the detail fetch for the currently open tea (after an offline/error state). */
+    fun retryCatalogDetail() {
+        _catalogDetailRetry.update { it + 1 }
+    }
+
+    /** Prefills the form from the opened detail and closes the sheet (and the search). */
+    fun useCatalogDetail(detail: CatalogTeaDetail) {
+        pickCatalogTea(detail.toCatalogTea())
+        _catalogDetailId.value = null
+    }
+
+    private fun CatalogDetailResult.toUiState(): CatalogDetailUiState = when (this) {
+        is CatalogDetailResult.Loaded -> CatalogDetailUiState.Loaded(detail)
+        CatalogDetailResult.Offline -> CatalogDetailUiState.Offline
+        CatalogDetailResult.Error -> CatalogDetailUiState.Error
     }
 
     fun addPurchase() {

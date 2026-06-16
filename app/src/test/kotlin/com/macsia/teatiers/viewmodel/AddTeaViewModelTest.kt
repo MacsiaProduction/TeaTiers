@@ -2,12 +2,15 @@ package com.macsia.teatiers.viewmodel
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.CatalogName
+import com.macsia.teatiers.domain.model.CatalogProvenance
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
@@ -465,4 +468,113 @@ class AddTeaViewModelTest {
         assertEquals("Китай", form.origin)
         assertEquals("", viewModel.catalogQuery.value)
     }
+
+    @Test
+    fun `openCatalogDetail loads and surfaces the detail`() = runTest(mainDispatcher) {
+        val detail = catalogTeaDetail(1, ru = "Лунцзин")
+        coEvery { catalogRepository.detail(1) } returns CatalogDetailResult.Loaded(detail)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+        viewModel.catalogDetail.test {
+            assertEquals(CatalogDetailUiState.Hidden, awaitItem())
+            viewModel.openCatalogDetail(1)
+            // `Loading` may be conflated away when the (mocked) fetch resolves synchronously.
+            var settled = awaitItem()
+            if (settled == CatalogDetailUiState.Loading) settled = awaitItem()
+            assertTrue(settled is CatalogDetailUiState.Loaded)
+            assertEquals("Лунцзин", (settled as CatalogDetailUiState.Loaded).detail.nameRu)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `useCatalogDetail prefills the form and clears the search`() = runTest(mainDispatcher) {
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+        viewModel.bind(boardId = "b")
+        viewModel.onCatalogQuery("лунц")
+
+        viewModel.useCatalogDetail(
+            catalogTeaDetail(1, ru = "Лунцзин", en = "Dragon Well", pinyin = "lóngjǐng", origin = "CN"),
+        )
+
+        val form = viewModel.form.value
+        assertEquals("Лунцзин", form.nameRu)
+        assertEquals("Dragon Well", form.nameEn)
+        assertEquals(TeaType.GREEN, form.type)
+        assertEquals("CN", form.origin)
+        assertEquals("", viewModel.catalogQuery.value)
+    }
+
+    @Test
+    fun `closeCatalogDetail hides the sheet after it was opened`() = runTest(mainDispatcher) {
+        val detail = catalogTeaDetail(1, ru = "Лунцзин")
+        coEvery { catalogRepository.detail(1) } returns CatalogDetailResult.Loaded(detail)
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+        viewModel.catalogDetail.test {
+            assertEquals(CatalogDetailUiState.Hidden, awaitItem())
+            viewModel.openCatalogDetail(1)
+            var settled = awaitItem()
+            if (settled == CatalogDetailUiState.Loading) settled = awaitItem()
+            assertTrue(settled is CatalogDetailUiState.Loaded)
+            viewModel.closeCatalogDetail()
+            assertEquals(CatalogDetailUiState.Hidden, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `retryCatalogDetail re-fetches after an error`() = runTest(mainDispatcher) {
+        val detail = catalogTeaDetail(1, ru = "Лунцзин")
+        coEvery { catalogRepository.detail(1) } returnsMany
+            listOf(CatalogDetailResult.Error, CatalogDetailResult.Loaded(detail))
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+
+        viewModel.catalogDetail.test {
+            assertEquals(CatalogDetailUiState.Hidden, awaitItem())
+            viewModel.openCatalogDetail(1)
+            var first = awaitItem()
+            if (first == CatalogDetailUiState.Loading) first = awaitItem()
+            assertEquals(CatalogDetailUiState.Error, first)
+            viewModel.retryCatalogDetail()
+            var second = awaitItem()
+            if (second == CatalogDetailUiState.Loading) second = awaitItem()
+            assertTrue(second is CatalogDetailUiState.Loaded)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun catalogTeaDetail(
+        id: Long,
+        ru: String? = null,
+        en: String? = null,
+        pinyin: String? = null,
+        type: TeaType = TeaType.GREEN,
+        origin: String? = null,
+        verification: String = "verified",
+    ): CatalogTeaDetail = CatalogTeaDetail(
+        id = id,
+        type = type,
+        originCountry = origin,
+        region = null,
+        cultivar = null,
+        oxidationMin = null,
+        oxidationMax = null,
+        brand = null,
+        image = null,
+        names = buildList {
+            ru?.let { add(CatalogName("ru", it, isPrimary = true)) }
+            en?.let { add(CatalogName("en", it, isPrimary = true)) }
+            pinyin?.let { add(CatalogName("pinyin", it, isPrimary = false)) }
+        },
+        descriptions = emptyList(),
+        flavors = emptyList(),
+        provenance = CatalogProvenance(
+            source = "curated",
+            sourceUrl = null,
+            license = null,
+            verificationStatus = verification,
+            confidence = null,
+        ),
+    )
 }

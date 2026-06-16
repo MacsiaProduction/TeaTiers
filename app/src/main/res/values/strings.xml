@@ -188,6 +188,22 @@
     <!-- %1$s — название чая из каталога. -->
     <string name="a11y_catalog_pick">Выбрать «%1$s» из каталога</string>
     <string name="a11y_catalog_clear">Очистить поиск по каталогу</string>
+    <!-- %1$s — название чая из каталога. -->
+    <string name="a11y_catalog_info">Подробнее о «%1$s»</string>
+
+    <!-- Catalog detail sheet (M3): full reference card opened from a search result. -->
+    <string name="catalog_detail_use">Использовать этот чай</string>
+    <string name="catalog_detail_read_full">Читать полностью</string>
+    <string name="catalog_detail_read_less">Свернуть</string>
+    <string name="catalog_detail_offline">Нет соединения. Не удалось загрузить чай.</string>
+    <string name="catalog_detail_error">Не удалось загрузить чай. Попробуйте позже.</string>
+    <string name="action_retry">Повторить</string>
+    <!-- %1$s — название источника данных (например, Wikidata). -->
+    <string name="catalog_detail_source">Источник: %1$s</string>
+    <!-- %1$s — название лицензии (например, CC BY-SA 4.0). -->
+    <string name="catalog_detail_license">Лицензия: %1$s</string>
+    <!-- %1$s — источник изображения. -->
+    <string name="catalog_detail_image_credit">Изображение: %1$s</string>
 
     <!-- %1$s — вкусовая характеристика, %2$d — её интенсивность от 0 до 5 -->
     <string name="a11y_flavor_dim">%1$s: %2$d из 5</string>
