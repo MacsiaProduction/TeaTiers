@@ -1,0 +1,59 @@
+# Production stack on the VM: Caddy (TLS) -> server -> self-hosted Postgres. Rendered/placed by
+# cloud-init at /opt/teatiers/docker-compose.yml; values come from /opt/teatiers/.env. Unlike the
+# repo-root dev compose, the server image is pulled from Container Registry (not built here) and
+# the only published ports are Caddy's 80/443.
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: teatiers-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+
+  server:
+    image: ${SERVER_IMAGE}
+    container_name: teatiers-server
+    restart: unless-stopped
+    # Cap heap well under the 4 GB host so Postgres + Caddy + OS have headroom.
+    mem_limit: 1500m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0"
+      SPRING_PROFILES_ACTIVE: default
+      POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: teatiers-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - teatiers_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  caddy_data:
+  caddy_config:
+  teatiers_pgdata:

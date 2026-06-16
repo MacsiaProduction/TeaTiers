@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in. cloud_id/folder_id/zone/domain default in
+# variables.tf; you usually only set server_image after the first push to Container Registry.
+
+# server_image = "cr.yandex/<registry-id>/teatiers-server:latest"
+# domain       = "tea.macsia.fun"
+# acme_email   = "you@example.com"
