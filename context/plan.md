@@ -334,6 +334,14 @@ covered by M1's `TeaCard` (photo/placeholder + name/pinyin + type chip + flavor 
 display = ru + pinyin + hanzi** is satisfied across the search rows, detail sheet, and card. **Still
 open in M3:** the attributions/licenses screen (data-source + image credits with per-item links).*
 
+*Progress ✅ **attributions/licenses screen** (decision #63) — **M3 complete**. A new
+`Destination.Attributions`, reached from **Settings → About → "Источники данных и лицензии"**,
+credits the open datasets the catalog draws from: **Wikidata** (CC0), **Wikipedia** (CC-BY-SA),
+**Wikimedia Commons** (per-file CC), **Open Food Facts** (ODbL) — each with a one-line summary and
+tappable links to the source site + license deed. Static, localized content (no API/state);
+per-record and per-image links continue to live on the tea detail card. lint + unit tests green;
+debug APK builds. **M3 is now feature-complete** — next is M4 (enrichment, flavor & photos).*
+
 **M4 — Enrichment, flavor & photos (needs M3).**
 Backend: `POST /teas/resolve` **enrich-on-miss** (Wikidata → YandexGPT Lite → Yandex-native
 Qwen3/DeepSeek booster, logging off) + grounded **`sourceText`** + **upsert dedup** + per-IP

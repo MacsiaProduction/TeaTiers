@@ -69,6 +69,7 @@ import com.macsia.teatiers.viewmodel.appLanguageOf
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenAttributions: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
@@ -216,6 +217,11 @@ fun SettingsScreen(
                     text = stringResource(R.string.settings_about_credits),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ActionRow(
+                    title = stringResource(R.string.settings_attributions_entry),
+                    hint = stringResource(R.string.settings_attributions_entry_hint),
+                    onClick = onOpenAttributions,
                 )
             }
         }

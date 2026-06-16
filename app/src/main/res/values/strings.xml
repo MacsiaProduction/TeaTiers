@@ -74,6 +74,20 @@
     <string name="settings_about_version">Версия %1$s</string>
     <string name="settings_about_privacy">Все данные хранятся только на этом устройстве и никуда не отправляются. Места покупки (геоточки) — чувствительные данные: они остаются локально и не выгружаются.</string>
     <string name="settings_about_credits">Названия чаёв и описания — из открытых баз чая; источники указаны в проекте.</string>
+    <string name="settings_attributions_entry">Источники данных и лицензии</string>
+    <string name="settings_attributions_entry_hint">Открытые базы чая, изображения и их лицензии.</string>
+
+    <!-- Attributions / licenses screen (M3): data-source credits. Source names and license
+         identifiers stay literal (proper nouns / standard SPDX-style ids), only summaries localize. -->
+    <string name="attributions_title">Источники данных и лицензии</string>
+    <string name="attributions_intro">Каталог чаёв собран из открытых баз данных. Для каждого набора указаны источник и лицензия; ссылки на конкретные записи и изображения — в карточке чая.</string>
+    <string name="attributions_open_site">Источник</string>
+    <string name="attributions_wikidata_summary">Названия, идентификаторы и метаданные чаёв.</string>
+    <string name="attributions_wikipedia_summary">Полные описания чаёв.</string>
+    <string name="attributions_commons_summary">Изображения чаёв; точная лицензия указана у каждого изображения в карточке.</string>
+    <string name="attributions_off_summary">Таксономия категорий чая.</string>
+    <!-- %1$s — название источника или лицензии, которое откроется в браузере. -->
+    <string name="a11y_open_link">Открыть в браузере: %1$s</string>
 
     <!-- Create board -->
     <string name="boards_create_action">Создать подборку</string>

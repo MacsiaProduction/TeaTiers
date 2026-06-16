@@ -17,6 +17,7 @@ sealed interface Destination {
     data object Boards : Destination
     data object MyTeas : Destination
     data object Settings : Destination
+    data object Attributions : Destination
     data class Board(val boardId: String) : Destination
     data class TeaDetail(val teaId: String) : Destination
     data class AddTea(val boardId: String) : Destination
@@ -28,6 +29,7 @@ private fun Destination.encode(): String = when (this) {
     Destination.Boards -> "boards"
     Destination.MyTeas -> "my-teas"
     Destination.Settings -> "settings"
+    Destination.Attributions -> "attributions"
     is Destination.Board -> "board:$boardId"
     is Destination.TeaDetail -> "tea:$teaId"
     is Destination.AddTea -> "add:$boardId"
@@ -40,6 +42,7 @@ private fun String.decodeDestination(): Destination {
     return when (parts.first()) {
         "my-teas" -> Destination.MyTeas
         "settings" -> Destination.Settings
+        "attributions" -> Destination.Attributions
         "board" -> Destination.Board(parts[1])
         "tea" -> Destination.TeaDetail(parts[1])
         "add" -> Destination.AddTea(parts[1])

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.macsia.teatiers.ui.board.AddTeaScreen
+import com.macsia.teatiers.ui.board.AttributionsScreen
 import com.macsia.teatiers.ui.board.BoardScreen
 import com.macsia.teatiers.ui.board.BoardsScreen
 import com.macsia.teatiers.ui.board.MyTeasScreen
@@ -47,7 +48,13 @@ fun TeaTiersApp() {
                 )
 
             Destination.Settings ->
-                SettingsScreen(onBack = ::pop)
+                SettingsScreen(
+                    onBack = ::pop,
+                    onOpenAttributions = { navigate(Destination.Attributions) },
+                )
+
+            Destination.Attributions ->
+                AttributionsScreen(onBack = ::pop)
 
             is Destination.Board ->
                 BoardScreen(
