@@ -35,6 +35,9 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Result of [TeaBoardRepository.addTea]: the resolved user-tea id and whether a new row was inserted. */
+data class AddedTea(val teaId: String, val created: Boolean)
+
 /**
  * Room-backed single source of truth for boards (M1; shared-teas reopening per decisions.md
  * #42). Boards are exposed as a hot [StateFlow] collected on the app scope so the synchronous
@@ -147,10 +150,11 @@ class TeaBoardRepository @Inject constructor(
      * matching user-tea already exists by name we reuse it (no overwrite of its fields), else
      * we insert a fresh user-tea. With a known [tierId] the placement joins that tier; an
      * unknown tier (or null) lands it in the unranked tray. Returns the resolved user-tea id
-     * (existing or freshly-created) so callers can attach add-mode draft photos to it; null
-     * when [boardId] is unknown (and nothing was written).
+     * (existing or freshly-created) plus whether a new row was inserted — the caller only kicks
+     * off background enrichment for a genuinely new tea (#21), never an auto-linked existing one.
+     * Null when [boardId] is unknown (and nothing was written).
      */
-    suspend fun addTea(boardId: String, tea: Tea, tierId: String?): String? {
+    suspend fun addTea(boardId: String, tea: Tea, tierId: String?): AddedTea? {
         val board = board(boardId) ?: return null
         val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
         val existingTeaId = resolveTeaIdForMatch(tea)
@@ -176,7 +180,7 @@ class TeaBoardRepository @Inject constructor(
             purchases = teaToInsert?.purchases.orEmpty(),
             placement = placementEntity,
         )
-        return teaIdToPlace
+        return AddedTea(teaId = teaIdToPlace, created = existingTeaId == null)
     }
 
     /**

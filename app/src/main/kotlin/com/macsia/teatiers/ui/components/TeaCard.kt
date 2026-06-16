@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,11 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.theme.TeaTheme
 
@@ -96,6 +100,7 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
             }
             Spacer(Modifier.height(10.dp))
             TypeChip(type = tea.type)
+            EnrichmentStatus(state = tea.enrichmentState)
             if (tea.flavor.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 FlavorStrip(
@@ -107,5 +112,43 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
                 )
             }
         }
+    }
+}
+
+/**
+ * Optimistic-enrichment hint under the type chip (#21/#28): a tiny spinner while we resolve the
+ * catalog, a muted "queued" line offline, and an error-toned "failed" line (the board card's
+ * overflow offers the retry). Renders nothing once DONE or for a plain custom tea (NONE).
+ */
+@Composable
+private fun EnrichmentStatus(state: EnrichmentState) {
+    val label = when (state) {
+        EnrichmentState.PENDING -> stringResource(R.string.enrichment_status_pending)
+        EnrichmentState.QUEUED -> stringResource(R.string.enrichment_status_queued)
+        EnrichmentState.FAILED -> stringResource(R.string.enrichment_status_failed)
+        EnrichmentState.NONE, EnrichmentState.DONE -> return
+    }
+    val color = if (state == EnrichmentState.FAILED) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (state == EnrichmentState.PENDING) {
+            CircularProgressIndicator(
+                strokeWidth = 1.5.dp,
+                color = color,
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

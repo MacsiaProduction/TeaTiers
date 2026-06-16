@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.db
 
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PhotoSource
@@ -62,7 +63,13 @@ fun TeaWithChildren.toDomain(): Tea = Tea(
     notes = tea.notes,
     purchaseLocations = purchases.sortedBy { it.position }.map { it.toDomain() },
     photos = photos.sortedBy { it.position }.map { it.toDomain() },
+    catalogTeaId = tea.catalogTeaId,
+    enrichmentState = enrichmentStateFromDb(tea.enrichmentState),
 )
+
+/** Stored enrichment-state name -> enum; an unknown/renamed value falls back to NONE. */
+fun enrichmentStateFromDb(raw: String): EnrichmentState =
+    runCatching { EnrichmentState.valueOf(raw) }.getOrDefault(EnrichmentState.NONE)
 
 fun PurchaseLocationEntity.toDomain(): PurchaseLocation = when (kind) {
     PurchaseKindDb.URL -> PurchaseLocation.Marketplace(url = value, label = label)
@@ -110,6 +117,8 @@ fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
         origin = origin,
         shortBlurb = shortBlurb,
         notes = notes,
+        catalogTeaId = catalogTeaId,
+        enrichmentState = enrichmentState.name,
     )
     val flavorRows = flavor.mapIndexed { index, score ->
         FlavorEntity(teaId = rowId, dimension = score.dimension.name, intensity = score.intensity, position = index)

@@ -19,7 +19,11 @@ class BackupModelsTest {
         boards = listOf(BoardEntity("b1", "Daily", 0)),
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
         teas = listOf(
-            TeaEntity("tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice"),
+            // Catalog-linked + DONE so the round-trip assertions also guard the v5 enrichment fields.
+            TeaEntity(
+                "tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice",
+                catalogTeaId = 42L, enrichmentState = "DONE",
+            ),
         ),
         placements = listOf(PlacementEntity("p1", "b1", "tea1", "t1", 0)),
         flavors = listOf(FlavorEntity("tea1", "FLORAL", 4, 0)),
@@ -61,6 +65,28 @@ class BackupModelsTest {
         assertEquals(original.purchases, restored.purchases)
         assertEquals("/files/tea_photos/new.png", restored.photos.first { it.id == "ph1" }.uri)
         assertEquals("https://x/y.jpg", restored.photos.first { it.id == "ph2" }.uri)
+    }
+
+    @Test
+    fun `catalog linkage and enrichment state survive a round trip`() {
+        val bundle = snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0")
+        val restored = bundle.toSeedEntities(mapOf("ph1.png" to "/files/x.png")).teas.single()
+
+        assertEquals(42L, restored.catalogTeaId)
+        assertEquals("DONE", restored.enrichmentState)
+    }
+
+    @Test
+    fun `a pre-v5 backup without the enrichment fields restores as an un-enriched custom tea`() {
+        // An old bundle JSON predating the v5 columns must still decode (additive, defaulted fields).
+        val json = Json { ignoreUnknownKeys = true }
+        val legacy = """
+            {"formatVersion":1,"teas":[{"id":"t","nameRu":"Чай","type":"GREEN"}]}
+        """.trimIndent()
+        val tea = json.decodeFromString<BackupBundle>(legacy).toSeedEntities(emptyMap()).teas.single()
+
+        assertNull(tea.catalogTeaId)
+        assertEquals("NONE", tea.enrichmentState)
     }
 
     @Test

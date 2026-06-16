@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,15 +22,28 @@ import javax.inject.Inject
 @HiltViewModel
 class BoardViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
+    private val enrichmentManager: TeaEnrichmentManager,
 ) : ViewModel() {
 
     private val eventHost = UiEventHost()
     val events get() = eventHost.events
 
     private val boardId = MutableStateFlow<String?>(null)
+    private var resumed = false
 
     fun bind(id: String) {
         boardId.value = id
+        // Re-dispatch any tea left PENDING/QUEUED by a prior run (process death / offline) — once
+        // per VM, on the board screen (the app's home), so a tea is never stuck "enriching" (#28).
+        if (!resumed) {
+            resumed = true
+            enrichmentManager.resumePending()
+        }
+    }
+
+    /** Retries enrichment of a tea whose background resolve FAILED (per-card overflow action, #28). */
+    fun retryEnrichment(teaId: String) {
+        enrichmentManager.retry(teaId)
     }
 
     /** Wraps a repo mutation; surfaces a generic snackbar on failure so silent drops do not

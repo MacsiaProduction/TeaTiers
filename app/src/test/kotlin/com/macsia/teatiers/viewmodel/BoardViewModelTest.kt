@@ -1,6 +1,7 @@
 package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.Board
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test
 class BoardViewModelTest {
 
     private val repository = mockk<TeaBoardRepository>()
+    private val enrichmentManager = mockk<TeaEnrichmentManager>(relaxed = true)
 
     @BeforeEach
     fun setUp() {
@@ -39,7 +41,7 @@ class BoardViewModelTest {
     @Test
     fun `movePlacement forwards the bound board id to the repository`() = runTest {
         coEvery { repository.moveTea(any(), any(), any(), any()) } just Runs
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
         viewModel.bind("b")
 
         viewModel.movePlacement(placementId = "p1", targetTierId = "a", targetIndex = 2)
@@ -50,7 +52,7 @@ class BoardViewModelTest {
 
     @Test
     fun `movePlacement is a no-op when no board is bound`() = runTest {
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.movePlacement(placementId = "p1", targetTierId = "a", targetIndex = 0)
         advanceUntilIdle()
@@ -61,7 +63,7 @@ class BoardViewModelTest {
     @Test
     fun `removePlacement forwards to the repository (no boardId needed)`() = runTest {
         coEvery { repository.removePlacement(any()) } just Runs
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.removePlacement("p1")
         advanceUntilIdle()
@@ -72,7 +74,7 @@ class BoardViewModelTest {
     @Test
     fun `deleteTea forwards to the repository`() = runTest {
         coEvery { repository.deleteTea(any()) } just Runs
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.deleteTea("tea-1")
         advanceUntilIdle()
@@ -87,7 +89,7 @@ class BoardViewModelTest {
         coEvery { repository.setTierColor(any(), any(), any()) } just Runs
         coEvery { repository.reorderTiers(any(), any()) } just Runs
         coEvery { repository.removeTier(any(), any()) } just Runs
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
         viewModel.bind("b")
 
         viewModel.addTier("Новый")
@@ -106,7 +108,7 @@ class BoardViewModelTest {
 
     @Test
     fun `tier actions are a no-op when no board is bound`() = runTest {
-        val viewModel = BoardViewModel(repository)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.addTier("Новый")
         viewModel.removeTier(tierId = "a")

@@ -80,10 +80,34 @@ data class TeaDetailDto(
     val descriptions: List<TeaDescriptionDto> = emptyList(),
     val flavors: List<TeaFlavorDto> = emptyList(),
     val provenance: TeaProvenanceDto? = null,
+    // Async LLM enrichment state (null = not LLM-managed): PENDING while a job runs, DONE/FAILED after.
+    val enrichmentState: String? = null,
 )
 
 @Serializable
 data class FacetsDto(
     val types: List<String> = emptyList(),
     val origins: List<String> = emptyList(),
+)
+
+/**
+ * `POST /teas/resolve` body (plan §6): the typed tea name (any of ru/en/zh-Hans) plus an optional
+ * pasted vendor blurb that grounds the flavor profile (#25). Mirrors the server `ResolveRequestDto`.
+ */
+@Serializable
+data class ResolveRequestDto(
+    val name: String,
+    val locale: String? = null,
+    val sourceText: String? = null,
+)
+
+/**
+ * `POST /teas/resolve` response: [status] is one of MATCHED / ENRICHED / ENRICHING / UNRESOLVED;
+ * [tea] is the resolved row (null only for UNRESOLVED). On ENRICHING the row is a PENDING stub the
+ * client polls via `GET /teas/{id}` until it flips to DONE/FAILED.
+ */
+@Serializable
+data class ResolveResponseDto(
+    val status: String,
+    val tea: TeaDetailDto? = null,
 )

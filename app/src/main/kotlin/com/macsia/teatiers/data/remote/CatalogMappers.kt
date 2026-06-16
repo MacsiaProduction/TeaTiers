@@ -12,6 +12,7 @@ import com.macsia.teatiers.domain.model.CatalogName
 import com.macsia.teatiers.domain.model.CatalogProvenance
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
+import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.TeaType
@@ -23,6 +24,13 @@ fun teaTypeFromWire(raw: String): TeaType =
 /** Wire flavor enum -> app [FlavorDimension]; an unknown axis the client doesn't model yet is dropped. */
 fun flavorDimensionFromWire(raw: String): FlavorDimension? =
     runCatching { FlavorDimension.valueOf(raw) }.getOrNull()
+
+/**
+ * Wire enrichment state -> app [EnrichmentState]; null/absent (not LLM-managed) or an unknown value
+ * maps to null. The server only ever sends PENDING/DONE/FAILED — QUEUED/NONE are client-only.
+ */
+fun enrichmentStateFromWire(raw: String?): EnrichmentState? =
+    raw?.let { runCatching { EnrichmentState.valueOf(it) }.getOrNull() }
 
 fun TeaNameDto.toDomain(): CatalogName =
     CatalogName(locale = locale, name = name, isPrimary = primary)
@@ -80,4 +88,5 @@ fun TeaDetailDto.toDomain(): CatalogTeaDetail = CatalogTeaDetail(
             verificationStatus = "unverified",
             confidence = null,
         ),
+    enrichmentState = enrichmentStateFromWire(enrichmentState),
 )
