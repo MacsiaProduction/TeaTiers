@@ -1209,3 +1209,35 @@ deviated.
       (rule 50-secure). The secret value was never printed (created → piped to Lockbox via stdin); an orphan
       key from a first failed attempt was deleted. **Not yet done:** confirm Qwen3-235B/DeepSeek Flash gallery
       availability + price, and wire the server to read the key from Lockbox — both land with the LLM tier.
+
+65. **M4 LLM model bake-off → Alice Flash (primary) + Qwen3-235B (zh booster)** (research run 08,
+    `research/08-model-bakeoff/`; stacked on the #64 branch, PR off `main`). Empirically picked the
+    production model(s) for the §6-step-3 flavor-enrichment tier instead of guessing. *Numbered #65 after #64
+    (still on the open PR #30).*
+    - **Live model map (verified 2026-06-16, our SA/folder; corrects run-07 assumptions).** Foundation Models
+      reachable two ways: **native** `foundationModels/v1/completion` (structured = top-level
+      `jsonSchema:{schema}`) and **OpenAI-compat** `/v1/chat/completions` (structured =
+      `response_format:{type:"json_schema",strict:true}`). `json_schema` is **honored on Lite, Pro/rc, Alice
+      LLM, Alice Flash, and Qwen3-235B** (resolves run-07's "unconfirmed on Lite"). Open models (Qwen3
+      `qwen3-235b-a22b-fp8/latest`, gpt-oss, Gemma, DeepSeek `deepseek-v4-flash`, Alice Flash
+      `aliceai-llm-flash`) are **OpenAI-compat only** (native → 404). **DeepSeek IS now Yandex-hosted** (gallery
+      grew since run-07, which said it wasn't). Prices (₽/1k in–out incl. VAT): Lite 0.2/0.2, Alice Flash
+      0.1/0.2, Qwen3 0.5/0.5, DeepSeek V4 Flash 0.3/0.5, Alice LLM 0.5/1.2, Pro 5.1 0.8/0.8.
+    - **Bake-off** (zero-shot over a 24-tea gold set spanning all types + dimension extremes, temp 0, run-07
+      prompt + rubric + 3 few-shot + inlined-`dim` schema). **All 6 cleared MAE ≤ 1.0 and returned 24/24 valid
+      JSON.** Overall MAE: DeepSeek 0.33 < Alice LLM 0.41 < Alice Flash 0.47 < Qwen3 0.49 ≈ Pro 0.50 << **Lite
+      0.80** (weakest, worst type accuracy 17/24).
+    - **Picks.** **Primary = Alice Flash** (`aliceai-llm-flash`): cheapest (≈½ of Lite), fastest (2.4s), MAE
+      0.47, json_schema — beats Lite on every quality axis at lower cost, so **Lite is dropped as primary**.
+      **zh booster = Qwen3-235B** (research-backed, 262k ctx; **DeepSeek V4 Flash** the strong alt — it topped
+      MAE/type/injection but tokenizes Cyrillic ~2× and is third-party). Both picks are OpenAI-compat → **one
+      `response_format:json_schema` code path** (run-07's recommendation).
+    - **Injection finding (critical).** Prompt-only defense **fails**: on the override attack **4/6 models
+      (Lite, Pro, Alice LLM, Alice Flash) wrote the literal "HACKED"** into the blurb, and 5/6 copied vendor
+      prose; only **DeepSeek (0/4) and Qwen3 (1/4)** were robust. Schema validation can't catch a malicious
+      string in a valid field → the run-07 **code-side guards are mandatory** (reject all-same-score profiles,
+      n-gram overlap scan blurb-vs-source, output scan, fail closed) regardless of model.
+    - **Still open:** a **zh-source** gold set + a **grounded-extraction** gold set before the booster pick is
+      final; promote run-07 prompts to `context/flavor-system/prompts.md`; then wire the server LLM tier
+      (config-selectable modelUri, key from Lockbox). The `gold.json` + `run_bakeoff.py` harness is the
+      regression gate (re-run on prompt/model-version change; block if MAE > 1.0).

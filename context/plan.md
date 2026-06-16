@@ -368,9 +368,19 @@ rate-limit** (429 problem+json), RFC-7807 errors. SPARQL query + the 11 tea-cate
 resolve orchestration + race recovery, rate-limiter windows, and a Testcontainers IT (real
 `unaccent` lookup + enrich + idempotency); full server suite green. **Yandex Foundation Models
 access provisioned** (SA `teatiers-llm` + `ai.languageModels.user`; API key in Lockbox
-`teatiers-llm-api-key`) to unblock the LLM tier. **Still open in M4:** §6 steps 3–4 (LLM
-enrich-on-miss + grounded `sourceText` + programmatic confidence), then the app-side optimistic
-add / enrichment-state / flavor reference-vs-mine / photos.*
+`teatiers-llm-api-key`) to unblock the LLM tier.*
+
+*Progress ✅ **M4 model bake-off** (decision #65, `research/08-model-bakeoff/`). Empirically picked
+the enrichment-tier model(s) before building step 3: ran the run-07 prompt (rubric + few-shot +
+strict json_schema) zero-shot over a 24-tea gold set on all 6 candidates at temp 0. All cleared
+MAE ≤ 1.0 with 24/24 valid JSON. **Primary = Alice Flash** (cheapest, fastest, MAE 0.47 — beats
+Lite, which is dropped); **zh booster = Qwen3-235B** (DeepSeek V4 Flash the strong alt, best MAE +
+the only model immune to all injection attacks). Both OpenAI-compat → one `response_format:
+json_schema` path. **Critical:** prompt-only injection defense failed (4/6 wrote "HACKED"), so the
+run-07 code-side guards are mandatory. **Still open in M4:** zh-source + grounded gold sets;
+promote prompts to `context/flavor-system/`; wire the server LLM tier (config-selectable modelUri,
+Lockbox key) for §6 steps 3–4; then the app-side optimistic add / enrichment-state /
+flavor reference-vs-mine / photos.*
 
 **M5 — Find & release (needs M4).**
 ~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
