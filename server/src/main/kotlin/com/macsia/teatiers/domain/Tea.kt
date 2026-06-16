@@ -77,6 +77,13 @@ class Tea(
     @Column(name = "enriched_at")
     var enrichedAt: Instant? = null,
 
+    // Async LLM enrichment lifecycle (V2): null unless an LLM job is/was attached to this row.
+    @Column(name = "enrichment_state")
+    var enrichmentState: String? = null,
+
+    @Column(name = "enrichment_error")
+    var enrichmentError: String? = null,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 

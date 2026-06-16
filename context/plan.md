@@ -386,6 +386,19 @@ promote prompts to `context/flavor-system/`; wire the server LLM tier (config-se
 Lockbox key) for §6 steps 3–4; then the app-side optimistic add / enrichment-state /
 flavor reference-vs-mine / photos.*
 
+*Progress ✅ **M4 slice 2 — async LLM enrichment tier** (decision #66, backend, branch off `main`).
+`/resolve` now runs §6 step 3 on a Wikidata miss: it inserts a `PENDING` stub from the typed name and
+returns **`ENRICHING`** at once, while a background `@Async` worker prompts the model (Alice Flash, or
+the Qwen3 booster for Chinese source), **validates the JSON in Kotlin** (clamp 0–5, confidence gate,
+shingle-overlap blurb drop, fail-closed on bad output — the #65 mandatory guards), and flips the row to
+`DONE`/`FAILED`; the client polls `GET /teas/{id}` and can retry a `FAILED` row by re-resolving. Scope
+is **miss-only** (no LLM on a Wikidata hit); the API key arrives as a **deploy-time env var** from
+Lockbox, and a blank key keeps the tier off (miss → `UNRESOLVED`). Flyway **V2** adds
+`enrichment_state`/`enrichment_error`; prompts promoted to `context/flavor-system/prompts.md` +
+`FlavorPrompts.kt`. Tests: resolve orchestration + guards (unit) and stub→DONE / FAILED-reset over the
+real schema (IT); full suite green. **Still open in M4:** zh-source + grounded gold sets; the app-side
+optimistic add / `enrichmentState` UI / reference-vs-mine flavor / photos.*
+
 **M5 — Find & release (needs M4).**
 ~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
 in-board filter by type/origin → en/zh UI → catalog **curation pass** (promote
