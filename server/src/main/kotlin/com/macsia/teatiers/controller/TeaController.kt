@@ -47,13 +47,14 @@ class TeaController(
         service.detail(id) ?: throw TeaNotFoundException(id)
 
     /**
-     * Resolves a typed tea name to a catalog row, enriching from Wikidata on a cache miss. Per-client
+     * Resolves a typed tea name to a catalog row: Wikidata on a cache miss, then a background LLM
+     * profile on a Wikidata miss (status ENRICHING + a PENDING row the client polls). Per-client
      * rate-limited (cost protection, not auth) using the forwarded client IP.
      */
     @PostMapping("/resolve")
     fun resolve(@Valid @RequestBody request: ResolveRequestDto, servletRequest: HttpServletRequest): ResolveResponseDto {
         if (!rateLimiter.tryAcquire(clientId(servletRequest))) throw ResolveRateLimitException()
-        return resolveService.resolve(request.name, request.locale)
+        return resolveService.resolve(request.name, request.locale, request.sourceText)
     }
 
     /** Trust the first X-Forwarded-For hop set by our own reverse proxy (Caddy); fall back to the socket. */
