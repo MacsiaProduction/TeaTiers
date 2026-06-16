@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -122,6 +123,21 @@ class TeaBoardRepositoryTest {
         val onBoard1 = repository.boards.value.first { it.id == "b" }
             .placements.getValue("s").single()
         assertEquals(onBoard1.tea.id, placedOnBoard2.tea.id)
+    }
+
+    @Test
+    fun `addTea links by catalogTeaId even when the typed names differ`() = runTest(UnconfinedTestDispatcher()) {
+        val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
+        val repository = repositoryWithSeed(listOf(seededBoard, board2))
+        advanceUntilIdle()
+
+        val first = repository.addTea("b", Tea("c1", nameRu = "Лунцзин", type = TeaType.GREEN, catalogTeaId = 77L), tierId = "s")!!
+        // Same catalog id, a different typed name: must reuse the first user-tea, not create a second.
+        val second = repository.addTea("b2", Tea("c2", nameRu = "Dragon Well", type = TeaType.GREEN, catalogTeaId = 77L), tierId = "b2-s")!!
+
+        assertTrue(first.created)
+        assertFalse(second.created)
+        assertEquals(first.teaId, second.teaId)
     }
 
     @Test

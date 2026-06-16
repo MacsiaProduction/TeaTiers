@@ -60,6 +60,9 @@ data class AddTeaForm(
     val flavors: Map<FlavorDimension, Int> = emptyMap(),
     val tierId: String? = null,
     val purchases: List<PurchaseDraft> = emptyList(),
+    // Set when the user prefilled from a catalog result; the strongest local identity key (#42) so the
+    // tea dedups by catalog id, not just by name, and skips a redundant background re-resolve.
+    val catalogTeaId: Long? = null,
 ) {
     val isValid: Boolean get() = nameRu.isNotBlank()
 }
@@ -97,6 +100,7 @@ fun AddTeaForm.toTea(): Tea {
         flavor = flavorScores,
         notes = notes.trim().ifBlank { null },
         purchaseLocations = purchases.mapNotNull { it.toLocation() },
+        catalogTeaId = catalogTeaId,
     )
 }
 
@@ -115,4 +119,5 @@ fun Tea.toForm(): AddTeaForm = AddTeaForm(
     flavors = flavor.associate { it.dimension to it.intensity },
     tierId = null,
     purchases = purchaseLocations.map { it.toDraft() },
+    catalogTeaId = catalogTeaId,
 )

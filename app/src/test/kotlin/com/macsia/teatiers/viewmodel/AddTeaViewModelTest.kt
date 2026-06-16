@@ -139,6 +139,26 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `picking a catalog tea carries its id and skips background enrichment`() = runTest {
+        coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        viewModel.bind(boardId = "b")
+        viewModel.pickCatalogTea(
+            CatalogTea(
+                id = 55L, type = TeaType.GREEN, originCountry = null, brand = null,
+                verificationStatus = "verified", names = listOf(CatalogName("ru", "Лунцзин", true)),
+            ),
+        )
+
+        viewModel.submit { }
+        advanceUntilIdle()
+
+        // The catalog id rides into the saved tea, and a catalog-linked tea is not re-resolved.
+        coVerify(exactly = 1) { repository.addTea(eq("b"), match { it.catalogTeaId == 55L }, any()) }
+        verify(exactly = 0) { enrichmentManager.enrich(any(), any(), any()) }
+    }
+
+    @Test
     fun `submit is a no-op when the ru name is blank`() = runTest {
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
         viewModel.bind(boardId = "b")

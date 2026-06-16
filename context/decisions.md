@@ -1381,3 +1381,14 @@ deviated.
     40-devops) with a swappable clock; a restart only loosens the cap, never tightens it — fine for cost
     protection. Tests: `LlmDailyBudgetTest` (cap / UTC rollover / unlimited) + a `ResolveServiceTest` case
     (exhausted → UNRESOLVED, no stub/dispatch); affected server unit tests green.
+
+72. **`catalogTeaId`-first local dedup (app)** (review P1, plan §4b/#42; off `main`). Once a tea carries a
+    catalog id, that id is the **strongest local identity key** — stronger than the name match. `AddTeaForm`
+    gains `catalogTeaId`, set by `pickCatalogTea` (the catalog pick), carried through `toTea`/`toForm`.
+    `TeaBoardRepository.addTea`'s resolve-or-create now matches by `catalogTeaId` **first**
+    (`TeaDao.findTeaIdByCatalogId`) and falls back to the name match — so two adds of the same catalog tea,
+    even with differently-typed names, resolve to **one** user-tea and a second catalog-linked row is never
+    created. The add ViewModel also **skips the background `/resolve`** for a catalog-linked tea (`created &&
+    catalogTeaId == null`) since a pick already carries the names + id (no redundant re-resolve). Tests:
+    repository dedup-by-catalog-id across two boards; ViewModel carries the id + skips enrichment on a pick.
+    Full app suite green.
