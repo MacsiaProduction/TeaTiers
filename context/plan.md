@@ -441,7 +441,7 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 - [ ] **Queued enrichment** is either durable (WorkManager) or the UI copy honestly says
   "runs only while the app is open."
 - [ ] **`/resolve` contract** aligned with the client (async `ENRICHING` ✅ #66) + a **global
-  daily LLM ceiling** that fails closed.
+  daily LLM ceiling** that fails closed ✅ (#71).
 - [ ] **Dependency/security check** (OWASP Dependency-Check) wired, or deferred with a date.
 - [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
 - [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).

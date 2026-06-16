@@ -31,6 +31,7 @@ class ResolveService(
     private val foundationModelsClient: FoundationModelsClient,
     private val enrichmentStubService: EnrichmentStubService,
     private val llmEnrichmentService: LlmEnrichmentService,
+    private val llmDailyBudget: LlmDailyBudget,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -55,6 +56,9 @@ class ResolveService(
         }
 
         if (!foundationModelsClient.isEnabled) return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
+        // Global daily cost ceiling: once exhausted, a miss fails closed to Wikidata-only (no stub,
+        // no LLM call) rather than queuing unbounded paid work behind a shared IP.
+        if (!llmDailyBudget.tryAcquire()) return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
         return startEnrichment(name, locale, sourceText)
     }
 
@@ -62,7 +66,9 @@ class ResolveService(
     private fun cacheHit(id: Long, name: String, sourceText: String?): ResolveResponseDto {
         // detail() loads the row we need anyway, so read the state off the DTO (no extra query).
         val dto = catalogService.detail(id) ?: return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
-        if (dto.enrichmentState == STATE_FAILED && foundationModelsClient.isEnabled) {
+        // A FAILED stub is retryable, but the daily ceiling also gates the retry: when it is exhausted
+        // we leave the row FAILED rather than spend on a re-enrich.
+        if (dto.enrichmentState == STATE_FAILED && foundationModelsClient.isEnabled && llmDailyBudget.tryAcquire()) {
             enrichmentStubService.resetToPending(id)
             dispatch(id, name, sourceText)
             return respond(ResolveStatus.ENRICHING, id)
