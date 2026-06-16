@@ -1,6 +1,7 @@
 package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.CatalogTeaDetail
 
 /** UI state of the add-form catalog search box (M3). */
 sealed interface CatalogSearchUiState {
@@ -21,6 +22,27 @@ sealed interface CatalogSearchUiState {
 
     /** Server answered with an error. */
     data object Error : CatalogSearchUiState
+}
+
+/**
+ * UI state of the catalog detail sheet (M3). The sheet is shown whenever the state is not [Hidden];
+ * the user opens it from a search result's info action and may pull the tea into the add form.
+ */
+sealed interface CatalogDetailUiState {
+    /** Sheet closed. */
+    data object Hidden : CatalogDetailUiState
+
+    /** Detail request in flight. */
+    data object Loading : CatalogDetailUiState
+
+    /** Detail loaded. */
+    data class Loaded(val detail: CatalogTeaDetail) : CatalogDetailUiState
+
+    /** Network unreachable; the sheet offers a retry. */
+    data object Offline : CatalogDetailUiState
+
+    /** Server answered with an error; the sheet offers a retry. */
+    data object Error : CatalogDetailUiState
 }
 
 /** Shortest query that triggers a catalog search; 1-char queries are too noisy. */

@@ -5,6 +5,7 @@ import com.macsia.teatiers.data.db.toCacheEntity
 import com.macsia.teatiers.data.remote.CatalogApi
 import com.macsia.teatiers.domain.model.CatalogName
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.TeaType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -114,6 +115,44 @@ class DefaultCatalogRepositoryTest {
         assertEquals(CatalogSearchResult.Offline, result)
     }
 
+    @Test
+    fun `detail returns a parsed detail on a network hit`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(DETAIL_BODY))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.detail(1)
+
+        assertTrue(result is CatalogDetailResult.Loaded)
+        result as CatalogDetailResult.Loaded
+        val detail = result.detail
+        assertEquals(TeaType.GREEN, detail.type)
+        assertEquals("Лунцзин", detail.nameRu)
+        assertEquals("West Lake, Hangzhou", detail.region)
+        // The unknown axis (MINTY) is dropped; the two known ones map, and the out-of-range
+        // intensity (9) is clamped to the shared 0..5 scale.
+        assertEquals(2, detail.flavors.size)
+        assertTrue(detail.flavors.any { it.dimension == FlavorDimension.SWEETNESS && it.intensity == 3 })
+        assertTrue(detail.flavors.any { it.dimension == FlavorDimension.UMAMI && it.intensity == 5 })
+        assertEquals("https://example.org/longjing.jpg", detail.image?.url)
+        assertTrue(detail.isUnverified.not())
+    }
+
+    @Test
+    fun `detail server error surfaces Error`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        assertEquals(CatalogDetailResult.Error, repo.detail(1))
+    }
+
+    @Test
+    fun `detail network failure surfaces Offline`() = runTest {
+        server.shutdown()
+        val repo = DefaultCatalogRepository(api, dao)
+
+        assertEquals(CatalogDetailResult.Offline, repo.detail(1))
+    }
+
     private fun sampleTea(): CatalogTea = CatalogTea(
         id = 1,
         type = TeaType.GREEN,
@@ -133,6 +172,22 @@ class DefaultCatalogRepositoryTest {
             "verificationStatus":"verified","names":[
             {"locale":"en","name":"Dragon Well","primary":false},
             {"locale":"ru","name":"Лунцзин","primary":true}]}],"nextCursor":null}
+            """.trimIndent()
+
+        // Includes an unknown flavor axis ("MINTY") and an out-of-range intensity to exercise the mapper.
+        val DETAIL_BODY =
+            """
+            {"id":1,"wikidataQid":"Q123","type":"GREEN","originCountry":"CN",
+            "region":"West Lake, Hangzhou","cultivar":null,"oxidationMin":null,"oxidationMax":null,
+            "brand":null,"image":{"url":"https://example.org/longjing.jpg","license":"CC BY-SA 4.0",
+            "sourceUrl":"https://commons.example.org/longjing"},
+            "names":[{"locale":"en","name":"Dragon Well","primary":false},
+            {"locale":"ru","name":"Лунцзин","primary":true}],
+            "descriptions":[{"locale":"ru","short":"Зелёный чай.","full":null,"source":"curated","license":null}],
+            "flavors":[{"dimension":"SWEETNESS","intensity":3},{"dimension":"MINTY","intensity":2},
+            {"dimension":"UMAMI","intensity":9}],
+            "provenance":{"source":"curated","sourceUrl":null,"license":null,
+            "verificationStatus":"verified","confidence":null}}
             """.trimIndent()
     }
 }

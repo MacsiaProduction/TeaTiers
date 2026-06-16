@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
 import coil3.ImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.macsia.teatiers.data.db.CatalogDao
 import com.macsia.teatiers.data.db.TeaDao
@@ -22,6 +23,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 /**
@@ -67,17 +69,21 @@ object AppModule {
         ) { context.preferencesDataStoreFile("settings") }
 
     /**
-     * Coil loader for the photo strip / detail gallery / card thumbnail (decisions.md #43). MVP
-     * never loads over the network so we deliberately omit `coil-network-okhttp`; the decode
-     * pipeline is local-file-only. Crossfade smooths the swap from the type swatch placeholder
-     * to the photo without us hand-rolling a fade.
+     * Coil loader for user photos (local file/content URIs, #43) and the M3 catalog reference
+     * images (remote https). The OkHttp network fetcher reuses the Retrofit [OkHttpClient] so image
+     * traffic shares one connection pool and the (BASIC, debug-only) logging policy. Crossfade
+     * smooths the swap from the type-swatch placeholder to the loaded image.
      */
     @Provides
     @Singleton
-    fun provideImageLoader(@ApplicationContext context: Context): ImageLoader =
+    fun provideImageLoader(
+        @ApplicationContext context: Context,
+        okHttpClient: OkHttpClient,
+    ): ImageLoader =
         // On Android, Coil 3's PlatformContext is a typealias for android.content.Context, so the
         // Hilt-injected app context flows through directly.
         ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { okHttpClient })) }
             .crossfade(true)
             .build()
 }

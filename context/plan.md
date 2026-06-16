@@ -313,9 +313,19 @@ uppercase enum, `primary` boolean, `zh-Hans`/`pinyin` locales). New `catalog_cac
 (DB v4, destructive-migrate, pre-launch) keeps seen teas searchable offline. The Add-Tea screen
 now has a debounced (≥2 chars, 300 ms) catalog search box; picking a result prefills
 names/type/origin as **editable suggestions** (#21, never authoritative). MockWebServer repo
-tests + ViewModel search tests added; lint + 126 unit tests green. **Still open in M3:** tea-card
-visuals, the detail screen (descriptions + attribution), the search-miss "add it / paste a
-description" CTA, and the attributions/licenses screen.*
+tests + ViewModel search tests added; lint + 126 unit tests green.*
+
+*Progress ✅ **catalog detail** (decision #61). A search result's info action opens a **bottom
+sheet** (not a back-stack destination, so the add form stays mounted and the in-progress search
+is preserved) with the full reference card: CC image (Coil 3 `coil-network-okhttp`, reusing the
+Retrofit OkHttp client via `SingletonImageLoader`), ru/pinyin/hanzi names, type + origin, a short
+blurb with a "read full" expander, the reference flavor radar/strip, and source/license
+attribution. `repository.detail(id)` is network-only (no cache: detail is reached only on an
+explicit tap, so a miss offers retry, not a stale copy); unknown flavor axes are dropped and
+intensities clamped to 0..5. "Использовать этот чай" prefills via the existing pick path. Repo +
+ViewModel detail tests added; lint + 133 unit tests green; debug APK builds. **Still open in M3:**
+tea-card visuals on the board/my-teas lists, the search-miss "add it / paste a description" CTA,
+and the attributions/licenses screen.*
 
 **M4 — Enrichment, flavor & photos (needs M3).**
 Backend: `POST /teas/resolve` **enrich-on-miss** (Wikidata → YandexGPT Lite → Yandex-native

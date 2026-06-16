@@ -1090,4 +1090,40 @@ deviated.
     - **Tests:** MockWebServer covers the repo (hit caches, blank-query short-circuit, 5xx→Error vs
       cache, network-down→Offline); ViewModel tests cover debounce/min-length/empty/offline + prefill
       (`Loading` is asserted tolerantly — a `StateFlow` conflates it away when the mocked search
-      resolves synchronously). `lint` + 126 unit tests green; not yet shipped as a PR.
+      resolves synchronously). `lint` + 126 unit tests green (PR #24).
+
+60. **Dependency refresh to latest stable (2026-06-16, PR #25, stacked on #24).** Re-verified every
+    pin against Maven Central / Google Maven / Gradle. Most were already latest; profitable bumps only:
+    app `lifecycle` 2.9.4→**2.10.0**; `mockk`→**1.14.11** on both modules (app was 1.14.9, server a
+    stale 1.13.13, now unified); app JUnit `5.14.4`→**6.1.0** (major). JUnit 6 was safe to take because
+    the app runs unit tests via **AGP-native `useJUnitPlatform()`** (no mannodermaus plugin to gate
+    Platform 6); verified by running 126 app tests + the server suite green. Left at latest-stable:
+    Kotlin 2.4.0, AGP 9.2.1, Gradle 9.5.1, KSP 2.3.9, Hilt 2.59.2, Compose BOM 2026.05.01, Room 2.8.4,
+    Retrofit 3.0.0, OkHttp 5.4.0, Coil 3.5.0, Spring Boot 4.1.0. (Local-only: server Testcontainers ITs
+    need `TESTCONTAINERS_RYUK_DISABLED=true` because the Ryuk reaper image won't start in the sandbox;
+    CI Docker is unaffected.)
+
+61. **M3 next slice = catalog detail as a bottom sheet** (app-side; plan §M3, PR #26 stacked on #25).
+    The detail view is surfaced as a **`ModalBottomSheet` over the add form**, not a back-stack
+    destination. Rationale: the app's tiny custom back stack (`TeaTiersApp`) fully unmounts the top
+    screen, and `AddTeaScreen` re-binds (resets the form + search) on every (re)entry via
+    `LaunchedEffect(boardId, teaId)`. A separate destination would therefore wipe the in-progress add
+    and the live search on return. A sheet keeps `AddTeaScreen` mounted, so "Использовать этот чай" can
+    prefill through the **same `AddTeaViewModel.pickCatalogTea` path** and the search survives. (A reusable
+    full-screen detail destination for a future tea-card→detail browse path is deferred.)
+    - **Entry point:** each search result row now has a distinct **info action** (its own a11y node)
+      that opens the sheet; tapping the row body still prefills as before.
+    - **Data:** `repository.detail(id)` is **network-only** (no cache, unlike search) — detail is reached
+      only on an explicit tap, so a failure offers **retry** rather than a stale offline copy. Result is
+      `Loaded`/`Offline`/`Error`; the VM models the sheet as `Hidden`/`Loading`/`Loaded`/`Offline`/`Error`
+      and uses a **retry bump-counter** (a plain id re-set would be conflated by the `StateFlow`). Mapper
+      **drops unknown flavor axes** and **clamps** intensities to the shared 0..5 scale; descriptions are
+      picked by device language then ru→en→first.
+    - **Images:** added Coil 3 `coil-network-okhttp` and routed Coil's process-wide singleton through the
+      Hilt `ImageLoader` (via `SingletonImageLoader.Factory` + an `EntryPoint`), so catalog reference
+      images reuse the **Retrofit OkHttp client** (one connection pool) and crossfade; this also activates
+      the previously-dead Hilt loader for the existing user-photo paths. Image + description carry their
+      **source/license attribution** (rule/plan: CC content must be credited).
+    - **Tests:** MockWebServer repo tests (detail parse + flavor drop/clamp, 5xx→Error, network→Offline);
+      ViewModel tests (open→Loaded, use→prefill+clear, close→Hidden, retry→re-fetch, tolerant of `Loading`
+      conflation). `lint` + **133** unit tests green; debug APK builds.

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -91,6 +92,7 @@ fun AddTeaScreen(
     val photos by viewModel.photos.collectAsStateWithLifecycle()
     val catalogQuery by viewModel.catalogQuery.collectAsStateWithLifecycle()
     val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
+    val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -182,6 +184,7 @@ fun AddTeaScreen(
                     onQuery = viewModel::onCatalogQuery,
                     onClear = viewModel::clearCatalogSearch,
                     onPick = viewModel::pickCatalogTea,
+                    onInfo = { tea -> viewModel.openCatalogDetail(tea.id) },
                 )
             }
             OutlinedTextField(
@@ -344,6 +347,13 @@ fun AddTeaScreen(
             },
         )
     }
+
+    CatalogDetailSheet(
+        state = catalogDetail,
+        onDismiss = viewModel::closeCatalogDetail,
+        onUse = viewModel::useCatalogDetail,
+        onRetry = viewModel::retryCatalogDetail,
+    )
 }
 
 @Composable
@@ -445,6 +455,7 @@ private fun CatalogSearchField(
     onQuery: (String) -> Unit,
     onClear: () -> Unit,
     onPick: (CatalogTea) -> Unit,
+    onInfo: (CatalogTea) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -480,7 +491,11 @@ private fun CatalogSearchField(
                     CatalogHint(stringResource(R.string.catalog_search_from_cache))
                 }
                 state.teas.forEach { tea ->
-                    CatalogResultRow(tea = tea, onClick = { onPick(tea) })
+                    CatalogResultRow(
+                        tea = tea,
+                        onPick = { onPick(tea) },
+                        onInfo = { onInfo(tea) },
+                    )
                 }
             }
             CatalogSearchUiState.Empty -> CatalogHint(stringResource(R.string.catalog_search_empty))
@@ -500,23 +515,28 @@ private fun CatalogHint(text: String) {
 }
 
 @Composable
-private fun CatalogResultRow(tea: CatalogTea, onClick: () -> Unit) {
+private fun CatalogResultRow(tea: CatalogTea, onPick: () -> Unit, onInfo: () -> Unit) {
     val pickDescription = stringResource(R.string.a11y_catalog_pick, tea.displayName)
+    val infoDescription = stringResource(R.string.a11y_catalog_info, tea.displayName)
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .semantics(mergeDescendants = true) { contentDescription = pickDescription },
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // Tapping the body prefills the form; the info button (a separate a11y node) opens detail.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onPick)
+                    .semantics(mergeDescendants = true) { contentDescription = pickDescription }
+                    .padding(vertical = 8.dp),
+            ) {
                 Text(text = tea.displayName, style = MaterialTheme.typography.titleSmall)
                 if (tea.secondaryName.isNotBlank()) {
                     Text(
@@ -534,6 +554,12 @@ private fun CatalogResultRow(tea: CatalogTea, onClick: () -> Unit) {
                 }
             }
             TypeChip(type = tea.type)
+            IconButton(onClick = onInfo) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = infoDescription,
+                )
+            }
         }
     }
 }

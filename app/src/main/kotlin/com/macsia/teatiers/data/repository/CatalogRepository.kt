@@ -6,6 +6,7 @@ import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.remote.CatalogApi
 import com.macsia.teatiers.data.remote.toDomain
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
@@ -24,9 +25,26 @@ sealed interface CatalogSearchResult {
     data object Error : CatalogSearchResult
 }
 
+/** Outcome of loading one catalog tea's full detail (plan §5, `GET /teas/{id}`). */
+sealed interface CatalogDetailResult {
+    data class Loaded(val detail: CatalogTeaDetail) : CatalogDetailResult
+
+    /** Network unreachable. */
+    data object Offline : CatalogDetailResult
+
+    /** The server answered with an error (4xx/5xx). */
+    data object Error : CatalogDetailResult
+}
+
 interface CatalogRepository {
     /** Network-first search; on failure falls back to the offline cache (plan §4b/§6 step 1). */
     suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): CatalogSearchResult
+
+    /**
+     * Loads one tea's full detail from the network. Detail is not cached (unlike search): it is only
+     * reached on an explicit tap, so a failure surfaces a retry rather than a stale offline copy.
+     */
+    suspend fun detail(id: Long): CatalogDetailResult
 
     companion object {
         const val DEFAULT_LIMIT = 20
@@ -55,6 +73,16 @@ class DefaultCatalogRepository @Inject constructor(
             } catch (_: HttpException) {
                 cachedOr(trimmed, limit, CatalogSearchResult.Error)
             }
+        }
+    }
+
+    override suspend fun detail(id: Long): CatalogDetailResult = withContext(Dispatchers.IO) {
+        try {
+            CatalogDetailResult.Loaded(api.detail(id).toDomain())
+        } catch (_: IOException) {
+            CatalogDetailResult.Offline
+        } catch (_: HttpException) {
+            CatalogDetailResult.Error
         }
     }
 
