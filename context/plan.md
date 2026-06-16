@@ -41,7 +41,7 @@ were explicitly ruled out (`decisions.md` #1).
 └────────────────────────────────────────────────────────────────────────────────────┘
                               │  HTTPS  /api/v1/teas/...   (catalog only)
                               ▼
-┌──── Yandex Cloud VM (Terraform-provisioned) — Kotlin + Spring Boot 3.x, JDK 21 ─────────┐
+┌──── Yandex Cloud VM (Terraform-provisioned) — Kotlin + Spring Boot 4.x, JDK 21 ─────────┐
 │  controller/ → service/ → repository/ (Spring Data JPA)                                 │
 │  catalog search + detail API; resolve-on-miss enrich endpoint (RFC-7807, /api/v1)        │
 │  enrichment/ : Wikidata(CC0) → YandexGPT Lite → Yandex-native Qwen3/DeepSeek zh-booster   │
@@ -279,7 +279,9 @@ Testcontainers harness (decision #50). **PR 2 ✅ read API** — §5 `/teas/sear
 `/teas/{id}` + `/teas/facets`, Criteria-based dynamic search, RFC-7807 errors (decision #51). **PR 3 ✅
 curated static JSON seed** — 13 own-authored teas (ru/en/zh-Hans/pinyin + flavors + blurbs), idempotent
 `CatalogSeeder` keyed on a shared `DedupKeys` normalizer, gated by `teatiers.seed.enabled` (decision #52).
-(Live Wikidata SPARQL re-sync + OFF taxonomy + Docker/Terraform deploy stay later in M2.)*
+**Deploy stack** ✅ `docker-compose` now runs server + self-hosted `postgres:16-alpine` (datasource from
+env, DB port unpublished), verified end-to-end locally (Flyway + seed + API) (decision #54). (Live
+Wikidata SPARQL re-sync + OFF taxonomy + VM provisioning/Terraform deploy stay later in M2.)*
 
 **M3 — Catalog integration (needs M1 + M2).**
 Wire the app to the catalog: **catalog search** in add-tea (Retrofit + `catalog_cache`,

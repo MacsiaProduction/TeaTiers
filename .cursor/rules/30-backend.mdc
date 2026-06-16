@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Toolchain
 
-- Kotlin 2.x, JDK 21 LTS, Spring Boot 3.x (WebMVC), Gradle Kotlin DSL with a version catalog. Add `kotlin("plugin.jpa")` only when JPA is actually used.
+- Kotlin 2.x, JDK 21 LTS, Spring Boot 4.x (WebMVC), Gradle Kotlin DSL with a version catalog. Add `kotlin("plugin.jpa")` only when JPA is actually used. Boot 4 modularized auto-config + test slices: migrations need `spring-boot-starter-flyway`, `@WebMvcTest` needs `spring-boot-starter-webmvc-test`, and the auto-configured `ObjectMapper` is Jackson 3 (`tools.jackson`) — see `context/decisions.md` #50/#51/#52/#53.
 
 ## Idioms
 
