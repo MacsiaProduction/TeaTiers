@@ -95,6 +95,7 @@ class TeaControllerTest {
             descriptions = emptyList(),
             flavors = emptyList(),
             provenance = TeaProvenanceDto("curated", null, null, "verified", null),
+            enrichmentState = null,
         )
 
         mockMvc.perform(get("/api/v1/teas/7"))
@@ -137,7 +138,7 @@ class TeaControllerTest {
     @Test
     fun `resolve returns the enriched tea`() {
         every { rateLimiter.tryAcquire(any()) } returns true
-        every { resolveService.resolve("Longjing", "en") } returns ResolveResponseDto(
+        every { resolveService.resolve("Longjing", "en", null) } returns ResolveResponseDto(
             status = ResolveStatus.ENRICHED,
             tea = TeaDetailDto(
                 id = 11, wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
@@ -145,6 +146,7 @@ class TeaControllerTest {
                 image = null, names = listOf(TeaNameDto("en", "Longjing tea", true)),
                 descriptions = emptyList(), flavors = emptyList(),
                 provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),
+                enrichmentState = null,
             ),
         )
 

@@ -1,6 +1,7 @@
 package com.macsia.teatiers.service
 
 import com.macsia.teatiers.AbstractIntegrationTest
+import com.macsia.teatiers.client.FoundationModelsClient
 import com.macsia.teatiers.client.WikidataClient
 import com.macsia.teatiers.client.WikidataTea
 import com.macsia.teatiers.domain.Tea
@@ -22,7 +23,8 @@ import org.springframework.transaction.annotation.Transactional
 /**
  * End-to-end resolve over the real schema: the native unaccented name lookup, the Wikidata import,
  * and idempotency on the unique dedup_key / wikidata_qid. The Wikidata client is mocked so the test
- * never hits the network.
+ * never hits the network; the LLM tier is mocked off so a miss creates nothing here (the enrich
+ * tier has its own IT in [EnrichmentStubServiceIT]).
  */
 @Transactional
 class ResolveServiceIT : AbstractIntegrationTest() {
@@ -32,6 +34,10 @@ class ResolveServiceIT : AbstractIntegrationTest() {
         @Bean
         @Primary
         fun wikidataClient(): WikidataClient = mockk()
+
+        @Bean
+        @Primary
+        fun foundationModelsClient(): FoundationModelsClient = mockk { every { isEnabled } returns false }
     }
 
     @Autowired
@@ -54,9 +60,9 @@ class ResolveServiceIT : AbstractIntegrationTest() {
         val ru = save("Q-it-ru", TeaType.GREEN, "ru" to "Лунцзин", "en" to "Longjing tea")
         val accented = save("Q-it-acc", TeaType.OOLONG, "en" to "Dà Hóng Páo")
 
-        assertEquals(ResolveStatus.MATCHED, service.resolve("ЛУНЦЗИН", "ru").status)
-        assertEquals(ru, service.resolve("  лунцзин ", "ru").tea?.id)
-        assertEquals(accented, service.resolve("da hong pao", "en").tea?.id)
+        assertEquals(ResolveStatus.MATCHED, service.resolve("ЛУНЦЗИН", "ru", null).status)
+        assertEquals(ru, service.resolve("  лунцзин ", "ru", null).tea?.id)
+        assertEquals(accented, service.resolve("da hong pao", "en", null).tea?.id)
     }
 
     @Test
@@ -71,7 +77,7 @@ class ResolveServiceIT : AbstractIntegrationTest() {
             descriptionEn = "integration-test gloss",
         )
 
-        val first = service.resolve("Resolve IT Sencha", "en")
+        val first = service.resolve("Resolve IT Sencha", "en", null)
         assertEquals(ResolveStatus.ENRICHED, first.status)
         val id = requireNotNull(first.tea?.id)
         assertEquals("Q-it-new-777", first.tea?.wikidataQid)
@@ -79,7 +85,7 @@ class ResolveServiceIT : AbstractIntegrationTest() {
         assertEquals("unverified", first.tea?.provenance?.verificationStatus)
 
         // Second resolve of the same name is a cache hit on the just-created row (idempotent).
-        val second = service.resolve("resolve it sencha", "en")
+        val second = service.resolve("resolve it sencha", "en", null)
         assertEquals(ResolveStatus.MATCHED, second.status)
         assertEquals(id, second.tea?.id)
         assertEquals(id, teaRepository.findByWikidataQid("Q-it-new-777")?.id)
@@ -88,7 +94,7 @@ class ResolveServiceIT : AbstractIntegrationTest() {
     @Test
     fun `a miss creates nothing`() {
         val before = teaRepository.count()
-        assertEquals(ResolveStatus.UNRESOLVED, service.resolve("Nonexistent IT Brew 9001", null).status)
+        assertEquals(ResolveStatus.UNRESOLVED, service.resolve("Nonexistent IT Brew 9001", null, null).status)
         assertEquals(before, teaRepository.count())
     }
 

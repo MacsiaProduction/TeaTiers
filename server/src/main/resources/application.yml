@@ -47,6 +47,21 @@ teatiers:
     user-agent: "TeaTiers/0.1 (+https://github.com/macsia/TeaTiers) catalog-resolver"
     connect-timeout-ms: 3000
     read-timeout-ms: 8000
+  llm:
+    # Second (paid) enrichment tier: flavor profile + RU blurb on a Wikidata miss (plan.md section 6
+    # step 3, decision #65). Key comes from env (Lockbox teatiers-llm-api-key) — never in VCS. Blank
+    # key OR enabled=false => the tier is off and a miss returns UNRESOLVED.
+    enabled: true
+    endpoint: https://llm.api.cloud.yandex.net/v1/chat/completions
+    folder-id: ${YC_FOLDER_ID:}
+    api-key: ${TEATIERS_LLM_API_KEY:}
+    primary-model: aliceai-llm-flash
+    booster-model: qwen3-235b-a22b-fp8/latest
+    temperature: 0
+    max-tokens: 1800
+    connect-timeout-ms: 3000
+    read-timeout-ms: 30000
+    max-attempts: 2
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
