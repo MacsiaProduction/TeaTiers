@@ -1,0 +1,84 @@
+name: Infra (OpenTofu)
+
+# OpenTofu plan on infra PRs; apply only via a manual dispatch (apply-on-main is intentionally
+# NOT automatic — single operator + prevent_destroy guards on the VM/IP make an unattended apply
+# risky; decision #56/#57). The bootstrap module is out of scope here (it created the state backend
+# this workflow uses).
+#
+# Inert until these repo Secrets exist (Settings -> Secrets and variables -> Actions):
+#   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY : the bootstrap static key (S3 state backend)
+#   - YC_SA_KEY                                 : JSON key of a SA with editor on the folder
+# Without them the job no-ops with a notice, so PRs never go red.
+
+on:
+  pull_request:
+    paths:
+      - infra/**
+      - .github/workflows/infra.yml
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan or apply"
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: infra
+
+jobs:
+  tofu:
+    name: tofu ${{ github.event.inputs.action || 'plan' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_CLI_CONFIG_FILE: ${{ github.workspace }}/infra/tofurc
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Gate on credentials
+        id: gate
+        env:
+          YC_SA_KEY: ${{ secrets.YC_SA_KEY }}
+        run: |
+          if [ -z "$YC_SA_KEY" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::YC_SA_KEY / AWS_* secrets not set; skipping OpenTofu run."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v6
+
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_wrapper: false
+
+      - name: Write SA key
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          YC_SA_KEY: ${{ secrets.YC_SA_KEY }}
+        run: |
+          printf '%s' "$YC_SA_KEY" > "$RUNNER_TEMP/yc-sa-key.json"
+          echo "YC_SERVICE_ACCOUNT_KEY_FILE=$RUNNER_TEMP/yc-sa-key.json" >> "$GITHUB_ENV"
+
+      - name: Init
+        if: steps.gate.outputs.enabled == 'true'
+        run: tofu init -input=false
+
+      - name: Plan
+        if: steps.gate.outputs.enabled == 'true'
+        run: tofu plan -input=false -no-color
+
+      - name: Apply
+        if: steps.gate.outputs.enabled == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        run: tofu apply -input=false -auto-approve -no-color

@@ -114,6 +114,46 @@ ssh -i ~/.ssh/teatiers yc-user@93.77.185.62 'cd /opt/teatiers && sudo docker com
 Verify: `curl https://tea.macsia.fun/actuator/health` → `{"status":"UP"}`. **Live since 2026-06-16**
 (Let's Encrypt cert via Caddy; `restart: unless-stopped` survives reboots).
 
+## CI/CD (GitHub Actions)
+
+Two workflows automate the credentialed steps above. Both are **inert until the repo has the
+secrets/variables below** (Settings -> Secrets and variables -> Actions) — without them each job
+no-ops with a notice, so CI never goes red.
+
+| Workflow | Trigger | What it does | Needs |
+|----------|---------|--------------|-------|
+| `.github/workflows/publish-image.yml` | push to `main`/`trunk` touching `server/**`; manual | builds the server image on a native amd64 runner (no buildx/podman cross-arch issue) and pushes `:latest` + `:<sha>` to CR | secret `YC_SA_KEY` (a SA with `container-registry.images.pusher`), variable `YC_REGISTRY_ID` (`tofu output -raw registry_id`) |
+| `.github/workflows/infra.yml` | `plan` on infra PRs; `apply` only via manual dispatch | `tofu init/plan` (and `apply` when dispatched with `action=apply`) against the S3 backend | secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (the bootstrap static key) + `YC_SA_KEY` (folder editor) |
+
+Apply-on-main is deliberately **not** automatic: single operator + `prevent_destroy` on the VM/IP
+make an unattended apply risky. Run `infra.yml` with `action=apply` by hand after reviewing the PR
+plan. Provider install on the runner still goes through `tofurc`'s Yandex mirror; if a GH runner
+can't reach `terraform-mirror.yandexcloud.net`, run `tofu` locally per the runbook instead.
+
+The pusher SA for `YC_SA_KEY` is separate from the VM's `teatiers-puller` (least privilege): create
+it with `container-registry.images.pusher` on the registry and export a JSON key (kept out of VCS).
+
+## Backups
+
+`deploy/backup.sh` takes a daily `pg_dump` of the catalog DB out of the `teatiers-db` container,
+gzips it under `/opt/teatiers/backups`, and prunes dumps older than `RETENTION_DAYS` (14). The
+catalog is reproducible from Flyway + the committed seed, so **local-on-disk dumps are the default**;
+set `BACKUP_S3_URI` (+ AWS CLI and a backup SA's static key) to also copy off-box to Object Storage.
+
+Install the systemd timer on the VM:
+
+```
+scp -i ~/.ssh/teatiers infra/deploy/backup.sh             yc-user@93.77.185.62:/opt/teatiers/backup.sh
+scp -i ~/.ssh/teatiers infra/deploy/teatiers-backup.*     yc-user@93.77.185.62:/tmp/
+ssh -i ~/.ssh/teatiers yc-user@93.77.185.62 '
+  sudo install -m0755 /opt/teatiers/backup.sh /opt/teatiers/backup.sh
+  sudo install -m0644 /tmp/teatiers-backup.service /tmp/teatiers-backup.timer /etc/systemd/system/
+  sudo systemctl daemon-reload && sudo systemctl enable --now teatiers-backup.timer
+  sudo systemctl start teatiers-backup.service && ls -l /opt/teatiers/backups'
+```
+
+Restore: `gunzip -c teatiers-<stamp>.sql.gz | docker exec -i teatiers-db psql -U teatiers teatiers`.
+
 ## Notes
 
 - **State locking** uses the native S3 lock object (`use_lockfile`), fine for a single operator. If
