@@ -276,9 +276,10 @@ Moychay/Baidu** — read, author names ourselves. Outcome: a deployed read-only 
 
 *Progress (3 PRs): **PR 1 ✅ persistence foundation** — Flyway `V1` §4a schema + JPA entities +
 Testcontainers harness (decision #50). **PR 2 ✅ read API** — §5 `/teas/search` (cursor-paged) +
-`/teas/{id}` + `/teas/facets`, Criteria-based dynamic search, RFC-7807 errors (decision #51). PR 3 =
-curated static JSON seed. (Live Wikidata SPARQL re-sync + OFF taxonomy + Docker/Terraform deploy stay
-later in M2.)*
+`/teas/{id}` + `/teas/facets`, Criteria-based dynamic search, RFC-7807 errors (decision #51). **PR 3 ✅
+curated static JSON seed** — 13 own-authored teas (ru/en/zh-Hans/pinyin + flavors + blurbs), idempotent
+`CatalogSeeder` keyed on a shared `DedupKeys` normalizer, gated by `teatiers.seed.enabled` (decision #52).
+(Live Wikidata SPARQL re-sync + OFF taxonomy + Docker/Terraform deploy stay later in M2.)*
 
 **M3 — Catalog integration (needs M1 + M2).**
 Wire the app to the catalog: **catalog search** in add-tea (Retrofit + `catalog_cache`,

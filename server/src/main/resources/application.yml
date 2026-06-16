@@ -31,6 +31,12 @@ spring:
 server:
   port: 8080
 
+# TeaTiers catalog options.
+teatiers:
+  seed:
+    # Load the curated catalog seed on startup (idempotent). Disabled in integration tests.
+    enabled: true
+
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
   endpoints:
