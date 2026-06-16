@@ -111,6 +111,10 @@ Adopt the winning (opus) schema; firm the exact DDL in the first Flyway migratio
 - Search: `pg_trgm` GIN on `tea_name.name` for prefix/substring across Cyrillic + CJK
   (trigrams cover CJK *substring* matching; defer `zhparser`/`pg_cjk_parser` word
   segmentation until actually needed). `unaccent` for Latin; ICU collations on PG 16.
+  **Typo tolerance ("several wrong symbols", task.md) is a pending gap (#67):** the live
+  search path is still exact-substring `LIKE` (the trgm index is unused for similarity).
+  Approach (in-Postgres `pg_trgm` similarity vs a dedicated engine) is **deferred to
+  research run 09** before any build — see §9 / §11.
 - Per-row provenance is mandatory for ODbL/CC-BY-SA share-alike. Keep ODbL-derived
   (Open Food Facts) rows isolated from curated data to avoid copyleft pollution.
 - **Enrichment provenance** (AI/web-derived rows): `verification_status`
@@ -443,6 +447,10 @@ benchmarks better (#18).
   path. Pin the provider (verify; `0.206.0`), and use the **`terraform-mirror.yandexcloud.net`**
   mirror (registry.terraform.io may be blocked from RU). `Makefile` + GitHub Actions
   (`plan` on PR, `apply` on main) drive it. Image stays portable (still just compose).
+  **Planned (#68, task.md): move the image off Yandex Container Registry to `ghcr.io`** —
+  retire the CR + puller SA, swap the cloud-init `docker login` to a ghcr token, and fold
+  it into the still-open "build image in CI" item (GH Actions pushes to ghcr natively).
+  Target M5 infra polish; settle ghcr reachability-from-RU + public-vs-token auth at build time.
 
 ## 9. Research & outcomes
 
@@ -456,6 +464,7 @@ benchmarks better (#18).
 | `research/06-yandex-alice/` | ✅ alice | **Alice AI LLM** = distinct Foundation Models model (`aliceai-llm`, 64k; `aliceai-llm-flash` cheaper), same API/json_schema. Keep YandexGPT Lite primary, **benchmark Alice Flash** in M4. Bonus: Yandex hosts **Qwen3-235B/DeepSeek natively** → VPN dropped (#18) | §6, decision #18 |
 | `research/07-flavor-prompt-tuning/` | ✅ opus | Calibrated 0–5 flavor prompts (zero-shot + grounded, #25): anchor rubric, ru system/user templates, strict `json_schema` (`$defs.dim`, inline if `$defs` rejected), ≤3 few-shot, injection hardening, multiplicative confidence gate, MAE≤1.0 eval. **Yandex caveats:** `json_schema` unconfirmed on Lite (keep `json_object` fallback), no Yandex-managed DeepSeek URI, native vs OpenAI-compat request shapes differ, Qwen3 thinking-mode ≠ structured output | §6 step 3, decision #44, #25/#23 |
 | `research/08-ai-web-search/` | ✅ opus → **not adopted (#45)** | Revisited §6 under a DE-VPN premise that #18 retired. **Decision #45: keep "no web crawling".** No compliant path under #18's no-VPN/Yandex-native lock (Yandex Search ToS-blocked 2.7.4; Yandex LLMs no built-in search; Tavily/Gemini = the egress #18 removed). Durable findings kept for a future revisit: never store built-in `googleSearch`-grounded output (Gemini ToS); Tavily = only card-free search-only API; Wikidata weak on RU transliterations → user-pasted text is the right long-tail grounding | §6, decision #45 |
+| `research/09-typo-search/` | ⏳ queued (#67) | **Typo-tolerant catalog search** (task.md "several wrong symbols"). Compare in-Postgres `pg_trgm` similarity/`word_similarity` + threshold (no new infra) vs a dedicated engine (Meilisearch/Typesense/OpenSearch) for **ru+en+CJK** edit-distance tolerance, weighed against the single-VM ops-simple ethos (#19). Research-first per AskUserQuestion; not on the M4 path | §4a search, M5/backend slice |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.
@@ -548,12 +557,19 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
 - **Run 08 (ai-web-search) §6 disposition** ✅ resolved — decision #45: **not adopted**,
   §6 "no open-ended web crawling" stands (no compliant web-grounding path under #18's
   no-VPN/Yandex-native lock). Durable findings kept for a future revisit only.
+- **Typo-tolerant search (#67, task.md)** ⏳ queued — current search is exact-substring
+  `LIKE`; the fuzzy-index approach (pg_trgm similarity vs a dedicated engine) is decided by
+  **research run 09** before any build. Not an M4 blocker.
+- **Open image registry / ghcr (#68, task.md)** 📋 planned — move the server image off
+  Yandex CR to `ghcr.io`, folded into the "build image in CI" infra item; target M5 polish.
 
 ## 12. Requirements coverage (vs `../task.md` / `../architecture.md`)
 
 - task.md: add teas ✓, tiers ✓ (customizable), notes ✓, multilingual ru/en/zh ✓,
   integrate/mirror tea DBs ✓ (#10). **Geopoint (Google/Yandex/OSM) — intentionally
   deferred post-MVP (#20)**; MVP keeps the marketplace-link + free-text "where bought".
+  **Typo-tolerant search index** ("several wrong symbols") ⏳ → research run 09 (#67);
+  **open image registry** ("ghcr") 📋 → planned infra move (#68).
 - architecture.md: 1 mobile (Android/Kotlin) ✓, Linux server ✓ (Yandex Cloud VM),
   DB ✓ (Postgres), Kotlin app+backend ✓. **"Minimal where needed"** — the MVP has grown
   rich (catalog + enrichment + flavor + photos + export + my-teas); see the sequencing note.

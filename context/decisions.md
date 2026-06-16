@@ -1276,3 +1276,38 @@ deviated.
       (`TESTCONTAINERS_RYUK_DISABLED=true` locally).
     - **Still open (unchanged from #65):** zh-source + grounded gold sets before the booster pick is final;
       app-side optimistic add / `enrichmentState` UI / reference-vs-mine flavor / photos.
+
+67. **New requirement (task.md) — typo-tolerant catalog search → research run 09 first** (no code yet).
+    `task.md` grew a line: *"for search of teas in db we should utilize ready search index that allows several
+    wrong symbols."* This is a **real gap**: today's catalog search
+    (`TeaSearchRepositoryImpl.searchIds`) is a plain case-insensitive `LIKE '%q%'` **substring** match — it
+    has **zero edit-distance tolerance** (a typed "Longjng" never finds "Longjing"). The `pg_trgm` + `unaccent`
+    extensions and a trigram GIN index already exist (V1 `tea_name_trgm_idx`) but the search path never calls
+    `similarity()`/`word_similarity()` or any fuzzy operator. *Numbered #67 (after #66, held by the open M4
+    slice-2 PR #32 — this docs branch was cut off `main`).*
+    - **Decision (AskUserQuestion): research-first.** Do **research run 09** before committing an approach —
+      compare **in-Postgres `pg_trgm` similarity/`word_similarity` + threshold** (no new infra; extension +
+      index already present; fits the single-VM, ops-simple ethos #19 + accepted single-provider lock) vs a
+      **dedicated typo-tolerant engine** (Meilisearch / Typesense / OpenSearch — best-in-class fuzzy, but a new
+      always-on container on the small VM = RAM/cost + a sync pipeline). Evaluate **ru + en + CJK** typo
+      tolerance specifically (trigrams handle Cyrillic/Latin edit distance well; CJK substring differently).
+    - **Scope/sequencing.** Recorded, **not built**. Run 09 is queued (kick off via the `research-workflow`
+      skill); the implementing backend slice lands around **M5** (or a dedicated search slice) once run 09
+      resolves. Not on the M4 critical path. See plan §4a search note + §9 (run 09 row) + §11.
+
+68. **New requirement (task.md) — migrate the container image off Yandex CR to ghcr.io** (planned infra; no
+    code yet). `task.md` also grew: *"move from yandex image repository to open ones like ghcr."* Today the
+    server image lives in **Yandex Container Registry** (`cr.yandex/<reg>/teatiers-server`, decisions #55–57):
+    the VM pulls it via an IAM `docker login cr.yandex` in cloud-init, the image ref is the `SERVER_IMAGE`
+    var, and `infra/registry.tf` provisions the CR + puller SA. *Numbered #68.*
+    - **Plan:** move the image to **GitHub Container Registry** (`ghcr.io/macsiaproduction/teatiers-server`).
+      Touch points: `infra/registry.tf` (drop/retire the CR + puller SA after cutover), the cloud-init
+      `docker login` (ghcr token instead of `yc iam create-token`), `SERVER_IMAGE` / `infra/outputs.tf`, the
+      deploy compose, and the build/push docs in `infra/README.md`.
+    - **Settle at build time (not blockers):** (a) **ghcr.io reachability from the Yandex VM** (RU egress) —
+      verify a pull works before cutover; (b) **auth** — public image (no pull secret) vs a GH PAT / deploy
+      token stored in **Lockbox** (rule 50-secure, never in VCS); (c) **combine with the still-open "move
+      image build into CI" infra item** — GH Actions builds + pushes to ghcr natively (no local `buildx`
+      under podman), so this is a clean combined win.
+    - **Scope/sequencing.** Recorded, **not built**. Target: **M5 release hardening / infra polish**; not a
+      blocker for M4. See plan §8 Deploy note + §11.

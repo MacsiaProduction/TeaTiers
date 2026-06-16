@@ -8,3 +8,6 @@ we should integrate with all available tea databases, or download them locally o
 
 we should support both russian, english and chinise name of tea.
 
+for search of teas in db  we should utilize ready search index that allows several wrong symbols
+
+move from yandex image repository to open ones like ghcr
