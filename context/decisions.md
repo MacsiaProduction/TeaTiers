@@ -1276,3 +1276,35 @@ deviated.
       under podman), so this is a clean combined win.
     - **Scope/sequencing.** Recorded, **not built**. Target: **M5 release hardening / infra polish**; not a
       blocker for M4. See plan §8 Deploy note + §11.
+
+69. **M4 app-side slice 1 — optimistic add + background enrichment + status/retry** (app, plan §6/§M4,
+    decisions #21/#28; branch stacked on the #67/#68 docs branch off `main`). Wires the app to the §6
+    `/resolve` backbone (#64/#66): a freshly-added tea lands on the board instantly, then a background
+    `/resolve` patches in ru/zh names + metadata, with a visible status + manual retry so a tea is never
+    stuck loading. *Numbered #69 after #67/#68 (this branch carries them); the server slices hold #64–#66.*
+    - **Schema (Room v5, destructive pre-launch).** `TeaEntity` gains `catalogTeaId: Long?` + a
+      `enrichmentState` string backed by a new domain enum **`EnrichmentState { NONE, PENDING, QUEUED,
+      DONE, FAILED }`** (the plan §4b `none|pending|queued|done|failed`). New DAO ops: `updateEnrichmentState`,
+      `patchEnrichment` (merge non-blank catalog fields), `teasNeedingEnrichment` (resume sweep), `loadTeaRow`.
+    - **Network.** App `CatalogApi.resolve` `POST /teas/resolve` + `ResolveRequestDto`/`ResolveResponseDto`;
+      `enrichmentState` added to the detail DTO/`CatalogTeaDetail`. `CatalogRepository.resolve(name, locale?,
+      sourceText?)` returns a sealed `ResolveResult` (Matched / Enriching(catalogId) / Unresolved / Offline /
+      Error). `sourceText` (#25 "paste a description") is plumbed through but its UI is a later slice.
+    - **Engine — `TeaEnrichmentManager`** (`@Singleton`, app-scope). Sets the row `PENDING`, then:
+      Matched → patch + `DONE`; Enriching → poll `GET /teas/{id}` (bounded, injectable interval) → `DONE`
+      patch / `FAILED`; Unresolved → `DONE` (keep the typed tea); Offline → `QUEUED`; Error/unexpected →
+      `FAILED` (fail-closed, never a stuck spinner). The patch is a **non-authoritative suggestion** (#21):
+      catalog fills a field only where the user left it blank. `retry(teaId)` re-resolves; `resumePending()`
+      re-dispatches `PENDING`/`QUEUED` rows on launch (process-death/offline recovery, #28).
+    - **Dispatch / gating.** `TeaBoardRepository.addTea` now returns `AddedTea(teaId, created)`; the ViewModel
+      enriches **only a genuinely-new tea** (`created`), never an auto-linked existing one (#42) — so a
+      curated tea on another board is never silently overwritten. `BoardViewModel` exposes `retryEnrichment`
+      and calls `resumePending()` once on bind.
+    - **UI.** `TeaCard` shows a muted "Уточняем…/В очереди" hint (spinner while PENDING) and an error-toned
+      "Не удалось уточнить" — visible on every surface that renders a card (board + "Мои чаи"). The board
+      card's overflow gains a **"Повторить уточнение"** item, shown only on `FAILED`.
+    - **Tests.** `TeaEnrichmentManagerTest` (Matched/Enriching-poll→DONE/poll→FAILED/Offline→QUEUED/Unresolved/
+      retry/resume over `FakeTeaDao` + a mock repo), `DefaultCatalogRepositoryTest` resolve cases
+      (MockWebServer), and `AddTeaViewModelTest` dispatch gating (created vs auto-linked). **Full app suite =
+      148 unit tests green; lint + debug APK build.** *Still open in M4 (unchanged): the "paste a description"
+      field UI, the reference-vs-mine flavor split (#23), zh-source/grounded gold sets.*

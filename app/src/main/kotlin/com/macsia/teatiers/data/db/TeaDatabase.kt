@@ -13,6 +13,9 @@ import androidx.room.RoomDatabase
  * v4 (catalog integration, M3): adds the `catalog_cache` table — read-only shared-catalog rows
  * cached for offline search reuse (plan §4b). Still destructive on bump (pre-launch).
  *
+ * v5 (M4 enrichment): adds `teas.catalogTeaId` + `teas.enrichmentState` for the optimistic
+ * background catalog enrichment (#21/#28). Still destructive on bump (pre-launch).
+ *
  * exportSchema stays false until we ship to real users — at that point flip it on with
  * room.schemaLocation + a committed JSON baseline so migration tests have something to diff.
  */
@@ -27,7 +30,7 @@ import androidx.room.RoomDatabase
         PhotoEntity::class,
         CatalogCacheEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class TeaDatabase : RoomDatabase() {

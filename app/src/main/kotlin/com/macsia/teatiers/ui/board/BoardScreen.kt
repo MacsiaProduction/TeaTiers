@@ -74,6 +74,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.components.FlavorRadar
@@ -98,6 +99,7 @@ private data class MoveTarget(val tierId: String?, val label: String)
 private data class PlacementMenuActions(
     val onRemoveFromBoard: (placementId: String) -> Unit,
     val onDeleteEverywhere: (teaId: String) -> Unit,
+    val onRetryEnrichment: (teaId: String) -> Unit,
 )
 
 @Composable
@@ -124,6 +126,7 @@ fun BoardScreen(
         onMove = viewModel::movePlacement,
         onRemovePlacement = viewModel::removePlacement,
         onDeleteTea = viewModel::deleteTea,
+        onRetryEnrichment = viewModel::retryEnrichment,
         modifier = modifier,
     )
 }
@@ -140,6 +143,7 @@ private fun BoardContent(
     onMove: (String, String?, Int) -> Unit,
     onRemovePlacement: (String) -> Unit,
     onDeleteTea: (String) -> Unit,
+    onRetryEnrichment: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ramp = TeaTheme.colors.tierRamp
@@ -164,6 +168,7 @@ private fun BoardContent(
     val menuActions = PlacementMenuActions(
         onRemoveFromBoard = onRemovePlacement,
         onDeleteEverywhere = onDeleteTea,
+        onRetryEnrichment = onRetryEnrichment,
     )
 
     Box(modifier.fillMaxSize()) {
@@ -639,6 +644,15 @@ private fun DraggableTeaCard(
                         confirmDelete = true
                     },
                 )
+                if (placement.tea.enrichmentState == EnrichmentState.FAILED) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_retry_enrichment)) },
+                        onClick = {
+                            menuExpanded = false
+                            menuActions.onRetryEnrichment(placement.tea.id)
+                        },
+                    )
+                }
             }
         }
     }

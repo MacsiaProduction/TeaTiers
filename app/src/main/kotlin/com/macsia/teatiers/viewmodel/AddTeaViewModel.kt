@@ -8,6 +8,7 @@ import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorDimension
@@ -45,6 +46,7 @@ import javax.inject.Inject
 class AddTeaViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
     private val catalogRepository: CatalogRepository,
+    private val enrichmentManager: TeaEnrichmentManager,
 ) : ViewModel() {
 
     private val eventHost = UiEventHost()
@@ -308,14 +310,18 @@ class AddTeaViewModel @Inject constructor(
                 if (editing != null) {
                     repository.updateTea(editing, form.toTea())
                 } else if (board != null) {
-                    val newTeaId = repository.addTea(board, form.toTea(), form.tierId) ?: return@runCatching false
+                    val tea = form.toTea()
+                    val added = repository.addTea(board, tea, form.tierId) ?: return@runCatching false
                     // A failed copy on any single picked URI surfaces as a snackbar but does
                     // not abort the save: the tea row is already in DB.
                     _draftPhotos.value.forEach { draft ->
-                        val path = repository.addPhoto(newTeaId, draft.uri)
+                        val path = repository.addPhoto(added.teaId, draft.uri)
                         if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
                     }
                     _draftPhotos.value = emptyList()
+                    // Optimistic background enrichment (#21): only for a genuinely new tea, never an
+                    // auto-linked existing one. Fire-and-forget on the app scope; the card shows status.
+                    if (added.created) enrichmentManager.enrich(added.teaId, tea.nameRu)
                 } else {
                     return@runCatching false
                 }

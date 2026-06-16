@@ -386,6 +386,18 @@ promote prompts to `context/flavor-system/`; wire the server LLM tier (config-se
 Lockbox key) for §6 steps 3–4; then the app-side optimistic add / enrichment-state /
 flavor reference-vs-mine / photos.*
 
+*Progress ✅ **M4 app-side slice 1 — optimistic add + background enrichment + status/retry** (decision
+#69, app). A freshly-added tea lands on the board instantly, then a background `/resolve`
+(`TeaEnrichmentManager`, app-scope) patches in ru/zh names + metadata as **non-authoritative
+suggestions** (#21). New **Room v5** fields `catalogTeaId` + `enrichmentState`
+(`EnrichmentState{NONE,PENDING,QUEUED,DONE,FAILED}`); `CatalogApi.resolve` + `CatalogRepository.resolve`
+(Matched / Enriching-poll / Unresolved / Offline→QUEUED / Error→FAILED, fail-closed). Dispatched only for
+a **genuinely-new** tea (`addTea`→`AddedTea(created)`), never an auto-linked existing one. `TeaCard` shows
+a muted "Уточняем…/В очереди" / error "Не удалось уточнить" hint; the board overflow offers
+**"Повторить уточнение"** on FAILED; `resumePending()` re-runs stuck PENDING/QUEUED on launch (#28). 148
+unit tests + lint + debug APK green. **Still open in M4:** the "paste a description" field (#25 — plumbed,
+no UI yet), reference-vs-mine flavor (#23), zh-source/grounded gold sets.*
+
 **M5 — Find & release (needs M4).**
 ~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
 in-board filter by type/origin → en/zh UI → catalog **curation pass** (promote

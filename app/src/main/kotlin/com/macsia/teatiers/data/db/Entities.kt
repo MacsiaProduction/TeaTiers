@@ -51,6 +51,10 @@ data class TierEntity(
  * The user-tea pool. After the shared-teas reopening this row is no longer tied to any
  * particular board — placement is tracked separately in [PlacementEntity]. [shortBlurb] stays
  * here because it is catalog/AI-derived (decisions.md #25), not user-typed.
+ *
+ * [catalogTeaId] links the tea to its shared-catalog row once resolved (#21); [enrichmentState]
+ * holds the [com.macsia.teatiers.domain.model.EnrichmentState] name driving the optimistic
+ * background enrichment status + retry (#28). Both default for custom/seed teas.
  */
 @Entity(tableName = "teas")
 data class TeaEntity(
@@ -63,6 +67,8 @@ data class TeaEntity(
     val origin: String?,
     val shortBlurb: String?,
     val notes: String?,
+    val catalogTeaId: Long? = null,
+    val enrichmentState: String = "NONE",
 )
 
 /**

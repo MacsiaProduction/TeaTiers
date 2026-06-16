@@ -117,6 +117,12 @@
     <!-- Per-card overflow / detail menu (shared-teas, decisions.md #42). -->
     <string name="action_remove_from_board">Убрать с подборки</string>
     <string name="action_delete_tea_forever">Удалить чай совсем</string>
+    <string name="action_retry_enrichment">Повторить уточнение</string>
+
+    <!-- Optimistic catalog-enrichment status shown on the tea card (decisions.md #21/#28). -->
+    <string name="enrichment_status_pending">Уточняем…</string>
+    <string name="enrichment_status_queued">В очереди</string>
+    <string name="enrichment_status_failed">Не удалось уточнить</string>
     <string name="delete_tea_confirm_title">Удалить чай?</string>
     <!-- %1$s — название чая на русском. Удаление сносит чай со всех подборок и стирает данные. -->
     <string name="delete_tea_confirm_message">Чай «%1$s» исчезнет со всех подборок вместе с заметками и местами покупки. Действие необратимо.</string>

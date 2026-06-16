@@ -20,6 +20,9 @@ data class CatalogTeaDetail(
     val descriptions: List<CatalogDescription>,
     val flavors: List<FlavorScore>,
     val provenance: CatalogProvenance,
+    // Async LLM enrichment state of the catalog row (null = not LLM-managed): the client polls
+    // this after an ENRICHING resolve until it flips to DONE/FAILED (decisions.md #66/#28).
+    val enrichmentState: EnrichmentState? = null,
 ) {
     val isUnverified: Boolean get() = provenance.verificationStatus.equals("unverified", ignoreCase = true)
 

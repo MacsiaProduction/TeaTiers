@@ -151,6 +151,41 @@ abstract class TeaDao {
         notes: String?,
     )
 
+    /** The raw tea row (no children) — used by the enrichment patch to merge non-blank fields. */
+    @Query("SELECT * FROM teas WHERE id = :teaId")
+    abstract suspend fun loadTeaRow(teaId: String): TeaEntity?
+
+    /** Flips only the enrichment lifecycle column (PENDING/QUEUED/DONE/FAILED) — no field overwrite. */
+    @Query("UPDATE teas SET enrichmentState = :state WHERE id = :teaId")
+    abstract suspend fun updateEnrichmentState(teaId: String, state: String)
+
+    /**
+     * Patches the catalog-derived fields after a successful resolve and stamps the final state.
+     * Names/type/origin/blurb are enriched suggestions (#21); the caller merges them with the
+     * user's typed values (keeping a non-blank user value when the catalog has none) before writing.
+     */
+    @Query(
+        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, nameEn = :nameEn, " +
+            "type = :type, origin = :origin, shortBlurb = :shortBlurb, catalogTeaId = :catalogTeaId, " +
+            "enrichmentState = :state WHERE id = :teaId",
+    )
+    abstract suspend fun patchEnrichment(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        shortBlurb: String?,
+        catalogTeaId: Long?,
+        state: String,
+    )
+
+    /** Teas left mid-enrichment by a prior run (process death / offline) — re-dispatched on launch. */
+    @Query("SELECT * FROM teas WHERE enrichmentState IN ('PENDING', 'QUEUED')")
+    abstract suspend fun teasNeedingEnrichment(): List<TeaEntity>
+
     @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")
     abstract suspend fun deleteFlavorsFor(teaId: String)
 

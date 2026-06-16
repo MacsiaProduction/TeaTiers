@@ -221,6 +221,48 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
+    override suspend fun loadTeaRow(teaId: String): TeaEntity? = teas.firstOrNull { it.id == teaId }
+
+    override suspend fun updateEnrichmentState(teaId: String, state: String) {
+        val index = teas.indexOfFirst { it.id == teaId }
+        if (index >= 0) {
+            teas[index] = teas[index].copy(enrichmentState = state)
+            refresh()
+        }
+    }
+
+    override suspend fun patchEnrichment(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        shortBlurb: String?,
+        catalogTeaId: Long?,
+        state: String,
+    ) {
+        val index = teas.indexOfFirst { it.id == teaId }
+        if (index >= 0) {
+            teas[index] = teas[index].copy(
+                nameRu = nameRu,
+                nameZh = nameZh,
+                pinyin = pinyin,
+                nameEn = nameEn,
+                type = type,
+                origin = origin,
+                shortBlurb = shortBlurb,
+                catalogTeaId = catalogTeaId,
+                enrichmentState = state,
+            )
+            refresh()
+        }
+    }
+
+    override suspend fun teasNeedingEnrichment(): List<TeaEntity> =
+        teas.filter { it.enrichmentState == "PENDING" || it.enrichmentState == "QUEUED" }
+
     override suspend fun deleteFlavorsFor(teaId: String) {
         if (flavors.removeAll { it.teaId == teaId }) refresh()
     }

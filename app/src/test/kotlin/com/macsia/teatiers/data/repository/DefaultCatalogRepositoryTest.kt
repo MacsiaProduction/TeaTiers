@@ -153,6 +153,54 @@ class DefaultCatalogRepositoryTest {
         assertEquals(CatalogDetailResult.Offline, repo.detail(1))
     }
 
+    @Test
+    fun `resolve MATCHED returns the parsed detail`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(resolveBody("MATCHED", DETAIL_BODY)))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.resolve("Лунцзин")
+
+        assertTrue(result is ResolveResult.Matched)
+        assertEquals("Лунцзин", (result as ResolveResult.Matched).detail.nameRu)
+    }
+
+    @Test
+    fun `resolve ENRICHING carries the catalog id to poll`() = runTest {
+        val stub = """{"id":42,"type":"OTHER","enrichmentState":"PENDING"}"""
+        server.enqueue(MockResponse().setResponseCode(200).setBody(resolveBody("ENRICHING", stub)))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.resolve("Неизвестный чай")
+
+        assertEquals(ResolveResult.Enriching(42), result)
+    }
+
+    @Test
+    fun `resolve UNRESOLVED maps to Unresolved (null tea)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"UNRESOLVED","tea":null}"""))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        assertEquals(ResolveResult.Unresolved, repo.resolve("Фантом"))
+    }
+
+    @Test
+    fun `resolve maps a server error to Error and a network failure to Offline`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500))
+        val repo = DefaultCatalogRepository(api, dao)
+        assertEquals(ResolveResult.Error, repo.resolve("Чай"))
+
+        server.shutdown()
+        assertEquals(ResolveResult.Offline, repo.resolve("Чай"))
+    }
+
+    @Test
+    fun `resolve short-circuits a blank name without touching the network`() = runTest {
+        val repo = DefaultCatalogRepository(api, dao)
+
+        assertEquals(ResolveResult.Unresolved, repo.resolve("   "))
+        assertEquals(0, server.requestCount)
+    }
+
     private fun sampleTea(): CatalogTea = CatalogTea(
         id = 1,
         type = TeaType.GREEN,
@@ -166,6 +214,9 @@ class DefaultCatalogRepositoryTest {
     )
 
     private companion object {
+        /** Wraps a tea body (or `null`) in the `/resolve` envelope with the given status. */
+        fun resolveBody(status: String, teaBody: String): String = """{"status":"$status","tea":$teaBody}"""
+
         val SEARCH_BODY =
             """
             {"items":[{"id":1,"type":"GREEN","originCountry":"CN","brand":null,
