@@ -1,0 +1,11 @@
+# Caddy terminates TLS for the public domain and reverse-proxies to the server container on the
+# private compose network. DOMAIN / ACME_EMAIL come from /opt/teatiers/.env. Caddy obtains and
+# renews a Let's Encrypt certificate automatically (ports 80/443 must be reachable — they are).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy server:8080
+}

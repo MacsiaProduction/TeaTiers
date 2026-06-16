@@ -985,3 +985,30 @@ deviated.
     (build-on-VM vs Yandex Container Registry), TLS/reverse-proxy for `tea.macsia.fun` (80/443 are
     the only open ingress; 8080 is not), and the `infra/` Terraform + `terraform import` of the
     hand-created VM/SG/IP.
+
+55. **IaC tool = OpenTofu, not HashiCorp Terraform (refines #18/run 05).** HashiCorp's Terraform CLI
+    binary is region-blocked from RU (`releases.hashicorp.com` → "content not available in your
+    region"; brew's formula 404s), and the project is VPN-free (#18). **OpenTofu (`tofu`)** is the
+    drop-in, RU-reachable, Yandex-supported CLI — identical `.tf`, identical provider. Provider pin
+    **verified: `yandex-cloud/yandex` 0.206.0 is latest** (registry, 2026-05-28). Two install gotchas,
+    both handled in `infra/`: (a) the provider **source must be fully-qualified**
+    `registry.terraform.io/yandex-cloud/yandex` — OpenTofu's default registry (`registry.opentofu.org`)
+    lags far behind (stuck pre-0.206); (b) provider installation goes through Yandex's mirror
+    `terraform-mirror.yandexcloud.net` via a committed `infra/tofurc` (`TF_CLI_CONFIG_FILE`), and the
+    lock file is generated multi-platform (`darwin_arm64` + `linux_amd64`) with `tofu providers lock
+    -net-mirror=...`. Chose native S3 state locking (`use_lockfile`) over a YDB lock table (single
+    operator). The rules/plan keep saying "Terraform" generically; treat it as "Terraform-compatible IaC".
+
+56. **M2 deploy IaC foundation lands (validate-only; applies pending).** `infra/` is a complete
+    OpenTofu config: a `bootstrap/` module (local state) that creates the remote-state SA + static
+    access key + versioned Object Storage bucket; and a root module that **adopts the hand-created
+    VM/SG/static-IP via config-driven `import` blocks** and adds the new pieces — a **Container
+    Registry** + least-privilege **`teatiers-puller` SA** (registry images.puller, attached to the VM)
+    + a **Lockbox** secret holding a generated Postgres password. The VM's `cloud-init` (rendered via
+    `templatefile`) installs Docker, logs in to CR with the metadata IAM token, and brings up the
+    on-VM stack: **Caddy (auto Let's Encrypt for `tea.macsia.fun`) → server (pulled from CR) →
+    self-hosted Postgres** (`infra/deploy/`), with only Caddy's 80/443 published and a `mem_limit` so
+    the JVM + Postgres + Caddy fit the 4 GB box. `prevent_destroy` guards the VM + IP; the README
+    runbook insists `tofu plan` show **zero destroy/replace** before any apply. Both modules pass
+    `tofu validate`; **nothing is applied yet** — the credentialed bootstrap/import/apply/push/deploy
+    steps follow. Image delivery = YCR, TLS = Caddy, IaC = Terraform-first per the user's choices.

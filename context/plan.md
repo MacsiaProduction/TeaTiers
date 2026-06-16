@@ -341,7 +341,7 @@ benchmarks better (#18).
   Sentry) — optional for MVP.
 - **Accessibility & states (#28):** dark mode, font scaling, TalkBack labels (esp. the
   flavor chart); design first-run/empty/error/offline states, not just the happy path.
-- **Deploy (decision #18, run 05):** **Yandex Cloud via Terraform** (`infra/`) — one
+- **Deploy (decision #18, run 05; tool = OpenTofu per #55):** **Yandex Cloud via OpenTofu** (`infra/`) — one
   Compute VM running `docker-compose` (backend + **self-hosted Postgres**), `yandex_vpc_*`
   + security group, service account, **Container Registry**, **Lockbox** secrets, and
   **S3 remote state on Object Storage + YDB locking**. Managed PostgreSQL is the upgrade
@@ -439,11 +439,11 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
   secret in `BuildConfig` (not truly secret on RuStore, but raises the bar vs anonymous
   scripts hitting the write-capable `resolve`).
 - **Console verifications:** Qwen3-235B / DeepSeek Flash availability + pricing in the
-  Yandex gallery — before **M4** (#18); the Terraform provider version — before **M2**
-  (#18 / run 05).
-- **Import the live VM into Terraform (M2):** a first `teatiers` VM + `teatiers-sg` +
-  static IP `93.77.185.62` (`tea.macsia.fun`) were hand-created via `yc` to unblock DNS —
-  `terraform import` them in M2 so IaC owns them (see `infra/README.md`).
+  Yandex gallery — before **M4** (#18). ✅ Yandex provider version verified (`0.206.0`, #55).
+- **Import the live VM into IaC (M2):** a first `teatiers` VM + `teatiers-sg` + static IP
+  `93.77.185.62` (`tea.macsia.fun`) were hand-created via `yc` to unblock DNS. The `infra/`
+  OpenTofu config + `import` blocks are written and validated (#56); running the credentialed
+  bootstrap/import/apply/push/deploy is the remaining M2 step (see `infra/README.md`).
 - **Run 07 (flavor-prompt tuning)** ✅ resolved — artifacts + Yandex caveats locked in
   decision #44; they drop into §6 step 3 / the M4 prompt module (tunes quality, not
   structure).

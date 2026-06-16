@@ -1,0 +1,15 @@
+# OpenTofu / Terraform — never commit state (may hold secrets) or provider caches.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local variable overrides may hold secrets; keep only the example.
+*.tfvars
+*.auto.tfvars
+!*.tfvars.example
+
+# Service-account key material.
+*-key.json
+sa-key*.json
