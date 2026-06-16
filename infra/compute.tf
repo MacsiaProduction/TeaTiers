@@ -43,14 +43,17 @@ resource "yandex_compute_instance" "teatiers" {
     security_group_ids = [yandex_vpc_security_group.teatiers.id]
   }
 
+  # ssh-keys preserved verbatim (public key; this is how `ssh yc-user@<ip>` works). user-data is
+  # intentionally NOT set on this adopted, already-running VM: changing it cannot re-run cloud-init,
+  # and keeping metadata fully-known guarantees this in-place update only attaches the puller SA
+  # without ever touching SSH access. Provisioning is done over SSH (see README); local.cloud_init
+  # is kept rendered for a future from-scratch recreate (wire it back into metadata then).
   metadata = {
-    user-data          = local.cloud_init
+    ssh-keys           = "yc-user:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIObyheFWpEq0Q3AiPx4jHP8Gbxf/ZluhZUFYy9neDmcy teatiers\n"
     serial-port-enable = "1"
   }
 
   lifecycle {
     prevent_destroy = true
-    # SSH keys are managed out-of-band (OS Login / metadata key); don't fight the live value.
-    ignore_changes = [metadata["ssh-keys"]]
   }
 }

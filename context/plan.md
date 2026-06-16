@@ -280,8 +280,10 @@ Testcontainers harness (decision #50). **PR 2 ✅ read API** — §5 `/teas/sear
 curated static JSON seed** — 13 own-authored teas (ru/en/zh-Hans/pinyin + flavors + blurbs), idempotent
 `CatalogSeeder` keyed on a shared `DedupKeys` normalizer, gated by `teatiers.seed.enabled` (decision #52).
 **Deploy stack** ✅ `docker-compose` now runs server + self-hosted `postgres:16-alpine` (datasource from
-env, DB port unpublished), verified end-to-end locally (Flyway + seed + API) (decision #54). (Live
-Wikidata SPARQL re-sync + OFF taxonomy + VM provisioning/Terraform deploy stay later in M2.)*
+env, DB port unpublished), verified end-to-end locally (Flyway + seed + API) (decision #54).
+**Deployed** ✅ live on the Yandex Cloud VM via OpenTofu (imported VM/SG/IP + CR + puller SA + Lockbox)
+behind Caddy auto-HTTPS at **https://tea.macsia.fun** (decisions #55–57). (Live Wikidata SPARQL
+re-sync + OFF taxonomy are the only optional M2-data leftovers.)*
 
 **M3 — Catalog integration (needs M1 + M2).**
 Wire the app to the catalog: **catalog search** in add-tea (Retrofit + `catalog_cache`,
