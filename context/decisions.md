@@ -933,3 +933,30 @@ deviated.
     - **Tests:** a `@WebMvcTest` slice (service mocked via a MockK `@TestConfiguration` bean) asserts the
       JSON contract + 404/400 problem+json; a Testcontainers `TeaCatalogServiceIT` proves the real Criteria
       SQL (substring + locale/type filters, cursor paging, detail, facets) against PostgreSQL.
+
+52. **Curated catalog seed lands (M2 stripe, PR 3 of 3)** — a static JSON snapshot + an idempotent
+    seeder, closing the three-PR backend stripe. The live Wikidata SPARQL re-sync, OFF taxonomy, and
+    the Docker/Terraform deploy tail still follow later in M2.
+    - **Seed source is a curated static snapshot, not a live Wikidata query** (decision #10 favored a
+      curated seed first). `resources/seed/catalog-seed.json` holds 13 own-authored Chinese teas across
+      green/oolong/white/yellow/black/dark/puer, each with `en`/`ru`/`zh-Hans`/`pinyin` names (primary-
+      flagged), `en`/`ru` blurbs, and a curated 11-dim flavor profile. Rows are `source: "curated"`,
+      `verification_status: "verified"`, no `wikidata_qid` — we don't ship unverified QIDs, and CI never
+      touches the network. Re-syncing real Wikidata QIDs/images is deferred (still M2).
+    - **`DedupKeys.of(primaryName, pinyin, type)`** is the single source of truth for `tea.dedup_key`:
+      NFD-unaccent + lowercase + whitespace-collapse on the primary name, a `[^a-z0-9]`-stripped pinyin
+      slug, and the `TeaType` name, joined `name|slug|TYPE`. The same helper backs the `§6` enrich-on-miss
+      upsert (M4), so the seed and future on-demand resolves agree on identity. Unit-tested (`DedupKeysTest`).
+    - **`CatalogSeeder` is idempotent** — it computes each tea's dedup key and skips any row already present
+      (`findByDedupKey`), so re-running on every boot inserts nothing. `@Transactional`; returns the insert
+      count for logging/tests. It uses a **dedicated Jackson 2 `ObjectMapper`** (`jacksonObjectMapper()`),
+      not the injected bean: Spring Boot 4's auto-configured mapper is **Jackson 3 (`tools.jackson`)**, so
+      `com.fasterxml.jackson.databind.ObjectMapper` has no bean — and the trusted build-artifact seed file
+      doesn't need the web layer's mapper config anyway.
+    - **Startup wiring:** `CatalogSeedRunner` (an `ApplicationRunner`) calls the seeder once on boot, gated
+      by `teatiers.seed.enabled` (`@ConditionalOnProperty`, `matchIfMissing = true` -> on by default).
+      `AbstractIntegrationTest` sets `teatiers.seed.enabled=false` so ITs keep an empty catalog and control
+      seeding explicitly.
+    - **Tests:** `CatalogSeederIT` (Testcontainers) asserts the first run inserts the curated teas, a second
+      run inserts nothing (idempotent), and a seeded tea round-trips its localized names + flavors +
+      descriptions; `DedupKeysTest` covers normalization (diacritics, whitespace, pinyin slug).

@@ -2,6 +2,7 @@ package com.macsia.teatiers
 
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
+import org.springframework.test.context.TestPropertySource
 import org.testcontainers.postgresql.PostgreSQLContainer
 
 /**
@@ -13,6 +14,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer
  * podman socket via DOCKER_HOST; CI uses Docker.
  */
 @SpringBootTest
+@TestPropertySource(properties = ["teatiers.seed.enabled=false"])
 abstract class AbstractIntegrationTest {
 
     companion object {
