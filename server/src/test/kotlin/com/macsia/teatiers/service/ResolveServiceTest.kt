@@ -1,5 +1,6 @@
 package com.macsia.teatiers.service
 
+import com.macsia.teatiers.client.FoundationModelsClient
 import com.macsia.teatiers.client.WikidataClient
 import com.macsia.teatiers.client.WikidataTea
 import com.macsia.teatiers.domain.TeaType
@@ -21,15 +22,22 @@ class ResolveServiceTest {
     private val wikidataClient = mockk<WikidataClient>()
     private val upsertService = mockk<WikidataUpsertService>()
     private val catalogService = mockk<TeaCatalogService>()
-    private val service = ResolveService(repository, wikidataClient, upsertService, catalogService)
+    private val foundationModelsClient = mockk<FoundationModelsClient>()
+    private val stubService = mockk<EnrichmentStubService>(relaxed = true)
+    private val llmEnrichmentService = mockk<LlmEnrichmentService>(relaxed = true)
+    private val service = ResolveService(
+        repository, wikidataClient, upsertService, catalogService,
+        foundationModelsClient, stubService, llmEnrichmentService,
+    )
 
     private val longjing = WikidataTea("Q1069130", TeaType.GREEN, "CN", "Longjing tea", "Лунцзин", "龙井茶", null)
 
-    private fun detail(id: Long) = TeaDetailDto(
+    private fun detail(id: Long, state: String? = null) = TeaDetailDto(
         id = id, wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
         cultivar = null, oxidationMin = null, oxidationMax = null, brand = null, image = null,
         names = listOf(TeaNameDto("en", "Longjing tea", true)), descriptions = emptyList(),
         flavors = emptyList(), provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),
+        enrichmentState = state,
     )
 
     @Test
@@ -37,11 +45,35 @@ class ResolveServiceTest {
         every { repository.findIdByNormalizedName("Лунцзин") } returns 5L
         every { catalogService.detail(5L) } returns detail(5L)
 
-        val response = service.resolve("  Лунцзин ", "ru")
+        val response = service.resolve("  Лунцзин ", "ru", null)
 
         assertEquals(ResolveStatus.MATCHED, response.status)
         assertEquals(5L, response.tea?.id)
         verify(exactly = 0) { wikidataClient.findTea(any(), any()) }
+    }
+
+    @Test
+    fun `cache hit on a PENDING stub reports ENRICHING and does not re-dispatch`() {
+        every { repository.findIdByNormalizedName(any()) } returns 7L
+        every { catalogService.detail(7L) } returns detail(7L, state = "PENDING")
+
+        val response = service.resolve("Some Brew", null, null)
+
+        assertEquals(ResolveStatus.ENRICHING, response.status)
+        verify(exactly = 0) { llmEnrichmentService.enrich(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cache hit on a FAILED stub re-arms and retries enrichment`() {
+        every { repository.findIdByNormalizedName(any()) } returns 8L
+        every { catalogService.detail(8L) } returnsMany listOf(detail(8L, state = "FAILED"), detail(8L, state = "PENDING"))
+        every { foundationModelsClient.isEnabled } returns true
+
+        val response = service.resolve("Failed Brew", null, "pu erh, earthy")
+
+        assertEquals(ResolveStatus.ENRICHING, response.status)
+        verify { stubService.resetToPending(8L) }
+        verify { llmEnrichmentService.enrich(8L, "Failed Brew", "pu erh, earthy") }
     }
 
     @Test
@@ -51,42 +83,39 @@ class ResolveServiceTest {
         every { upsertService.createOrGet(longjing) } returns WikidataUpsertService.CreateResult(42L, created = true)
         every { catalogService.detail(42L) } returns detail(42L)
 
-        val response = service.resolve("Longjing", "en")
+        val response = service.resolve("Longjing", "en", null)
 
         assertEquals(ResolveStatus.ENRICHED, response.status)
         assertEquals(42L, response.tea?.id)
     }
 
     @Test
-    fun `Wikidata hit on an already-imported tea is MATCHED`() {
-        every { repository.findIdByNormalizedName(any()) } returns null
-        every { wikidataClient.findTea(any(), any()) } returns longjing
-        every { upsertService.createOrGet(longjing) } returns WikidataUpsertService.CreateResult(42L, created = false)
-        every { catalogService.detail(42L) } returns detail(42L)
-
-        assertEquals(ResolveStatus.MATCHED, service.resolve("Longjing", null).status)
-    }
-
-    @Test
-    fun `Wikidata miss returns UNRESOLVED and creates nothing`() {
+    fun `Wikidata miss with the LLM tier disabled returns UNRESOLVED`() {
         every { repository.findIdByNormalizedName(any()) } returns null
         every { wikidataClient.findTea(any(), any()) } returns null
+        every { foundationModelsClient.isEnabled } returns false
 
-        val response = service.resolve("Totally Unknown Brew", null)
+        val response = service.resolve("Totally Unknown Brew", null, null)
 
         assertEquals(ResolveStatus.UNRESOLVED, response.status)
         assertEquals(null, response.tea)
-        verify(exactly = 0) { upsertService.createOrGet(any()) }
+        verify(exactly = 0) { llmEnrichmentService.enrich(any(), any(), any()) }
     }
 
     @Test
-    fun `a match with no usable labels is treated as UNRESOLVED`() {
+    fun `Wikidata miss with the LLM tier enabled creates a PENDING stub and dispatches`() {
         every { repository.findIdByNormalizedName(any()) } returns null
-        every { wikidataClient.findTea(any(), any()) } returns
-            WikidataTea("Q1", TeaType.OTHER, null, null, null, null, null)
+        every { wikidataClient.findTea(any(), any()) } returns null
+        every { foundationModelsClient.isEnabled } returns true
+        every { stubService.createOrGetStub("Unknown Brew", null) } returns
+            EnrichmentStubService.StubResult(99L, created = true, state = "PENDING")
+        every { catalogService.detail(99L) } returns detail(99L, state = "PENDING")
 
-        assertEquals(ResolveStatus.UNRESOLVED, service.resolve("x", null).status)
-        verify(exactly = 0) { upsertService.createOrGet(any()) }
+        val response = service.resolve("Unknown Brew", null, null)
+
+        assertEquals(ResolveStatus.ENRICHING, response.status)
+        assertEquals("PENDING", response.tea?.enrichmentState)
+        verify { llmEnrichmentService.enrich(99L, "Unknown Brew", null) }
     }
 
     @Test
@@ -97,9 +126,23 @@ class ResolveServiceTest {
         every { upsertService.findExisting(longjing) } returns 50L
         every { catalogService.detail(50L) } returns detail(50L)
 
-        val response = service.resolve("Longjing", null)
+        val response = service.resolve("Longjing", null, null)
 
         assertEquals(ResolveStatus.MATCHED, response.status)
         assertEquals(50L, response.tea?.id)
+    }
+
+    @Test
+    fun `a lost stub-insert race is treated as a cache hit`() {
+        every { repository.findIdByNormalizedName("New Brew") } returnsMany listOf(null, 60L)
+        every { wikidataClient.findTea(any(), any()) } returns null
+        every { foundationModelsClient.isEnabled } returns true
+        every { stubService.createOrGetStub("New Brew", null) } throws DataIntegrityViolationException("dup")
+        every { catalogService.detail(60L) } returns detail(60L, state = "PENDING")
+
+        val response = service.resolve("New Brew", null, null)
+
+        assertEquals(ResolveStatus.ENRICHING, response.status)
+        assertEquals(60L, response.tea?.id)
     }
 }

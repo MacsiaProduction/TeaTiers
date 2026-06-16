@@ -88,6 +88,7 @@ class TeaCatalogService(
             verificationStatus = verificationStatus,
             confidence = confidence,
         ),
+        enrichmentState = enrichmentState,
     )
 
     private fun List<TeaName>.toNameDtos() = this

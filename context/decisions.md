@@ -1241,3 +1241,38 @@ deviated.
       final; promote run-07 prompts to `context/flavor-system/prompts.md`; then wire the server LLM tier
       (config-selectable modelUri, key from Lockbox). The `gold.json` + `run_bakeoff.py` harness is the
       regression gate (re-run on prompt/model-version change; block if MAE > 1.0).
+
+66. **M4 slice 2 — async LLM flavor-enrichment tier wired (`/resolve` step 3)** (backend, branch
+    `feat/llm-enrich-tier` off `main`). Built the §6-step-3 paid enrichment tier behind the Wikidata
+    backbone, using the #65 picks. **User-selected shape (AskQuestion):** `async_now` + `env_deploy` +
+    `miss_only`.
+    - **Async, miss-only.** On a **Wikidata miss** (LLM tier enabled), `/resolve` inserts a minimal
+      `PENDING` stub row (`source='ai'`, type `OTHER` placeholder, the user's typed name as the primary
+      name) and returns **`ENRICHING`** immediately; a background `@Async` worker (`enrichmentExecutor`,
+      bounded pool, `AbortPolicy`) calls the model, validates, and flips the row to **`DONE`/`FAILED`**.
+      The client polls `GET /teas/{id}` on `enrichmentState`. LLM enrichment does **not** run on a
+      Wikidata hit (decision: reference profile only fills genuine gaps for now). With the tier disabled
+      (blank key/folder), a miss stays `UNRESOLVED` — the backbone is unchanged.
+    - **Schema (Flyway V2).** `tea.enrichment_state` (`PENDING|DONE|FAILED`, NULL = not LLM-managed) +
+      `enrichment_error` (short reason, never user text) + a partial index on `PENDING` for restart sweeps.
+      `TeaDetailDto` exposes `enrichmentState`; `ResolveStatus` gains `ENRICHING`.
+    - **Key delivery (`env_deploy`).** `teatiers.llm.api-key` / `folder-id` are injected as **env vars at
+      deploy** (`TEATIERS_LLM_API_KEY` / `YC_FOLDER_ID`, sourced from Lockbox `teatiers-llm-api-key`) —
+      never in VCS (rule 50-secure). Blank key **or** `enabled=false` ⇒ tier off (`FoundationModelsClient.
+      isEnabled`).
+    - **Client + validation.** One `FoundationModelsClient` over the OpenAI-compat endpoint
+      (`response_format:json_schema`, timeouts + one retry/backoff). Code-side guards are authoritative
+      (per #65): reject non-JSON / incomplete dimensions / fail closed; clamp dimension values 0–5 and
+      confidence; zero-shot cap×0.7 + central-tendency ×0.5 gate; **drop the blurb on ≥ 0.5 shingle
+      overlap** with the vendor text (copyright + injection). Chinese-source requests route to the Qwen3
+      booster, all else to Alice Flash.
+    - **Retry path.** Re-`/resolve`-ing a name whose stub is `FAILED` re-arms it to `PENDING` and
+      re-dispatches (carrying any newly pasted `sourceText`). Stub creation is idempotent on `dedup_key`
+      with concurrent-insert-race recovery.
+    - **Tests.** Unit: resolve orchestration (miss→ENRICHING, PENDING cache hit, FAILED retry, races),
+      `EnrichmentText` guards, `LlmEnrichmentService.profile` (clamp/route/copy-drop/parse failures).
+      Testcontainers IT: stub create→DONE (flavors + ru blurb + aliases + type + confidence) and
+      FAILED/reset transitions over the real V2 schema. Full server suite green
+      (`TESTCONTAINERS_RYUK_DISABLED=true` locally).
+    - **Still open (unchanged from #65):** zh-source + grounded gold sets before the booster pick is final;
+      app-side optimistic add / `enrichmentState` UI / reference-vs-mine flavor / photos.

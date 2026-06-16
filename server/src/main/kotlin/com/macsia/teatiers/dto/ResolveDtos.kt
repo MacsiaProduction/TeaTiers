@@ -29,10 +29,12 @@ data class ResolveRequestDto(
  * Outcome of a resolve call:
  * - [MATCHED]: returned an existing catalog row (dedup/cache hit or a prior Wikidata import).
  * - [ENRICHED]: created a new (unverified) row from a fresh Wikidata match.
- * - [UNRESOLVED]: no catalog or Wikidata match; nothing was created (the LLM tier, when enabled,
- *   will fill this gap).
+ * - [ENRICHING]: Wikidata missed, so a minimal stub row was created and an async LLM enrichment job
+ *   was dispatched; `tea.enrichmentState` is `PENDING`. The client shows the stub and polls
+ *   `GET /teas/{id}` until the state flips to `DONE`/`FAILED`.
+ * - [UNRESOLVED]: no match and the LLM tier is disabled; nothing was created.
  */
-enum class ResolveStatus { MATCHED, ENRICHED, UNRESOLVED }
+enum class ResolveStatus { MATCHED, ENRICHED, ENRICHING, UNRESOLVED }
 
 /** Resolve response: the status plus the resolved tea (null only for [ResolveStatus.UNRESOLVED]). */
 data class ResolveResponseDto(

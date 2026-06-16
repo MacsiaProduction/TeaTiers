@@ -67,6 +67,9 @@ data class TeaDetailDto(
     val descriptions: List<TeaDescriptionDto>,
     val flavors: List<TeaFlavorDto>,
     val provenance: TeaProvenanceDto,
+    // Async LLM enrichment state (null = not LLM-enriched): PENDING while a job runs, DONE/FAILED after.
+    // The client polls this endpoint after an ENRICHING resolve and can offer a retry on FAILED.
+    val enrichmentState: String?,
 )
 
 /**
