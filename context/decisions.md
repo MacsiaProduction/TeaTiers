@@ -906,3 +906,30 @@ deviated.
       on context start. `contextLoads` + a `TeaRepository` round-trip (cascade names/descriptions/flavors,
       `findByWikidataQid`/`findByDedupKey`) prove the schema end-to-end. Ryuk is disabled locally for
       rootless podman; a JVM shutdown hook stops the singleton.
+
+51. **Read-only catalog API lands (M2 stripe, PR 2 of 3)** — the `§5` endpoints over the PR-1 schema.
+    Seed (PR 3) and the deploy/Docker/Terraform tail still follow.
+    - **Endpoints** under `/api/v1/teas`: `GET /search?q=&locale=&type=&origin=&cursor=&limit=` (cursor-
+      paged), `GET /{id}` (full detail), `GET /facets` (distinct types/origins for filter chips). Write/
+      enrich (`POST /resolve`) stays in M4.
+    - **DTOs are decoupled from entities** (`TeaSummaryDto`/`TeaDetailDto`/`TeaNameDto`/`TeaDescriptionDto`/
+      `TeaFlavorDto`/`TeaImageDto`/`TeaProvenanceDto`/`PageDto`/`FacetsDto`). Detail exposes provenance +
+      `verificationStatus` so clients can show the "unverified" hint (#23). Names are returned primary-first.
+    - **Search semantics:** a tea matches when **any** of its names contains `q` (case-insensitive
+      substring), optionally narrowed by name `locale`, `type`, `origin`. **Keyset pagination by id**:
+      `cursor` = the last id seen; `nextCursor` is non-null only when a full page was returned. `limit`
+      defaults to 20, capped at 50. Two-step load (matching ids, then teas with names fetch-joined) avoids
+      the in-memory-pagination warning and N+1.
+    - **Dynamic search uses the JPA Criteria API** (a `TeaSearchRepository` fragment), not a `:p is null or
+      ...` JPQL query: on PostgreSQL an untyped null bind is inferred as `bytea`, so `lower('%'||NULL||'%')`
+      fails with `function lower(bytea) does not exist`. Building predicates dynamically omits null filters
+      entirely. User `q` is escaped for LIKE wildcards (`%`/`_`) and matched as a literal.
+    - **Errors = RFC-7807 problem+json** (`spring.mvc.problemdetails.enabled` + a `@RestControllerAdvice`).
+      Built-in MVC exceptions (bad enum/number params, unknown routes) render as problem+json out of the
+      box; the advice only adds the domain 404 (`TeaNotFoundException` -> "Tea not found").
+    - **Spring Boot 4 gotcha:** `@WebMvcTest` moved to `org.springframework.boot.webmvc.test.autoconfigure`
+      and now needs the explicit **`spring-boot-starter-webmvc-test`** test dependency (it was dropped from
+      `spring-boot-starter-test` by the Boot 4 modularization).
+    - **Tests:** a `@WebMvcTest` slice (service mocked via a MockK `@TestConfiguration` bean) asserts the
+      JSON contract + 404/400 problem+json; a Testcontainers `TeaCatalogServiceIT` proves the real Criteria
+      SQL (substring + locale/type filters, cursor paging, detail, facets) against PostgreSQL.
