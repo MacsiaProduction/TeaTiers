@@ -1370,6 +1370,12 @@ deviated.
         on fuzzy search + Wikidata resolve first. Content effort, not code.
       - **#70.5 en/zh UI timing.** Ship `values-en`/`values-zh` for the release, or keep ru-only with explicit
         picker copy (M5).
+      - **#70.6 Background WorkManager for queued enrichment.** In-app resume now runs on every app-open
+        (#73), but a tea queued offline while the app is *closed* still waits for the next open. True
+        background retry (process-death / reboot) needs **WorkManager** — a new dependency + a Hilt+WorkManager
+        runtime integration not device-verifiable here against the AGP 9 / Kotlin 2.4 toolchain. *Decision
+        needed:* add it (recommend the Hilt `EntryPoint` worker pattern, network-constrained, unique-by-tea-id
+        work), or accept resume-on-app-open as sufficient for MVP (the release gate's "honest copy" branch).
 
 71. **Global daily LLM ceiling (backend cost protection)** (review P1, plan §6 "quota protection"; off
     `main`). The per-IP `ResolveRateLimiter` bounds one caller's burst, but many users share an IP behind
@@ -1392,3 +1398,14 @@ deviated.
     catalogTeaId == null`) since a pick already carries the names + id (no redundant re-resolve). Tests:
     repository dedup-by-catalog-id across two boards; ViewModel carries the id + skips enrichment on a pick.
     Full app suite green.
+
+73. **In-app enrichment resume hardening (app)** (review P1 "durable queued enrichment"; off `main`).
+    The fully-verifiable slice of the review's WorkManager item: (a) `resumePending()` now also fires from
+    **`BoardsViewModel`** (the app's home), so a `QUEUED`/`PENDING` tea retries on **app-open**, not only
+    when a specific board is opened; (b) `TeaEnrichmentManager` keeps an **in-flight set** so the same tea
+    swept by both the home and a board (or any double dispatch) runs **once** — no wasted resolve / daily
+    token. Tests: a gated-resolve concurrency test (second dispatch dropped) + `BoardsViewModel` resumes on
+    init; full app suite green. **Deliberately NOT done here:** true post-process-death / reboot background
+    retry via **WorkManager** — it adds a dependency and a Hilt+WorkManager runtime integration that can't be
+    device-verified in this environment against the AGP 9 / Kotlin 2.4 toolchain, for modest reward over
+    resume-on-app-open. Recorded as **open decision #70.6** below.

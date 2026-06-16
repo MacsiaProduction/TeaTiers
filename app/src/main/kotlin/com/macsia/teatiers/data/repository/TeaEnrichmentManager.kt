@@ -9,6 +9,7 @@ import com.macsia.teatiers.domain.model.EnrichmentState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,7 +22,7 @@ import javax.inject.Singleton
  *                     └▶ Enriching ─ poll detail ─▶ DONE  ▶ patch + DONE
  *                     │                          └▶ FAILED ▶ FAILED
  *                     ├▶ Unresolved ─────────────▶ DONE (nothing to add; keep the typed tea)
- *                     ├▶ Offline ────────────────▶ QUEUED (re-runs on next launch)
+ *                     ├▶ Offline ────────────────▶ QUEUED (re-runs on the next app-open via resumePending)
  *                     └▶ Error ──────────────────▶ FAILED (user can retry)
  *
  * Enriched names are editable suggestions, never authoritative (#21): the patch only fills a field
@@ -40,6 +41,11 @@ class TeaEnrichmentManager @Inject constructor(
     // so Hilt still builds the manager; tests shorten the interval to run the loop without waiting.
     internal var pollIntervalMs: Long = 1_500L
     internal var maxPolls: Int = 8
+
+    // Teas with enrichment in flight right now. resumePending() runs on every app-open + board-open,
+    // so the same QUEUED/PENDING tea can be swept twice; this drops the redundant concurrent dispatch
+    // (and the wasted resolve call / daily-budget token) without blocking a later legitimate retry.
+    private val inFlight = ConcurrentHashMap.newKeySet<String>()
 
     /** Fire-and-forget enrichment of a just-added tea ([name] = its typed primary name). */
     fun enrich(teaId: String, name: String, sourceText: String? = null) {
@@ -64,6 +70,7 @@ class TeaEnrichmentManager @Inject constructor(
     }
 
     private suspend fun runEnrichment(teaId: String, name: String, sourceText: String?) {
+        if (!inFlight.add(teaId)) return // already enriching this tea — skip the duplicate dispatch
         try {
             dao.updateEnrichmentState(teaId, EnrichmentState.PENDING.name)
             when (val result = catalog.resolve(name = name, locale = null, sourceText = sourceText)) {
@@ -77,6 +84,8 @@ class TeaEnrichmentManager @Inject constructor(
         } catch (_: Exception) {
             // Fail closed: any unexpected error leaves a retryable card, never a stuck spinner.
             runCatching { dao.updateEnrichmentState(teaId, EnrichmentState.FAILED.name) }
+        } finally {
+            inFlight.remove(teaId)
         }
     }
 
