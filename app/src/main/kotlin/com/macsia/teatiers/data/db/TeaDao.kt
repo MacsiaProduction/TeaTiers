@@ -157,6 +157,38 @@ abstract class TeaDao {
     @Query("DELETE FROM purchase_locations WHERE teaId = :teaId")
     abstract suspend fun deletePurchasesFor(teaId: String)
 
+    // --- Full-database export / replace (decisions.md #26) -------------------------------------
+    // Plain table dumps, no relation assembly: the backup serializer rebuilds the graph from ids,
+    // which keeps the JSON schema a faithful 1:1 of the tables (placement positions/tierIds round
+    // trip) and decoupled from the read-side aggregates.
+
+    @Query("SELECT * FROM boards")
+    abstract suspend fun allBoards(): List<BoardEntity>
+
+    @Query("SELECT * FROM tiers")
+    abstract suspend fun allTiers(): List<TierEntity>
+
+    @Query("SELECT * FROM teas")
+    abstract suspend fun allTeaRows(): List<TeaEntity>
+
+    @Query("SELECT * FROM placements")
+    abstract suspend fun allPlacements(): List<PlacementEntity>
+
+    @Query("SELECT * FROM tea_flavors")
+    abstract suspend fun allFlavors(): List<FlavorEntity>
+
+    @Query("SELECT * FROM purchase_locations")
+    abstract suspend fun allPurchases(): List<PurchaseLocationEntity>
+
+    @Query("SELECT * FROM tea_photos")
+    abstract suspend fun allPhotos(): List<PhotoEntity>
+
+    @Query("DELETE FROM boards")
+    abstract suspend fun deleteAllBoards()
+
+    @Query("DELETE FROM teas")
+    abstract suspend fun deleteAllTeas()
+
     @Transaction
     open suspend fun seed(
         boards: List<BoardEntity>,
@@ -174,6 +206,39 @@ abstract class TeaDao {
         insertFlavors(flavors)
         insertPurchases(purchases)
         if (photos.isNotEmpty()) insertPhotos(photos)
+    }
+
+    /** One consistent read of every table for the export bundle (decisions.md #26). */
+    @Transaction
+    open suspend fun exportSnapshot(): SeedEntities = SeedEntities(
+        boards = allBoards(),
+        tiers = allTiers(),
+        teas = allTeaRows(),
+        placements = allPlacements(),
+        flavors = allFlavors(),
+        purchases = allPurchases(),
+        photos = allPhotos(),
+    )
+
+    /**
+     * Destructive restore (decisions.md #26): wipes the whole catalog and reinserts [data] in one
+     * transaction. Deleting boards then teas cascades tiers/placements/flavors/purchases/photos, so
+     * a half-applied import can never leave a mix of old and new rows. Photo *files* on disk are
+     * the caller's responsibility (restored before this runs; old ones are orphaned).
+     */
+    @Transaction
+    open suspend fun replaceAll(data: SeedEntities) {
+        deleteAllBoards()
+        deleteAllTeas()
+        seed(
+            data.boards,
+            data.tiers,
+            data.teas,
+            data.placements,
+            data.flavors,
+            data.purchases,
+            data.photos,
+        )
     }
 
     /**

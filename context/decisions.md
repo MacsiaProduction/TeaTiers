@@ -839,3 +839,35 @@ deviated.
     - **Tests:** pure-JVM `SettingsModelsTest` covers `isDarkTheme` (system follows flag;
       light/dark ignore it) and `appLanguageOf` (primary-subtag match across region/script,
       comma-list first-wins, null/empty/unknown → SYSTEM, tag table).
+
+## 2026-06-16 — file export / import (M1, #26)
+
+49. **Export/import ships in M1** (decisions.md #26), in the Settings screen's "Данные" section.
+    The bundle is a **zip**: `backup.json` (a faithful 1:1 of the DB tables — boards/tiers/teas/
+    placements/flavors/purchases/photos, so placement positions + tier ids round-trip) + the actual
+    **photo files** under `photos/` (so a restore on a new device keeps photos, per plan.md). No
+    accounts, no GMS.
+    - **Import = replace-all (destructive), behind a confirm dialog** (the open item in plan.md is
+      now resolved this way; it matches the "restore a backup" mental model and sidesteps id-clash
+      merge logic). `TeaDao.replaceAll` wipes boards+teas (FK cascade clears the rest) and re-seeds
+      in one transaction; photos are written to disk *before* the row insert. Old photo files are
+      orphaned on disk (acceptable for MVP).
+    - **Export delivery = SAF "create document" (save-to) + a Share action.** Save uses
+      `ActivityResultContracts.CreateDocument("application/zip")`; Share writes to `cacheDir/backups/`
+      and hands a `FileProvider` (`${'$'}{applicationId}.fileprovider`, `@xml/file_paths`) content
+      URI to `ACTION_SEND`. Import uses `OpenDocument(["application/zip","application/octet-stream"])`
+      (octet-stream because some providers relabel a .zip).
+    - **Serialization = kotlinx.serialization** (new plugin `kotlin-serialization` pinned to Kotlin
+      2.4.0 + `kotlinx-serialization-json 1.11.0`). `@Serializable` DTOs are decoupled from the Room
+      entities and gated by `formatVersion` (1); a bundle with a newer `formatVersion` is rejected
+      as `InvalidFile`. `Json{ignoreUnknownKeys=true}` keeps old backups loadable after additive
+      schema growth.
+    - **Layering:** pure `BackupModels` (entities ↔ DTOs; file-backed photo → `photos/<id>.<ext>`,
+      URL-backed photo keeps its `uri`; a bundled photo whose file is missing on restore is dropped)
+      + pure `BackupArchive` (java.util.zip read/write) — both unit-tested on the JVM — under a thin
+      Android `BackupManager` (SAF streams, `PhotoStore.importInto`, `dao.replaceAll`). `BackupViewModel`
+      reports results as one-shot snackbars / a share-intent request.
+    - **Tests:** `BackupModelsTest` (file-vs-URL photo handling, full table round-trip, missing-file
+      drop, JSON encode→decode pipeline) + `BackupArchiveTest` (zip write/read, no-json zip → blank).
+    - **Out of scope (post-MVP, unchanged):** optional auto-sync to the user's own cloud (Yandex
+      Disk via SAF, still no accounts).

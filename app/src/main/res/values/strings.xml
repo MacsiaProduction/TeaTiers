@@ -41,7 +41,6 @@
     <string name="a11y_settings_open">Настройки</string>
 
     <string name="settings_theme_section">Оформление</string>
-    <string name="settings_theme_mode">Тема</string>
     <string name="settings_theme_system">Как в системе</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
@@ -54,6 +53,21 @@
     <string name="settings_language_en">English</string>
     <string name="settings_language_zh">中文</string>
     <string name="settings_language_hint">Переводы интерфейса появятся позже; пока доступен русский.</string>
+
+    <string name="settings_data_section">Данные</string>
+    <string name="backup_export">Сохранить копию</string>
+    <string name="backup_export_hint">Выгрузить все подборки, чаи и фото в один файл.</string>
+    <string name="backup_share">Поделиться копией</string>
+    <string name="backup_import">Восстановить из файла</string>
+    <string name="backup_import_hint">Загрузить резервную копию (текущие данные будут заменены).</string>
+    <string name="backup_share_chooser">Поделиться копией</string>
+    <string name="backup_export_done">Резервная копия сохранена</string>
+    <string name="backup_import_done">Данные восстановлены</string>
+    <string name="backup_invalid_file">Файл не похож на резервную копию TeaTiers</string>
+    <string name="backup_failed">Не удалось. Попробуйте ещё раз.</string>
+    <string name="backup_import_confirm_title">Восстановить из файла?</string>
+    <string name="backup_import_confirm_message">Все текущие подборки, чаи, заметки и фото будут заменены данными из файла. Это действие необратимо.</string>
+    <string name="backup_import_confirm_action">Заменить</string>
 
     <string name="settings_about_section">О приложении</string>
     <!-- %1$s — versionName (e.g. 0.1.0). -->

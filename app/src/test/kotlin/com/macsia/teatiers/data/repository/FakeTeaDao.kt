@@ -101,6 +101,38 @@ class FakeTeaDao : TeaDao() {
         refresh()
     }
 
+    override suspend fun allBoards(): List<BoardEntity> = boards.toList()
+
+    override suspend fun allTiers(): List<TierEntity> = tiers.toList()
+
+    override suspend fun allTeaRows(): List<TeaEntity> = teas.toList()
+
+    override suspend fun allPlacements(): List<PlacementEntity> = placements.toList()
+
+    override suspend fun allFlavors(): List<FlavorEntity> = flavors.toList()
+
+    override suspend fun allPurchases(): List<PurchaseLocationEntity> = purchases.toList()
+
+    override suspend fun allPhotos(): List<PhotoEntity> = photos.toList()
+
+    // Mirrors Room's ON DELETE CASCADE: boards -> tiers + placements.
+    override suspend fun deleteAllBoards() {
+        boards.clear()
+        tiers.clear()
+        placements.clear()
+        refresh()
+    }
+
+    // Mirrors Room's ON DELETE CASCADE: teas -> placements + flavors + purchases + photos.
+    override suspend fun deleteAllTeas() {
+        teas.clear()
+        placements.clear()
+        flavors.clear()
+        purchases.clear()
+        photos.clear()
+        refresh()
+    }
+
     override suspend fun loadPhotos(teaId: String): List<PhotoEntity> =
         photos.filter { it.teaId == teaId }.sortedBy { it.position }
 

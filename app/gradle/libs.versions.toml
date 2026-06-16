@@ -18,6 +18,7 @@ turbine = "1.2.1"
 coil = "3.5.0"
 datastore = "1.2.1"
 appcompat = "1.7.1"
+kotlinxSerialization = "1.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -56,6 +57,10 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # locales below API 33 and integrates with the system locale picker on 33+.
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 
+# JSON for the export/import backup bundle (M1, #26). The compiler plugin (kotlin-serialization
+# below, pinned to the Kotlin version) generates the serializers for the @Serializable DTOs.
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
 # Local persistence (M1). room-ktx adds Flow + suspend support; room-compiler runs via KSP.
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
@@ -75,5 +80,7 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 # No kotlin-android: AGP 9 built-in Kotlin replaces it. The Compose compiler plugin (below,
 # version.ref = kotlin) overrides the built-in KGP to our pinned 2.4.0.
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# Pinned to the Kotlin version: the serialization compiler plugin ships with KGP.
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
