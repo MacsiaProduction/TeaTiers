@@ -76,30 +76,51 @@ If `plan` proposes to replace the VM, stop and reconcile `compute.tf` to the liv
 
 ### 3. Build + push the server image
 
-```
-yc container registry configure-docker          # one-time docker auth to cr.yandex
-REG="$(tofu output -raw registry_id)"
-docker buildx build --platform linux/amd64 -t "cr.yandex/$REG/teatiers-server:latest" \
-  --push ../server
-tofu apply -var "server_image=cr.yandex/$REG/teatiers-server:latest"   # writes it into cloud-init
-```
-
-### 4. Provision / deploy on the VM
-
-cloud-init only runs on first boot, and the VM predates this config, so for the **adopted** VM run
-the stack once over SSH (subsequent recreates use the rendered cloud-init automatically):
+The bootJar is JVM bytecode (architecture-independent), so build it once natively, then wrap it in
+an amd64 runtime image. `REG="$(tofu output -raw registry_id)"`.
 
 ```
-ssh -i ~/.ssh/teatiers yc-user@93.77.185.62
-# the puller SA is now attached; install Docker, log in to CR with the metadata token, then:
-cd /opt/teatiers && docker compose pull && docker compose up -d
+cd ../server && ./gradlew bootJar          # build/libs/teatiers-server-*.jar
 ```
 
-Verify: `curl https://tea.macsia.fun/actuator/health` → `{"status":"UP"}`.
+- **With buildx (Docker Desktop / a docker-container builder):**
+  ```
+  yc container registry configure-docker
+  docker buildx build --platform linux/amd64 -t "cr.yandex/$REG/teatiers-server:latest" --push ../server
+  ```
+- **Without buildx (e.g. a podman machine, where cross-arch builds fail on overlay mounts):** copy
+  the jar to the amd64 VM and build the runtime image there (native, no Gradle compile), then push
+  with an IAM token:
+  ```
+  scp -i ~/.ssh/teatiers server/build/libs/teatiers-server-*.jar yc-user@93.77.185.62:/tmp/app.jar
+  # on the VM: a 4-line Dockerfile (FROM eclipse-temurin:21-jre-jammy / COPY app.jar / USER 10001 /
+  # ENTRYPOINT java -jar) -> docker build -t cr.yandex/$REG/teatiers-server:latest .
+  yc iam create-token | ssh ... 'docker login --username iam --password-stdin cr.yandex && docker push cr.yandex/'$REG'/teatiers-server:latest'
+  ```
+
+### 4. Deploy on the VM
+
+cloud-init only runs on first boot and the VM predates this config, so provision the adopted VM over
+SSH (the puller SA is attached, Docker installed via `apt install docker.io docker-compose-v2`):
+
+```
+scp -i ~/.ssh/teatiers infra/deploy/docker-compose.prod.yml yc-user@93.77.185.62:/opt/teatiers/docker-compose.yml
+scp -i ~/.ssh/teatiers infra/deploy/Caddyfile               yc-user@93.77.185.62:/opt/teatiers/Caddyfile
+# write /opt/teatiers/.env with DOMAIN, ACME_EMAIL, SERVER_IMAGE, POSTGRES_DB/USER and the
+# password from Lockbox:  yc lockbox payload get --name teatiers-db
+ssh -i ~/.ssh/teatiers yc-user@93.77.185.62 'cd /opt/teatiers && sudo docker compose up -d'
+```
+
+Verify: `curl https://tea.macsia.fun/actuator/health` → `{"status":"UP"}`. **Live since 2026-06-16**
+(Let's Encrypt cert via Caddy; `restart: unless-stopped` survives reboots).
 
 ## Notes
 
 - **State locking** uses the native S3 lock object (`use_lockfile`), fine for a single operator. If
   Yandex Object Storage rejects it, drop locking or add a YDB lock table.
+- The VM's `metadata.user-data` is intentionally left unset (cloud-init can't re-run on a live VM and
+  it would make metadata "known after apply", obscuring whether `ssh-keys` is preserved). The
+  rendered provisioning script is still available as `tofu output -raw vm_cloud_init` and wired back
+  into metadata for a from-scratch recreate.
 - `import` blocks are no-ops once state holds the resources; they can be deleted after step 2.
 - Secrets (`AWS_*`, the Lockbox DB password, SA keys) never enter VCS — see `.gitignore`.

@@ -17,3 +17,9 @@ output "vm_external_ip" {
   description = "Public IP of the VM (DNS A record target for var.domain)."
   value       = "93.77.185.62"
 }
+
+output "vm_cloud_init" {
+  description = "Rendered provisioning script (cloud-init) for the VM; contains the DB password. Used to provision the adopted VM over SSH and for a future from-scratch recreate."
+  value       = local.cloud_init
+  sensitive   = true
+}

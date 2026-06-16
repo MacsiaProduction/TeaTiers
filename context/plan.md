@@ -280,8 +280,10 @@ Testcontainers harness (decision #50). **PR 2 ✅ read API** — §5 `/teas/sear
 curated static JSON seed** — 13 own-authored teas (ru/en/zh-Hans/pinyin + flavors + blurbs), idempotent
 `CatalogSeeder` keyed on a shared `DedupKeys` normalizer, gated by `teatiers.seed.enabled` (decision #52).
 **Deploy stack** ✅ `docker-compose` now runs server + self-hosted `postgres:16-alpine` (datasource from
-env, DB port unpublished), verified end-to-end locally (Flyway + seed + API) (decision #54). (Live
-Wikidata SPARQL re-sync + OFF taxonomy + VM provisioning/Terraform deploy stay later in M2.)*
+env, DB port unpublished), verified end-to-end locally (Flyway + seed + API) (decision #54).
+**Deployed** ✅ live on the Yandex Cloud VM via OpenTofu (imported VM/SG/IP + CR + puller SA + Lockbox)
+behind Caddy auto-HTTPS at **https://tea.macsia.fun** (decisions #55–57). (Live Wikidata SPARQL
+re-sync + OFF taxonomy are the only optional M2-data leftovers.)*
 
 **M3 — Catalog integration (needs M1 + M2).**
 Wire the app to the catalog: **catalog search** in add-tea (Retrofit + `catalog_cache`,
@@ -440,10 +442,12 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
   scripts hitting the write-capable `resolve`).
 - **Console verifications:** Qwen3-235B / DeepSeek Flash availability + pricing in the
   Yandex gallery — before **M4** (#18). ✅ Yandex provider version verified (`0.206.0`, #55).
-- **Import the live VM into IaC (M2):** a first `teatiers` VM + `teatiers-sg` + static IP
-  `93.77.185.62` (`tea.macsia.fun`) were hand-created via `yc` to unblock DNS. The `infra/`
-  OpenTofu config + `import` blocks are written and validated (#56); running the credentialed
-  bootstrap/import/apply/push/deploy is the remaining M2 step (see `infra/README.md`).
+- **Import the live VM into IaC (M2):** ✅ done (#57). The hand-created `teatiers` VM +
+  `teatiers-sg` + static IP `93.77.185.62` (`tea.macsia.fun`) are now imported under
+  OpenTofu; CR + puller SA + Lockbox were added (`0 destroyed`) and the Caddy+server+Postgres
+  stack is live at **https://tea.macsia.fun** (see `infra/README.md`). Remaining infra polish
+  (not blockers): move image build into CI (no local `buildx` under podman — built on the VM),
+  pin base-image digests, wire GH Actions `plan`/`apply`.
 - **Run 07 (flavor-prompt tuning)** ✅ resolved — artifacts + Yandex caveats locked in
   decision #44; they drop into §6 step 3 / the M4 prompt module (tunes quality, not
   structure).

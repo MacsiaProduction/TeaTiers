@@ -1012,3 +1012,20 @@ deviated.
     runbook insists `tofu plan` show **zero destroy/replace** before any apply. Both modules pass
     `tofu validate`; **nothing is applied yet** — the credentialed bootstrap/import/apply/push/deploy
     steps follow. Image delivery = YCR, TLS = Caddy, IaC = Terraform-first per the user's choices.
+
+57. **M2 backend is LIVE on Yandex Cloud (2026-06-16).** Ran the full credentialed phase. Bootstrap
+    applied (state SA + key + versioned `teatiers-tfstate` bucket); the root module **imported the
+    VM/SG/static-IP and added CR + puller SA + Lockbox** with a `0-destroy` plan. Two fixes were made
+    during apply, now in the repo: the adopted VM's **`ssh-keys` metadata is set explicitly and
+    `user-data` left unset** — because `user-data` embeds the generated password, including it made
+    the whole metadata map "known after apply", so the plan could not prove SSH access survived;
+    dropping it keeps metadata fully-known (the only VM change is attaching the SA, a brief
+    stop/start) and a new `vm_cloud_init` output exposes the provisioning script. **Image delivery
+    workaround:** the local engine is podman (no `buildx`; cross-arch builds fail on overlay mounts),
+    so the arch-independent bootJar is built natively, copied to the amd64 VM, wrapped in a 4-line
+    runtime image there, and pushed to CR — the canonical multi-stage `server/Dockerfile` stays for
+    buildx/CI environments. Deploy = `infra/deploy/` compose on the VM: **Caddy (Let's Encrypt) →
+    server (from CR) → Postgres**, DB password from Lockbox in a `0600 .env`, `restart:
+    unless-stopped`. Verified externally: `https://tea.macsia.fun/actuator/health` = UP, `/teas/search`
+    serves the 13 seeded teas, valid Let's Encrypt cert. **M2 is done** (read-only catalog API
+    deployed); remaining catalog-data tasks (live Wikidata re-sync, OFF taxonomy) are optional/M-later.
