@@ -1143,3 +1143,20 @@ deviated.
       screen remains open in M3.**
     - **Tests:** ViewModel test (trims the query into `nameRu`, clears the box, arms focus). `lint` + unit
       tests green; debug APK builds.
+
+63. **M3 final slice = attributions/licenses screen** (app-side; plan §M3, PR off `main`). A new
+    `Destination.Attributions` (added to the tiny custom back stack), reached from **Settings → About**
+    via a "Источники данных и лицензии" row, credits the open datasets the catalog is built from:
+    **Wikidata** (CC0 1.0), **Wikipedia** (CC BY-SA 4.0), **Wikimedia Commons** (per-file CC BY-SA / CC BY),
+    **Open Food Facts** (ODbL 1.0). Each card shows a localized one-line summary plus two links — the
+    source site and the license deed — opened via `ACTION_VIEW` (failure swallowed so a missing browser
+    can't crash the screen).
+    - **Static, not fetched:** the list is an in-file `val` of a small `DataSourceCredit` (literal name +
+      license id + URLs, `@StringRes` summary). Source names and license identifiers stay **literal**
+      (proper nouns / standard ids); only the human summaries localize. No VM/state/I-O, so it is a
+      **stateless composable**, not a VM-backed screen.
+    - **Scope:** dataset-level credit only (decision: `attr_scope=data_only`). **Per-record and per-image**
+      attribution already lives on the **detail card** (`CatalogProvenance`, #61); third-party OSS-library
+      licenses were explicitly **out of scope** for this slice.
+    - **Tests:** no new unit logic (static screen); `lint` + the existing app unit tests green, debug APK
+      builds. **This closes M3** — the catalog is wired end-to-end (search → detail → manual-add → credits).
