@@ -470,6 +470,19 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `addManuallyFromQuery carries the trimmed query into the name and arms focus`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository)
+        viewModel.bind(boardId = "b")
+        viewModel.onCatalogQuery("  Дянь Хун  ")
+
+        viewModel.addManuallyFromQuery()
+
+        assertEquals("Дянь Хун", viewModel.form.value.nameRu)
+        assertEquals("", viewModel.catalogQuery.value)
+        assertTrue(viewModel.consumeNameRequiredFocus())
+    }
+
+    @Test
     fun `openCatalogDetail loads and surfaces the detail`() = runTest(mainDispatcher) {
         val detail = catalogTeaDetail(1, ru = "Лунцзин")
         coEvery { catalogRepository.detail(1) } returns CatalogDetailResult.Loaded(detail)

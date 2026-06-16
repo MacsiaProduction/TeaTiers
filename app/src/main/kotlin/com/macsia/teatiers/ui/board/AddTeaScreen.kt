@@ -185,6 +185,12 @@ fun AddTeaScreen(
                     onClear = viewModel::clearCatalogSearch,
                     onPick = viewModel::pickCatalogTea,
                     onInfo = { tea -> viewModel.openCatalogDetail(tea.id) },
+                    onAddManually = {
+                        viewModel.addManuallyFromQuery()
+                        if (viewModel.consumeNameRequiredFocus()) {
+                            nameRuFocusRequester.requestFocus()
+                        }
+                    },
                 )
             }
             OutlinedTextField(
@@ -456,6 +462,7 @@ private fun CatalogSearchField(
     onClear: () -> Unit,
     onPick: (CatalogTea) -> Unit,
     onInfo: (CatalogTea) -> Unit,
+    onAddManually: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
@@ -498,9 +505,24 @@ private fun CatalogSearchField(
                     )
                 }
             }
-            CatalogSearchUiState.Empty -> CatalogHint(stringResource(R.string.catalog_search_empty))
-            CatalogSearchUiState.Offline -> CatalogHint(stringResource(R.string.catalog_search_offline))
-            CatalogSearchUiState.Error -> CatalogHint(stringResource(R.string.catalog_search_error))
+            CatalogSearchUiState.Empty ->
+                CatalogMiss(
+                    message = stringResource(R.string.catalog_search_empty),
+                    query = query,
+                    onAddManually = onAddManually,
+                )
+            CatalogSearchUiState.Offline ->
+                CatalogMiss(
+                    message = stringResource(R.string.catalog_search_offline),
+                    query = query,
+                    onAddManually = onAddManually,
+                )
+            CatalogSearchUiState.Error ->
+                CatalogMiss(
+                    message = stringResource(R.string.catalog_search_error),
+                    query = query,
+                    onAddManually = onAddManually,
+                )
         }
     }
 }
@@ -512,6 +534,34 @@ private fun CatalogHint(text: String) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/**
+ * Terminal non-result state (no match / offline / error): show the reason, then a CTA that
+ * carries the typed query into the name field so the user can add the tea by hand without
+ * retyping. The "paste a description" path is M4 enrichment and lives elsewhere.
+ */
+@Composable
+private fun CatalogMiss(message: String, query: String, onAddManually: () -> Unit) {
+    val trimmed = query.trim()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CatalogHint(message)
+        OutlinedButton(onClick = onAddManually, modifier = Modifier.fillMaxWidth()) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (trimmed.isEmpty()) {
+                    stringResource(R.string.catalog_add_manually_generic)
+                } else {
+                    stringResource(R.string.catalog_add_manually, trimmed)
+                },
+            )
+        }
+    }
 }
 
 @Composable

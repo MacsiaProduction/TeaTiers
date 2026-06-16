@@ -323,9 +323,16 @@ blurb with a "read full" expander, the reference flavor radar/strip, and source/
 attribution. `repository.detail(id)` is network-only (no cache: detail is reached only on an
 explicit tap, so a miss offers retry, not a stale copy); unknown flavor axes are dropped and
 intensities clamped to 0..5. "Использовать этот чай" prefills via the existing pick path. Repo +
-ViewModel detail tests added; lint + 133 unit tests green; debug APK builds. **Still open in M3:**
-tea-card visuals on the board/my-teas lists, the search-miss "add it / paste a description" CTA,
-and the attributions/licenses screen.*
+ViewModel detail tests added; lint + 133 unit tests green; debug APK builds.*
+
+*Progress ✅ **search-miss CTA** (decision #62). When the catalog has no match (or is
+offline/errored), the result area now shows an "add «query» manually" button that carries the
+typed text straight into the name field and routes focus there, instead of dead-ending — so a tea
+the catalog doesn't know yet is one tap from being logged by hand. The "paste a description" half
+is M4 enrichment (`/resolve` with `sourceText`), not this slice. The **tea card** item is already
+covered by M1's `TeaCard` (photo/placeholder + name/pinyin + type chip + flavor strip) and **name
+display = ru + pinyin + hanzi** is satisfied across the search rows, detail sheet, and card. **Still
+open in M3:** the attributions/licenses screen (data-source + image credits with per-item links).*
 
 **M4 — Enrichment, flavor & photos (needs M3).**
 Backend: `POST /teas/resolve` **enrich-on-miss** (Wikidata → YandexGPT Lite → Yandex-native

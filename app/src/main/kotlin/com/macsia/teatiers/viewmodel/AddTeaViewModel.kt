@@ -203,6 +203,20 @@ class AddTeaViewModel @Inject constructor(
     }
 
     /**
+     * Search-miss escape hatch (#62): the catalog doesn't know this tea yet, so carry the typed
+     * query straight into the name field instead of dead-ending. Only the name is implied by the
+     * CTA, so other fields stay untouched. Arms name focus so the user lands inside the form.
+     */
+    fun addManuallyFromQuery() {
+        val query = _catalogQuery.value.trim()
+        if (query.isNotEmpty()) {
+            _form.update { it.copy(nameRu = query) }
+        }
+        pendingNameFocus = true
+        _catalogQuery.value = ""
+    }
+
+    /**
      * Prefills the form from a chosen catalog tea (names + type + origin) and collapses the search.
      * The values are editable suggestions, never authoritative (#21) — the user owns their board.
      * Flavors/blurb need the detail endpoint and stay for a later M3 slice; this is search + prefill.
