@@ -30,10 +30,6 @@ concurrency:
   group: infra-${{ github.ref }}
   cancel-in-progress: false
 
-defaults:
-  run:
-    working-directory: infra
-
 jobs:
   tofu:
     name: tofu ${{ github.event.inputs.action || 'plan' }}
@@ -73,12 +69,15 @@ jobs:
 
       - name: Init
         if: steps.gate.outputs.enabled == 'true'
+        working-directory: infra
         run: tofu init -input=false
 
       - name: Plan
         if: steps.gate.outputs.enabled == 'true'
+        working-directory: infra
         run: tofu plan -input=false -no-color
 
       - name: Apply
         if: steps.gate.outputs.enabled == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+        working-directory: infra
         run: tofu apply -input=false -auto-approve -no-color
