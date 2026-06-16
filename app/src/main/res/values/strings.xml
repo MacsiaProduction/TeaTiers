@@ -180,10 +180,13 @@
     <!-- Catalog search (M3): the box atop the add form; picking a result prefills the fields. -->
     <string name="catalog_search_label">Поиск в каталоге</string>
     <string name="catalog_search_hint">Найдите чай в общем каталоге — поля заполнятся сами.</string>
-    <string name="catalog_search_empty">В каталоге ничего не нашлось. Заполните поля вручную ниже.</string>
-    <string name="catalog_search_offline">Нет соединения с каталогом. Заполните поля вручную.</string>
+    <string name="catalog_search_empty">В каталоге ничего не нашлось.</string>
+    <string name="catalog_search_offline">Нет соединения с каталогом.</string>
     <string name="catalog_search_error">Не удалось загрузить каталог. Попробуйте позже.</string>
     <string name="catalog_search_from_cache">Офлайн-результаты из ранее загруженных.</string>
+    <!-- %1$s — текст, который ввёл пользователь, станет названием чая. -->
+    <string name="catalog_add_manually">Добавить «%1$s» вручную</string>
+    <string name="catalog_add_manually_generic">Заполнить вручную</string>
     <string name="catalog_result_unverified">не проверено</string>
     <!-- %1$s — название чая из каталога. -->
     <string name="a11y_catalog_pick">Выбрать «%1$s» из каталога</string>

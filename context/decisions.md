@@ -1127,3 +1127,19 @@ deviated.
     - **Tests:** MockWebServer repo tests (detail parse + flavor drop/clamp, 5xx→Error, network→Offline);
       ViewModel tests (open→Loaded, use→prefill+clear, close→Hidden, retry→re-fetch, tolerant of `Loading`
       conflation). `lint` + **133** unit tests green; debug APK builds.
+
+62. **M3 next slice = search-miss "add it manually" CTA** (app-side; plan §M3, PR stacked on #26).
+    When the catalog search reaches a terminal non-result state (`Empty`/`Offline`/`Error`), the result
+    area now renders an **"add «query» manually"** button instead of a passive hint. Tapping it calls
+    `AddTeaViewModel.addManuallyFromQuery()`, which copies the trimmed query into `nameRu`, clears the
+    search box, and arms the existing **name-focus pump** (`pendingNameFocus` → `consumeNameRequiredFocus`)
+    so the user lands in the form with the text already carried over — no retyping, no dead end.
+    - **Scope:** this is only the **"add it"** half. The plan's **"paste a description"** half is M4
+      enrichment (`POST /resolve` with `sourceText`, decision #21/#25) and depends on a backend that is
+      still read-only; deliberately deferred, not built here.
+    - **Already covered, marked done:** the M3 **tea-card** item (photo/placeholder + name/pinyin + type
+      chip + flavor strip) is M1's `TeaCard`, and **name display = ru + pinyin + hanzi** holds across the
+      search rows, the detail sheet, and the card — so no new work. **Only the attributions/licenses
+      screen remains open in M3.**
+    - **Tests:** ViewModel test (trims the query into `nameRu`, clears the box, arms focus). `lint` + unit
+      tests green; debug APK builds.
