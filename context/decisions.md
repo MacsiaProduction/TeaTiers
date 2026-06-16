@@ -871,3 +871,38 @@ deviated.
       drop, JSON encode→decode pipeline) + `BackupArchiveTest` (zip write/read, no-json zip → blank).
     - **Out of scope (post-MVP, unchanged):** optional auto-sync to the user's own cloud (Yandex
       Disk via SAF, still no accounts).
+
+50. **Backend persistence foundation lands (M2 stripe, PR 1 of 3)** — the `§4a` catalog schema as
+    a Flyway migration + JPA entities + a Testcontainers integration harness. Read API (`§5`) and the
+    Wikidata seed follow as PRs 2 and 3.
+    - **Schema (`V1__catalog_schema.sql`)** implements plan.md `§4a`: `tea` (surrogate `id`, nullable
+      `wikidata_qid`, type/origin/region/cultivar/oxidation/brand, image ref triple, provenance
+      `source`/`source_url`/`license`/`retrieved_at`, enrichment `verification_status`/`confidence`/
+      `enriched_by`/`enriched_at`, app-maintained `dedup_key`, `created_at`/`updated_at`), `tea_name`
+      (multi-row per locale `en`/`ru`/`zh-Hans`/`pinyin`, `UNIQUE(tea_id,locale,name)` + partial-unique
+      primary per locale + `pg_trgm` GIN on `name`), `tea_description` (`ru`/`en`/`zh`, `short_text`/
+      `full_text`, one row per locale), `tea_flavor` (11-dim + 0–5 intensity, one row per dimension).
+      Extensions `pg_trgm` + `unaccent`; `tea_dedup_key` UNIQUE + partial-unique `wikidata_qid` back the
+      `§6` enrich-on-miss upsert (PR 3).
+    - **Logical enums are stored as `text` + `CHECK`, not native PG `ENUM`** — the flavor vocabulary is
+      explicitly extensible (decision #46) and text maps cleanly to JPA `@Enumerated(STRING)` under
+      `ddl-auto: validate`. `type`/`dimension` are typed enums (`TeaType`/`FlavorDimension`); free-form
+      provenance fields (`source`, `verification_status`, `locale`) stay `String`, validated by the DB
+      `CHECK`. `full_text`/`short_text` avoid the reserved word `full`.
+    - **Flyway owns the schema; Hibernate only validates** (`ddl-auto: validate`, `open-in-view: false`).
+      `Instant` is mapped to `TIMESTAMP WITH TIME ZONE` (`hibernate.type.preferred_instant_jdbc_type`) so
+      validate matches the `timestamptz` columns; smallint↔`Short`, real↔`Float`.
+    - **DB credentials are env-sourced** (`POSTGRES_URL/USER/PASSWORD`) with local-dev defaults only
+      (rule 50-secure); production overrides via env.
+    - **Spring Boot 4 gotchas resolved (verified against upstream 2026-06-16):** Boot 4 modularized
+      auto-configuration — bare `org.flywaydb:flyway-core` no longer triggers migrations, so the build
+      uses the new **`spring-boot-starter-flyway`** (+ `flyway-database-postgresql` runtime). Testcontainers
+      **2.0.5** (managed by the Boot 4 BOM) renamed module artifacts with a `testcontainers-` prefix
+      (`testcontainers-postgresql`, `testcontainers-junit-jupiter`), relocated `PostgreSQLContainer` to
+      `org.testcontainers.postgresql`, and dropped the self-generic type param (use the raw type).
+    - **Test harness:** `AbstractIntegrationTest` runs one **singleton** `postgres:16-alpine` container
+      for the whole JVM (not `@Testcontainers`, which stops/restarts the static container per class and
+      breaks Spring's cached context port); `@ServiceConnection` wires the datasource and Flyway migrates
+      on context start. `contextLoads` + a `TeaRepository` round-trip (cascade names/descriptions/flavors,
+      `findByWikidataQid`/`findByDedupKey`) prove the schema end-to-end. Ryuk is disabled locally for
+      rootless podman; a JVM shutdown hook stops the singleton.
