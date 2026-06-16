@@ -8,7 +8,7 @@ alwaysApply: true
 - Match the style of the surrounding code in the same module/file.
 - Do not delete existing comments unless they are demonstrably wrong or obsolete.
 - Do not add trivial narration comments (`// increment`, `// init viewmodel`, `// return result`).
-- Add a comment only for non-obvious intent, trade-offs, invariants, or constraints the code itself cannot convey.
+- Add a comment only for non-obvious intent, trade-offs, invariants, or constraints the code itself cannot convey, comments should be clean, compact and precise, not bloated.
 - Code comments in English (this is a public repo). User-facing strings are localized (ru/en/zh) in resource files — never hardcoded in code.
 - No emojis in code, commit messages, or PR descriptions.
 - Prefer expressive names and small, focused functions over comments.
