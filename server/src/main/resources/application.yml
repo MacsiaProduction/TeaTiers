@@ -22,6 +22,12 @@ spring:
   flyway:
     enabled: true
 
+  # Render Spring MVC's built-in exceptions (404/405/unsupported media type, etc.) as
+  # RFC-7807 problem+json, matching the catalog advice.
+  mvc:
+    problemdetails:
+      enabled: true
+
 server:
   port: 8080
 
