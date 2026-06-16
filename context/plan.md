@@ -264,6 +264,18 @@ photos — #26) → **settings** (theme/dark, language, export-import, about + p
 usable tier-list app with a backup path — no backend required.** Turbine/MockK +
 `createComposeRule`.
 
+*Progress ✅ M1 is feature-complete (offline, ru UI). Boards CRUD + board screen with
+customizable tiers/tier editor (default S/A/B/C/D) → **Room 2.8.4** persistence, user-data only,
+board-scoped (decision #34) → add/edit tea by typing → **hand-rolled drag-to-rank** + unranked
+tray, no new dependency (decision #38) → notes → purchase location (free-text + URL) → **file
+export/import** bundling photos via SAF (decision #49/#26) → **Settings** screen with DataStore +
+per-app language + theme + About/privacy (decision #48/#28). **Pulled forward from later
+milestones:** the cross-board **"Мои чаи"** view (#27, was M5; decision #47) and the **flavor
+entry UI** across the full 11-dim vocabulary + local flavor radar/strip display (was M4; decision
+#46). Tests = pure-JVM JUnit5 + MockK, no Robolectric yet (decision #37). **Not yet wired:** the
+network layer (no Retrofit/`catalog_cache`) — that is M3. (Known cleanup: migrate the deprecated
+`hiltViewModel()` import, decision #33.)*
+
 **M2 — Backend catalog service (parallel with M1).**
 Flyway schema (§4a, incl. flavor/description/image) → seed job: **Wikidata (CC0)** tea
 subtree (`?t wdt:P31/wdt:P279* wd:Q6097`, en/ru/zh + pinyin — verify QIDs) + the curated
@@ -301,13 +313,16 @@ prompts; **benchmark Alice Flash** as a possible primary (#18). App: **optimisti
 background/queued enrichment + `enrichmentState` indicator/retry** (#21/#28) → **"paste a
 description"** field (#25) → **flavor** display (reference radar/bar) + **user override**
 (quick-rate + "reference vs mine", #23) → **user photo** capture (#24). Outcome: the full
-taste-card experience.
+taste-card experience. *App-side note: the **local** flavor pieces already shipped in M1 — flavor
+entry (full 11-dim) + the user's own radar/strip display (#46) and user photos. M4 adds the
+**backend reference** profile, the "reference vs mine" split (#23), and the enrichment plumbing.*
 
 **M5 — Find & release (needs M4).**
-Cross-board **"my teas"** search/filter (#27) + in-board filter by type/origin → en/zh UI
-→ catalog **curation pass** (promote `unverified`→`verified`, fix bad AI transliterations)
-→ **RuStore packaging** + signing via CI secrets → OWASP Dependency-Check → release
-hardening (no debug logging, cert-pinning consideration). Outcome: release-ready MVP.
+~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
+in-board filter by type/origin → en/zh UI → catalog **curation pass** (promote
+`unverified`→`verified`, fix bad AI transliterations) → **RuStore packaging** + signing via CI
+secrets → OWASP Dependency-Check → release hardening (no debug logging, cert-pinning
+consideration). Outcome: release-ready MVP.
 
 **M6 — Post-MVP (deferred).**
 **Maps & geopoint** (research 02 / #20: a `LocationPickerProvider` = MapLibre + OpenFreeMap
