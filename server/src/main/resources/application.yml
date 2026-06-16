@@ -2,6 +2,26 @@ spring:
   application:
     name: teatiers-catalog
 
+  # Production must override credentials via env (rule 50-secure: no secrets in VCS).
+  # The defaults below are local-dev only and match the docker-compose Postgres.
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/teatiers}
+    username: ${POSTGRES_USER:teatiers}
+    password: ${POSTGRES_PASSWORD:teatiers}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway is the single source of truth for the schema; Hibernate only validates.
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      # Map java.time.Instant to TIMESTAMP WITH TIME ZONE so validate matches the timestamptz columns.
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP_WITH_TIMEZONE
+
+  flyway:
+    enabled: true
+
 server:
   port: 8080
 
