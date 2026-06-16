@@ -176,8 +176,9 @@ is dropped** (decision #18). **Not used:** Gemini (EEA paid-only), Groq/VPN (no 
 needed), Mistral (weak zh), Yandex Translate for names (literal). Enrichment is
 **on-demand only** and **auto-publishes `unverified`** with a confidence score.
 *Verify in console that Qwen3-235B / DeepSeek Flash are listed + their price; if absent,
-fall back to Groq-via-VPN (#17).* *M4 also benchmarks **Alice AI LLM Flash**
-(`aliceai-llm-flash`, 64k, cheaper input) as a possible primary swap.*
+the zh-booster is simply **skipped** (stay on Wikidata + YandexGPT Lite) — Groq-via-VPN is
+**not** a fallback, the VPN is dropped (#18 supersedes #17).* *M4 also benchmarks
+**Alice AI LLM Flash** (`aliceai-llm-flash`, 64k, cheaper input) as a possible primary swap.*
 
 **Client UX (decision #21):** adding a tea is **optimistic** — it lands on the board
 instantly with the user's typed name; the client calls `/resolve` in the **background**
@@ -354,6 +355,23 @@ taste-card experience. *App-side note: the **local** flavor pieces already shipp
 entry (full 11-dim) + the user's own radar/strip display (#46) and user photos. M4 adds the
 **backend reference** profile, the "reference vs mine" split (#23), and the enrichment plumbing.*
 
+*Progress ✅ **M4 slice 1 — `/resolve` Wikidata-first backbone** (decision #64, backend, PR off
+`main`). `POST /api/v1/teas/resolve` now does §6 steps 1–2: normalize the typed name → **cache
+hit** by unaccented name across locales (the dedup cache) → on a miss, a **Wikidata SPARQL** lookup
+constrained to the `tea` (Q6097) `P31/P279*` subtree (so "Longjing" can't match the district) pulls
+ru/en/zh-Hans labels + origin + category (→ `TeaType`) and **upserts an `unverified`, CC0,
+high-confidence (0.9)** row guarded on `wikidata_qid`/`dedup_key` (idempotent under a concurrent-add
+race); a full miss returns `UNRESOLVED` (creates nothing). Bean-validated request (name ≤200,
+sourceText ≤4000 — `sourceText` accepted but reserved for the LLM tier), **per-client fixed-window
+rate-limit** (429 problem+json), RFC-7807 errors. SPARQL query + the 11 tea-category QIDs were
+**verified live** before coding. Tests: client parse/type-priority/query-shape, upsert guards,
+resolve orchestration + race recovery, rate-limiter windows, and a Testcontainers IT (real
+`unaccent` lookup + enrich + idempotency); full server suite green. **Yandex Foundation Models
+access provisioned** (SA `teatiers-llm` + `ai.languageModels.user`; API key in Lockbox
+`teatiers-llm-api-key`) to unblock the LLM tier. **Still open in M4:** §6 steps 3–4 (LLM
+enrich-on-miss + grounded `sourceText` + programmatic confidence), then the app-side optimistic
+add / enrichment-state / flavor reference-vs-mine / photos.*
+
 **M5 — Find & release (needs M4).**
 ~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
 in-board filter by type/origin → en/zh UI → catalog **curation pass** (promote
@@ -439,7 +457,8 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
 - **Western AI providers / VPN dependency** → eliminated (decision #18): all enrichment
   LLMs (YandexGPT + Yandex-native Qwen3/DeepSeek booster) are direct Yandex Cloud, no VPN.
   Residual: **verify Qwen3-235B / DeepSeek Flash are actually in the Yandex gallery + their
-  price** before building; if absent, fall back to Groq-via-VPN (#17).
+  price** before building the LLM tier; if absent, **skip the zh-booster** (stay on Wikidata +
+  YandexGPT Lite) — Groq-via-VPN is **not** a fallback (#18 supersedes #17, VPN dropped).
 - **Single-provider concentration on Yandex Cloud** (compute + DB + AI) → accepted for a
   hobby-scale RU-first app; mitigated because the image stays portable (compose) and the
   off-Yandex pieces (free Wikidata/Wikipedia, the client app) aren't locked in. Managed PG

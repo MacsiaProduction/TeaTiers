@@ -10,6 +10,7 @@ mockk = "1.14.11"
 spring-boot-starter-web = { group = "org.springframework.boot", name = "spring-boot-starter-web" }
 spring-boot-starter-actuator = { group = "org.springframework.boot", name = "spring-boot-starter-actuator" }
 spring-boot-starter-data-jpa = { group = "org.springframework.boot", name = "spring-boot-starter-data-jpa" }
+spring-boot-starter-validation = { group = "org.springframework.boot", name = "spring-boot-starter-validation" }
 spring-boot-starter-test = { group = "org.springframework.boot", name = "spring-boot-starter-test" }
 # Spring Boot 4 modularized test slices: @WebMvcTest moved out of spring-boot-starter-test into
 # its own module (org.springframework.boot.webmvc.test.autoconfigure).
