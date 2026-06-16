@@ -31,4 +31,11 @@ data class LlmProperties(
     val connectTimeoutMs: Int = 3_000,
     val readTimeoutMs: Int = 30_000,
     val maxAttempts: Int = 2,
+    /**
+     * Global daily cap on enrichment LLM calls (cost protection, plan.md section 6 "quota protection").
+     * Per-IP rate limiting alone is weak behind NAT / shared mobile networks, so this bounds total spend
+     * across all callers per UTC day; once hit, a Wikidata miss fails closed to `UNRESOLVED`. `<= 0`
+     * disables the ceiling (unlimited).
+     */
+    val dailyCallCap: Int = 200,
 )

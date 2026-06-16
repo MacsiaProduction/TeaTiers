@@ -25,9 +25,11 @@ class ResolveServiceTest {
     private val foundationModelsClient = mockk<FoundationModelsClient>()
     private val stubService = mockk<EnrichmentStubService>(relaxed = true)
     private val llmEnrichmentService = mockk<LlmEnrichmentService>(relaxed = true)
+    // Default: budget available; the exhausted case overrides it.
+    private val llmDailyBudget = mockk<LlmDailyBudget> { every { tryAcquire() } returns true }
     private val service = ResolveService(
         repository, wikidataClient, upsertService, catalogService,
-        foundationModelsClient, stubService, llmEnrichmentService,
+        foundationModelsClient, stubService, llmEnrichmentService, llmDailyBudget,
     )
 
     private val longjing = WikidataTea("Q1069130", TeaType.GREEN, "CN", "Longjing tea", "Лунцзин", "龙井茶", null)
@@ -116,6 +118,22 @@ class ResolveServiceTest {
         assertEquals(ResolveStatus.ENRICHING, response.status)
         assertEquals("PENDING", response.tea?.enrichmentState)
         verify { llmEnrichmentService.enrich(99L, "Unknown Brew", null) }
+    }
+
+    @Test
+    fun `Wikidata miss with the daily LLM budget exhausted fails closed to UNRESOLVED`() {
+        every { repository.findIdByNormalizedName(any()) } returns null
+        every { wikidataClient.findTea(any(), any()) } returns null
+        every { foundationModelsClient.isEnabled } returns true
+        every { llmDailyBudget.tryAcquire() } returns false
+
+        val response = service.resolve("Budget Capped Brew", null, null)
+
+        assertEquals(ResolveStatus.UNRESOLVED, response.status)
+        assertEquals(null, response.tea)
+        // Fails closed before any cost is incurred: no stub row, no LLM dispatch.
+        verify(exactly = 0) { stubService.createOrGetStub(any(), any()) }
+        verify(exactly = 0) { llmEnrichmentService.enrich(any(), any(), any()) }
     }
 
     @Test

@@ -1370,3 +1370,14 @@ deviated.
         on fuzzy search + Wikidata resolve first. Content effort, not code.
       - **#70.5 en/zh UI timing.** Ship `values-en`/`values-zh` for the release, or keep ru-only with explicit
         picker copy (M5).
+
+71. **Global daily LLM ceiling (backend cost protection)** (review P1, plan §6 "quota protection"; off
+    `main`). The per-IP `ResolveRateLimiter` bounds one caller's burst, but many users share an IP behind
+    NAT / mobile networks, so a new **`LlmDailyBudget`** caps total enrichment LLM calls across *all*
+    callers per UTC day. `ResolveService` checks it after `isEnabled`: on a Wikidata **miss** with the
+    budget exhausted it **fails closed to `UNRESOLVED`** (no stub, no LLM call) instead of queuing
+    unbounded paid work; a `FAILED`-stub retry is gated the same way (stays `FAILED`). Cap is
+    `teatiers.llm.daily-call-cap` (default 200; `<= 0` = unlimited). In-memory (single server, rule
+    40-devops) with a swappable clock; a restart only loosens the cap, never tightens it — fine for cost
+    protection. Tests: `LlmDailyBudgetTest` (cap / UTC rollover / unlimited) + a `ResolveServiceTest` case
+    (exhausted → UNRESOLVED, no stub/dispatch); affected server unit tests green.

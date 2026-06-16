@@ -62,6 +62,9 @@ teatiers:
     connect-timeout-ms: 3000
     read-timeout-ms: 30000
     max-attempts: 2
+    # Global daily cap on enrichment LLM calls across all callers (cost protection). Once hit, a
+    # Wikidata miss fails closed to UNRESOLVED until UTC midnight. <= 0 disables the ceiling.
+    daily-call-cap: 200
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
