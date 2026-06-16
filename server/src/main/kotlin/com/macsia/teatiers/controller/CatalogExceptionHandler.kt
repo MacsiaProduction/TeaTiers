@@ -18,4 +18,10 @@ class CatalogExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.message ?: "Tea not found").apply {
             title = "Tea not found"
         }
+
+    @ExceptionHandler(ResolveRateLimitException::class)
+    fun handleRateLimited(ex: ResolveRateLimitException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.message ?: "Too many requests").apply {
+            title = "Rate limit exceeded"
+        }
 }

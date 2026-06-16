@@ -3,10 +3,14 @@ package com.macsia.teatiers.controller
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.FacetsDto
 import com.macsia.teatiers.dto.PageDto
+import com.macsia.teatiers.dto.ResolveResponseDto
+import com.macsia.teatiers.dto.ResolveStatus
 import com.macsia.teatiers.dto.TeaDetailDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import com.macsia.teatiers.service.ResolveRateLimiter
+import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
 import io.mockk.every
 import io.mockk.mockk
@@ -18,6 +22,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -31,10 +36,22 @@ class TeaControllerTest {
     @Autowired
     lateinit var service: TeaCatalogService
 
+    @Autowired
+    lateinit var resolveService: ResolveService
+
+    @Autowired
+    lateinit var rateLimiter: ResolveRateLimiter
+
     @TestConfiguration
     class MockConfig {
         @Bean
         fun teaCatalogService(): TeaCatalogService = mockk()
+
+        @Bean
+        fun resolveService(): ResolveService = mockk()
+
+        @Bean
+        fun resolveRateLimiter(): ResolveRateLimiter = mockk()
     }
 
     @Test
@@ -115,5 +132,58 @@ class TeaControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.status").value(400))
+    }
+
+    @Test
+    fun `resolve returns the enriched tea`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+        every { resolveService.resolve("Longjing", "en") } returns ResolveResponseDto(
+            status = ResolveStatus.ENRICHED,
+            tea = TeaDetailDto(
+                id = 11, wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
+                region = null, cultivar = null, oxidationMin = null, oxidationMax = null, brand = null,
+                image = null, names = listOf(TeaNameDto("en", "Longjing tea", true)),
+                descriptions = emptyList(), flavors = emptyList(),
+                provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),
+            ),
+        )
+
+        mockMvc.perform(
+            post("/api/v1/teas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Longjing","locale":"en"}"""),
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("ENRICHED"))
+            .andExpect(jsonPath("$.tea.id").value(11))
+            .andExpect(jsonPath("$.tea.wikidataQid").value("Q1069130"))
+    }
+
+    @Test
+    fun `resolve rejects a blank name with 400 problem json`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+
+        mockMvc.perform(
+            post("/api/v1/teas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"   "}"""),
+        )
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(400))
+    }
+
+    @Test
+    fun `resolve returns 429 problem json when rate limited`() {
+        every { rateLimiter.tryAcquire(any()) } returns false
+
+        mockMvc.perform(
+            post("/api/v1/teas/resolve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Longjing"}"""),
+        )
+            .andExpect(status().isTooManyRequests())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("Rate limit exceeded"))
     }
 }

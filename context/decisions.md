@@ -1160,3 +1160,52 @@ deviated.
       licenses were explicitly **out of scope** for this slice.
     - **Tests:** no new unit logic (static screen); `lint` + the existing app unit tests green, debug APK
       builds. **This closes M3** — the catalog is wired end-to-end (search → detail → manual-add → credits).
+
+64. **M4 slice 1 = `/resolve` Wikidata-first backbone** (backend; plan §6 steps 1–2, PR off `main`).
+    `POST /api/v1/teas/resolve` (body `{ name, locale?, sourceText? }`) resolves a typed tea name to a
+    catalog row. The **LLM tier (§6 steps 3–4) is deliberately deferred** to a later slice; this ships the
+    reliable, fully-testable spine. *Numbered #64 (not #63) because the M3 attributions slice holds #63 on
+    the still-open PR #29; this branch was cut from `main` before it.*
+    - **Flow.** (1) **Cache/dedup hit** — trim the input and look it up via a native
+      `lower(unaccent(name)) = lower(unaccent(:q))` join over `tea_name` (the V1 `unaccent` ext folds Latin
+      diacritics / pinyin tone marks; no-op for Cyrillic/CJK), returning the lowest-id match → `MATCHED`.
+      This *is* the cache: the second user to type a known tea never re-enriches. (2) On a miss, **Wikidata
+      SPARQL** (`query.wikidata.org/sparql`) — one query constrained to the **tea `Q6097` `P31/P279*`
+      subtree** (so a plain label search can't return "Longjing **District**"), returning the QID, the
+      reachable tea **category → `TeaType`**, the **en/ru/zh-Hans** labels, the ISO origin (`P495→P297`), and
+      the English gloss. A hit **upserts** a new row → `ENRICHED`; a miss → `UNRESOLVED` (creates nothing —
+      this is the "fails closed to Wikidata-only" budget behavior with the LLM tier off).
+    - **Verified-before-coding (rule 00-core: never guess an API).** The SPARQL shape and the **11 tea
+      category QIDs** were confirmed against the **live** endpoint 2026-06-16: green `Q484083`, black
+      `Q203415`, oolong `Q231587`, white `Q238306`, yellow `Q824529`, pu'er `Q690098`, fermented `Q2542583`
+      (→DARK), masala chai `Q877661` + flavored `Q3526264`/`Q137611595` (→BLENDED), "tea without tea leaves"
+      `Q11617958` (→HERBAL); root tea = `Q6097`. Category→type uses a **most-specific-first priority** so a
+      pu'er (subclass of fermented tea) resolves to PUER, not DARK.
+    - **Provenance / quality.** Imported rows are `source='wikidata'`, `license='CC0-1.0'`,
+      `sourceUrl=…/wiki/<qid>`, `confidence=0.9`, `enriched_by='wikidata'`, but **`verification_status =
+      'unverified'`** — the schema reserves `verified` for a human curation pass, so auto-imports never claim
+      it. One name per locale (each its locale's primary); the English gloss lands as a `tea_description`
+      short text.
+    - **Idempotency / races.** The upsert runs in its **own transaction** and is guarded on
+      `findByWikidataQid` then `findByDedupKey`; a lost insert race surfaces as a unique violation on
+      `wikidata_qid`/`dedup_key`, which the resolve service **recovers from by re-reading** → `MATCHED`. So
+      concurrent first-time resolves of the same tea never duplicate.
+    - **API hardening (rules 30/50).** Bean Validation: `name` `@NotBlank` ≤200, `locale` ≤16, `sourceText`
+      ≤4000. **`sourceText` is part of the contract but reserved for the LLM tier** (accepted, validated,
+      ignored now) so the app's later "paste a description" slice needs no API change. **Per-client
+      fixed-window rate-limit** (`teatiers.resolve.rate-per-minute`, default 20) keyed on the forwarded
+      client IP → `429` problem+json; validation → `400` problem+json (existing `@ControllerAdvice`).
+      Wikidata client has a descriptive **User-Agent** (Wikimedia UA policy), connect/read timeouts, one
+      retry+backoff, and degrades to `UNRESOLVED` on outage (never 500s the request).
+    - **Tests.** Client parse/grouping/type-priority/query-shape (no network); upsert guard + entity-build;
+      resolve orchestration incl. the race-recovery path; rate-limiter window rollover; a **Testcontainers
+      IT** exercising the real `unaccent` lookup (case+accent folding) + enrich + idempotency over the live
+      schema. Full server suite green (local Testcontainers needs `TESTCONTAINERS_RYUK_DISABLED=true` under
+      rootless podman — environmental, CI on Docker is unaffected).
+    - **Yandex Foundation Models access provisioned (unblocks the LLM tier).** Created SA **`teatiers-llm`**
+      (`ajen2fbad5836jeoahvu`) with the single role **`ai.languageModels.user`** on folder
+      `b1g9o3v21bogpvduaj1l`; minted an API key (`aje80d2532nevh5g5jfb`) and stored **only in Lockbox** secret
+      **`teatiers-llm-api-key`** (`e6qhj4rksk0mod5ea32j`, entries `api-key` + `api-key-id`) — never in VCS
+      (rule 50-secure). The secret value was never printed (created → piped to Lockbox via stdin); an orphan
+      key from a first failed attempt was deleted. **Not yet done:** confirm Qwen3-235B/DeepSeek Flash gallery
+      availability + price, and wire the server to read the key from Lockbox — both land with the LLM tier.

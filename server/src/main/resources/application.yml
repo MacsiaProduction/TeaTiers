@@ -36,6 +36,17 @@ teatiers:
   seed:
     # Load the curated catalog seed on startup (idempotent). Disabled in integration tests.
     enabled: true
+  resolve:
+    # Per-client (forwarded IP) fixed-window cap for POST /resolve; protects the Wikidata/LLM budget.
+    rate-per-minute: 20
+  wikidata:
+    # First (free, CC0) enrichment tier. Override the User-Agent per deployment to satisfy the
+    # Wikimedia UA policy (descriptive agent + contact). Set enabled=false to skip the network tier.
+    enabled: true
+    endpoint: https://query.wikidata.org/sparql
+    user-agent: "TeaTiers/0.1 (+https://github.com/macsia/TeaTiers) catalog-resolver"
+    connect-timeout-ms: 3000
+    read-timeout-ms: 8000
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
