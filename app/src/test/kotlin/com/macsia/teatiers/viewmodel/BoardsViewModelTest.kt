@@ -1,12 +1,14 @@
 package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.TierTemplate
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Test
 class BoardsViewModelTest {
 
     private val repository = mockk<TeaBoardRepository>()
+    private val enrichmentManager = mockk<TeaEnrichmentManager>(relaxed = true)
 
     @BeforeEach
     fun setUp() {
@@ -36,9 +39,16 @@ class BoardsViewModelTest {
     }
 
     @Test
+    fun `opening the home screen resumes pending enrichment`() = runTest {
+        BoardsViewModel(repository, enrichmentManager)
+
+        verify(exactly = 1) { enrichmentManager.resumePending() }
+    }
+
+    @Test
     fun `createBoard forwards label and template to the repository`() = runTest {
         coEvery { repository.createBoard(any(), any()) } returns "board-x"
-        val viewModel = BoardsViewModel(repository)
+        val viewModel = BoardsViewModel(repository, enrichmentManager)
 
         viewModel.createBoard(label = "Утренние пуэры", template = TierTemplate.F_TO_S)
         advanceUntilIdle()
@@ -51,7 +61,7 @@ class BoardsViewModelTest {
     @Test
     fun `createBoard forwards each template kind verbatim`() = runTest {
         coEvery { repository.createBoard(any(), any()) } returns "board-x"
-        val viewModel = BoardsViewModel(repository)
+        val viewModel = BoardsViewModel(repository, enrichmentManager)
 
         viewModel.createBoard(label = "F-S", template = TierTemplate.F_TO_S)
         viewModel.createBoard(label = "1-10", template = TierTemplate.ONE_TO_TEN)

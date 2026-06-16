@@ -8,7 +8,9 @@ import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.TeaType
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -136,6 +138,27 @@ class TeaEnrichmentManagerTest {
         val row = dao.loadTeaRow("t1")!!
         assertEquals(3L, row.catalogTeaId)
         assertEquals(EnrichmentState.DONE.name, row.enrichmentState)
+    }
+
+    @Test
+    fun `a second dispatch while one is already in flight is dropped`() = runTest(UnconfinedTestDispatcher()) {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { catalog.resolve(any(), any(), any()) } coAnswers {
+            gate.await() // hold the first enrichment in flight
+            ResolveResult.Matched(detail(id = 7))
+        }
+        val (manager, dao) = managerWith(teaRow("t1"))
+
+        manager.enrich("t1", "Чай") // first: marks t1 in-flight, suspends in resolve
+        advanceUntilIdle()
+        manager.enrich("t1", "Чай") // second: same tea still in flight -> skipped before resolve
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { catalog.resolve(any(), any(), any()) }
+        assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("t1")!!.enrichmentState)
     }
 
     @Test
