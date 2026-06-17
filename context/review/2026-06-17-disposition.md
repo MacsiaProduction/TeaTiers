@@ -16,7 +16,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 | P1 | Release gate not explicit | ✅ **done** — added **plan.md §7.1 "MVP release gate"** (this PR). |
 | P1 | Missing global daily LLM ceiling | ✅ **done** (#71) — `LlmDailyBudget` global daily cap; a miss fails closed to `UNRESOLVED` when exhausted. |
 | P2 | GHCR migration | ✅ **done** (#76) — `publish-image.yml` pushes to `ghcr.io` via `GITHUB_TOKEN`; cloud-init pulls public. YCR kept provisioned-but-deprecated; you do the cutover steps (make package public, point VM, verify, retire YCR). |
-| P2 | Backend backup is local-only | ❓ **needs decision** — enable off-box Object Storage backups now (resolve writes non-seed rows) vs accept local-only in writing. See Open decisions. |
+| P2 | Backend backup is local-only | ✅ **done** (#77) — `backups.tf` provisions the Object Storage bucket + backup SA; `backup.sh` uploads off-box; you `tofu apply` + drop `backup.env` + run the restore rehearsal. |
 | P2 | Catalog seed too small (13 vs ~300) | ❓ **needs decision / effort** — curated-seed expansion is real content work; sequence vs fuzzy search. See Open decisions. |
 | P2 | Keep custom back stack / drag / self-hosted PG | ✅ **no action** — agreed, keep as-is until a concrete trigger appears. |
 
@@ -33,9 +33,9 @@ rather than being done autonomously. Mirrored as **decision #70** in `decisions.
 2. **Catalog image list (backend).** ✅ **RESOLVED 2026-06-17: in MVP scope — done (#75).** Backend
    `tea_image` list (Flyway V3); detail exposes `images` + `image` (first) for back-compat. Web image
    fetching stays banned (CC/Wikimedia or user photos only).
-3. **Off-box DB backup.** `/resolve` now writes catalog rows that aren't in the committed seed, so the
-   DB is no longer fully reproducible from VCS. *Decision needed:* enable Object Storage `pg_dump`
-   off-box backups before relying on user-driven enrichment, or accept local-only backup in writing.
+3. **Off-box DB backup.** ✅ **RESOLVED 2026-06-17: enable — done (#77).** `backups.tf` provisions the
+   bucket + backup SA; `backup.sh` uploads off-box. You run `tofu apply`, drop `backup.env`, and do the
+   restore rehearsal (infra/README "Backups").
 4. **Curated seed expansion.** Live seed is 13 teas; plan #10 wants ~300. *Decision needed:* prioritize
    the curated-seed effort (and use it to build the search-gold set) vs. lean on fuzzy search + Wikidata
    resolve first. This is content effort, not a code change.

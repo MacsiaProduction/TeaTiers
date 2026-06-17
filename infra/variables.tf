@@ -40,6 +40,18 @@ variable "ssh_public_key" {
   default     = ""
 }
 
+variable "backup_bucket" {
+  type        = string
+  description = "Globally-unique Object Storage bucket name for off-box DB backups (decision #77)."
+  default     = "teatiers-backups"
+}
+
+variable "backup_retention_days" {
+  type        = number
+  description = "Days to keep off-box dumps before the bucket lifecycle rule expires them."
+  default     = 30
+}
+
 variable "postgres_db" {
   type        = string
   description = "Catalog database name."

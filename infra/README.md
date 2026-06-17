@@ -136,9 +136,37 @@ ghcr with the built-in `GITHUB_TOKEN`. The `YC_SA_KEY` secret is now only used b
 ## Backups
 
 `deploy/backup.sh` takes a daily `pg_dump` of the catalog DB out of the `teatiers-db` container,
-gzips it under `/opt/teatiers/backups`, and prunes dumps older than `RETENTION_DAYS` (14). The
-catalog is reproducible from Flyway + the committed seed, so **local-on-disk dumps are the default**;
-set `BACKUP_S3_URI` (+ AWS CLI and a backup SA's static key) to also copy off-box to Object Storage.
+gzips it under `/opt/teatiers/backups`, and prunes dumps older than `RETENTION_DAYS` (14).
+
+**Off-box backups (decision #77).** Since `/resolve` writes catalog rows that aren't in the committed
+seed, the DB is no longer fully reproducible from VCS — so copy dumps off-box to Object Storage.
+`backups.tf` provisions the bucket + a `teatiers-backup` SA + key (with a lifecycle rule expiring
+dumps after `backup_retention_days`). Enable it:
+
+```
+tofu apply                                   # creates the bucket + backup SA
+# write the VM's backup env from the tofu outputs (kept out of VCS):
+ssh -i ~/.ssh/teatiers yc-user@93.77.185.62 'cat | sudo tee /opt/teatiers/backup.env >/dev/null' <<EOF
+BACKUP_S3_URI=$(tofu output -raw backup_bucket_uri)
+AWS_ACCESS_KEY_ID=$(tofu output -raw backup_access_key)
+AWS_SECRET_ACCESS_KEY=$(tofu output -raw backup_secret_key)
+AWS_ENDPOINT_URL=https://storage.yandexcloud.net
+EOF
+ssh ... 'sudo chmod 600 /opt/teatiers/backup.env && sudo apt-get install -y awscli'
+ssh ... 'sudo systemctl start teatiers-backup.service'   # the service loads backup.env (EnvironmentFile)
+# verify the dump landed off-box:
+ssh ... 'aws --endpoint-url https://storage.yandexcloud.net s3 ls '"$(tofu output -raw backup_bucket_uri)"'/'
+```
+
+**Restore rehearsal (do once after enabling):** pull the latest dump from S3 and load it into a
+throwaway DB to confirm it's good:
+```
+aws --endpoint-url https://storage.yandexcloud.net s3 cp "$(tofu output -raw backup_bucket_uri)/teatiers-<stamp>.sql.gz" /tmp/
+docker exec teatiers-db createdb -U teatiers restore_check
+gunzip -c /tmp/teatiers-<stamp>.sql.gz | docker exec -i teatiers-db psql -U teatiers restore_check
+docker exec teatiers-db psql -U teatiers restore_check -c 'select count(*) from tea;'   # sanity
+docker exec teatiers-db dropdb -U teatiers restore_check
+```
 
 Install the systemd timer on the VM:
 

@@ -1445,3 +1445,14 @@ deviated.
     package public; (2) set `SERVER_IMAGE=ghcr.io/macsiaproduction/teatiers-server:latest` on the VM +
     `docker compose pull && up -d`; (3) verify `tea.macsia.fun/actuator/health`; (4) then delete
     `registry.tf` + its outputs and `tofu apply` to retire YCR. `tofu validate` + `fmt` clean.
+
+77. **Off-box DB backups provisioned** (resolves #70.3; AskUserQuestion). `/resolve` now writes catalog
+    rows that aren't in the committed seed, so the DB is no longer reproducible from VCS — off-box durability
+    matters. `deploy/backup.sh` already supported an opt-in S3 upload (`BACKUP_S3_URI`); this adds the
+    Terraform to **enable** it: `backups.tf` provisions an Object Storage **bucket** + a dedicated
+    **`teatiers-backup` SA** + static key, with a **lifecycle rule** expiring dumps after
+    `backup_retention_days` (30). The systemd unit gains `EnvironmentFile=-/opt/teatiers/backup.env` (the `-`
+    keeps it working when absent). **User to enable** (infra/README "Backups"): `tofu apply`, write
+    `/opt/teatiers/backup.env` from the `backup_*` outputs (kept out of VCS), `apt install awscli`, run the
+    service, and do the documented **restore rehearsal** (pull latest dump from S3 → load into a throwaway
+    DB → sanity-check). `tofu validate` + `fmt` clean. Local-on-disk dumps remain the default if not enabled.
