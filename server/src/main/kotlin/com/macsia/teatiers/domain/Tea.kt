@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.OneToMany
+import jakarta.persistence.OrderBy
 import jakarta.persistence.Table
 import java.time.Instant
 
@@ -48,15 +49,6 @@ class Tea(
     var oxidationMax: Short? = null,
 
     var brand: String? = null,
-
-    @Column(name = "image_url")
-    var imageUrl: String? = null,
-
-    @Column(name = "image_license")
-    var imageLicense: String? = null,
-
-    @Column(name = "image_source_url")
-    var imageSourceUrl: String? = null,
 
     @Column(name = "source_url")
     var sourceUrl: String? = null,
@@ -102,6 +94,10 @@ class Tea(
 
     @OneToMany(mappedBy = "tea", cascade = [CascadeType.ALL], orphanRemoval = true)
     var flavors: MutableList<TeaFlavor> = mutableListOf(),
+
+    @OneToMany(mappedBy = "tea", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OrderBy("position ASC")
+    var images: MutableList<TeaImage> = mutableListOf(),
 ) {
     fun addName(name: TeaName) {
         name.tea = this
@@ -116,5 +112,10 @@ class Tea(
     fun addFlavor(flavor: TeaFlavor) {
         flavor.tea = this
         flavors += flavor
+    }
+
+    fun addImage(image: TeaImage) {
+        image.tea = this
+        images += image
     }
 }

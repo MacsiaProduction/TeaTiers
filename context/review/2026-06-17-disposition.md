@@ -11,7 +11,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 | P0 | Destructive Room migrations are a release blocker | ✅ **decided (#70.1): leave as-is until M5** — cutover (export schema + drop destructive + real migrations) is an M5 release-gate task; internal builds wipe on upgrade until then. |
 | P1 | Queued enrichment isn't durable (app-scope only) | partly ✅ (#73): resume now runs on **app-open** (home), de-duped in-flight. Full **background** WorkManager (post-process-death) is ❓ **open #70.6** — adds a dependency + non-device-verifiable runtime wiring. |
 | P1 | `/resolve` contract drift (sourceText ignored; async status) | partly ✅: the async `ENRICHING` status + server stub shipped in **#66**; `sourceText` is now consumed by the LLM tier. Remaining: the **"paste a description" UI field** (#25) and a **global daily LLM ceiling** (below). |
-| P1 | Catalog image model behind app photo list | ❓ **needs decision** — whether a backend `tea_image` *list* is in scope (vs the single `image_url` triple). See Open decisions. |
+| P1 | Catalog image model behind app photo list | ✅ **done** (#75) — backend `tea_image` list (Flyway V3); detail exposes `images` + `image` (first) for back-compat. |
 | P1 | Local dedup should prefer `catalogTeaId` | ✅ **done** (#72) — `addTea` matches by `catalogTeaId` first (then name); a catalog pick carries the id + skips re-resolve. |
 | P1 | Release gate not explicit | ✅ **done** — added **plan.md §7.1 "MVP release gate"** (this PR). |
 | P1 | Missing global daily LLM ceiling | ✅ **done** (#71) — `LlmDailyBudget` global daily cap; a miss fails closed to `UNRESOLVED` when exhausted. |
@@ -30,10 +30,9 @@ rather than being done autonomously. Mirrored as **decision #70** in `decisions.
    once a real user has data. *Decision needed:* declare "public schema starts at vN" (likely the
    current v5), turn on `room.schemaLocation` + commit the baseline, and require real migrations from
    then on. Until you pick the line, internal builds keep wiping on upgrade.
-2. **Catalog image list (backend).** The app already models a per-tea photo *list* + a
-   `PhotoSource.CATALOG` hook, but the catalog stores a single `image_url` triple. *Decision needed:*
-   is a backend `tea_image` table (position/source/license/url) in MVP scope, or do catalog teas stay
-   single-image until post-MVP? (Web image fetching stays banned regardless — CC/Wikimedia or user only.)
+2. **Catalog image list (backend).** ✅ **RESOLVED 2026-06-17: in MVP scope — done (#75).** Backend
+   `tea_image` list (Flyway V3); detail exposes `images` + `image` (first) for back-compat. Web image
+   fetching stays banned (CC/Wikimedia or user photos only).
 3. **Off-box DB backup.** `/resolve` now writes catalog rows that aren't in the committed seed, so the
    DB is no longer fully reproducible from VCS. *Decision needed:* enable Object Storage `pg_dump`
    off-box backups before relying on user-driven enrichment, or accept local-only backup in writing.

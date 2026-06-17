@@ -37,6 +37,7 @@ class ResolveServiceTest {
     private fun detail(id: Long, state: String? = null) = TeaDetailDto(
         id = id, wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
         cultivar = null, oxidationMin = null, oxidationMax = null, brand = null, image = null,
+        images = emptyList(),
         names = listOf(TeaNameDto("en", "Longjing tea", true)), descriptions = emptyList(),
         flavors = emptyList(), provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),
         enrichmentState = state,

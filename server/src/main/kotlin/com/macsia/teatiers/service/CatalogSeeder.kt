@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaDescription
 import com.macsia.teatiers.domain.TeaFlavor
+import com.macsia.teatiers.domain.TeaImage
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.repository.TeaRepository
 import org.slf4j.LoggerFactory
@@ -83,6 +84,17 @@ class CatalogSeeder(
             )
         }
         flavors.forEach { tea.addFlavor(TeaFlavor(dimension = it.dimension, intensity = it.intensity.toShort())) }
+        images.forEachIndexed { index, img ->
+            tea.addImage(
+                TeaImage(
+                    position = index.toShort(),
+                    url = img.url,
+                    license = img.license,
+                    sourceUrl = img.sourceUrl,
+                    source = img.source ?: source,
+                ),
+            )
+        }
         return tea
     }
 

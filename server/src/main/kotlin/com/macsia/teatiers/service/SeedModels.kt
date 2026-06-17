@@ -25,6 +25,7 @@ data class SeedTea(
     val names: List<SeedName>,
     val descriptions: List<SeedDescription> = emptyList(),
     val flavors: List<SeedFlavor> = emptyList(),
+    val images: List<SeedImage> = emptyList(),
 )
 
 data class SeedName(
@@ -44,4 +45,11 @@ data class SeedDescription(
 data class SeedFlavor(
     val dimension: FlavorDimension,
     val intensity: Int,
+)
+
+data class SeedImage(
+    val url: String,
+    val license: String? = null,
+    val sourceUrl: String? = null,
+    val source: String? = null,
 )
