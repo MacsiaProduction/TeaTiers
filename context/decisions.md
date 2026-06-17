@@ -1571,3 +1571,26 @@ deviated.
       trigrams "fairly useless" on multibyte); exact Hanzi substring works via the `strpos` branch.
       Meilisearch CE (MIT) remains the documented fallback only if a future gold set fails. Not yet deployed
       to the live VM (next image ship runs V4).
+
+85. **Privacy copy corrected to match actual network behavior** (P0 trust bug from the 2026-06-17
+    full-design review). `settings_about_privacy` claimed "Все данные ... никуда не отправляются", but the
+    add flow sends the typed tea name to the catalog API on search and `/resolve`. Rewrote it to state the
+    truth: boards, teas, ratings, notes, photos, and purchase places (incl. geopoints) stay on-device and
+    are not uploaded; search/name-clarification send only the typed tea name to the TeaTiers catalog
+    service. Also extended `catalog_search_hint` to say the name is sent to the catalog service. ru-only
+    `values` (no en/zh files yet), house style kept (em dashes, «», ё; no NBSP introduced in isolation).
+    Strings-only change, XML validated. Did NOT mention LLM/Yandex enrichment in the copy because the tier
+    is off in prod (no key on the VM, #82) and the "paste a description" `sourceText` UI (#25) isn't built;
+    revisit the copy when either ships.
+
+86. **AI billing move to summertime98755 — DEFERRED (no IAM rights).** task: bill Foundation Models usage
+    under the `cloud-summertime9875` cloud (b1gu62djbhs46pdcn2kp, org bpffbe9ivue2omhoatm6; has free credits)
+    instead of `cloud-macsiaproduction`, leaving the TeaTiers catalog/VM/DB on macsia. FM usage bills to the
+    cloud owning the folder in the `gpt://<folder>/...` URI, so the move = run the LLM SA + key against a
+    summertime folder (`default` = b1g89hsg2mhm2ic1768h) and repoint the VM's `YC_FOLDER_ID` +
+    `TEATIERS_LLM_API_KEY`. My account (`ajesrra4gqk28jd76te3`) only has `editor` on that folder, which
+    cannot grant `ai.languageModels.user` to an SA — so the move is blocked pending folder `admin`/
+    `resource-manager.admin` rights (or the owner running the grant). Created then deleted a throwaway SA
+    while scoping; no resources left behind. Macsia AI (`teatiers-llm` SA + `teatiers-llm-api-key` Lockbox)
+    stays in place but dormant (tier off, #82) — nothing bills AI to macsia today. Revisit when rights are
+    granted.

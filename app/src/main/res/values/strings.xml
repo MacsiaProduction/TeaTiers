@@ -72,7 +72,7 @@
     <string name="settings_about_section">О приложении</string>
     <!-- %1$s — versionName (e.g. 0.1.0). -->
     <string name="settings_about_version">Версия %1$s</string>
-    <string name="settings_about_privacy">Все данные хранятся только на этом устройстве и никуда не отправляются. Места покупки (геоточки) — чувствительные данные: они остаются локально и не выгружаются.</string>
+    <string name="settings_about_privacy">Доски, чаи, оценки, заметки, фото и места покупки (включая геоточки) хранятся только на этом устройстве и не выгружаются. При поиске и уточнении названия в сервис каталога TeaTiers отправляется только введённое название чая — больше ничего.</string>
     <string name="settings_about_credits">Названия чаёв и описания — из открытых баз чая; источники указаны в проекте.</string>
     <string name="settings_attributions_entry">Источники данных и лицензии</string>
     <string name="settings_attributions_entry_hint">Открытые базы чая, изображения и их лицензии.</string>
@@ -199,7 +199,7 @@
 
     <!-- Catalog search (M3): the box atop the add form; picking a result prefills the fields. -->
     <string name="catalog_search_label">Поиск в каталоге</string>
-    <string name="catalog_search_hint">Найдите чай в общем каталоге — поля заполнятся сами.</string>
+    <string name="catalog_search_hint">Найдите чай в общем каталоге — поля заполнятся сами. Название отправляется в сервис каталога.</string>
     <string name="catalog_search_empty">В каталоге ничего не нашлось.</string>
     <string name="catalog_search_offline">Нет соединения с каталогом.</string>
     <string name="catalog_search_error">Не удалось загрузить каталог. Попробуйте позже.</string>
