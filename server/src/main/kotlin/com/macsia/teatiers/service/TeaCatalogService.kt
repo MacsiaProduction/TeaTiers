@@ -73,7 +73,11 @@ class TeaCatalogService(
         oxidationMin = oxidationMin?.toInt(),
         oxidationMax = oxidationMax?.toInt(),
         brand = brand,
-        image = imageUrl?.let { TeaImageDto(url = it, license = imageLicense, sourceUrl = imageSourceUrl) },
+        images = images
+            .sortedBy { it.position }
+            .map { TeaImageDto(url = it.url, license = it.license, sourceUrl = it.sourceUrl) },
+        image = images.minByOrNull { it.position }
+            ?.let { TeaImageDto(url = it.url, license = it.license, sourceUrl = it.sourceUrl) },
         names = names.toNameDtos(),
         descriptions = descriptions
             .sortedBy { it.locale }

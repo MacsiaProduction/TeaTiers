@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.FlavorDimension
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaDescription
 import com.macsia.teatiers.domain.TeaFlavor
+import com.macsia.teatiers.domain.TeaImage
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.repository.TeaRepository
@@ -113,6 +114,26 @@ class TeaCatalogServiceIT : AbstractIntegrationTest() {
         assertEquals(listOf("CN", "IN"), facets.origins)
     }
 
+    @Test
+    fun `detail exposes the ordered image list with the first as the back-compat image`() {
+        val id = save(
+            type = TeaType.WHITE, origin = "CN", dedup = "white-peony", qid = "Q-white",
+            names = listOf(Triple("en", "White Peony", true)),
+            descriptionShort = null,
+            flavors = emptyList(),
+            // Inserted out of order on purpose: detail must return them sorted by position.
+            images = listOf(
+                Triple(1, "https://img/wp-2.jpg", "CC BY 4.0"),
+                Triple(0, "https://img/wp-1.jpg", "CC BY-SA 4.0"),
+            ),
+        )
+
+        val detail = requireNotNull(service.detail(id))
+        assertEquals(listOf("https://img/wp-1.jpg", "https://img/wp-2.jpg"), detail.images.map { it.url })
+        assertEquals("https://img/wp-1.jpg", detail.image?.url)
+        assertEquals("CC BY-SA 4.0", detail.image?.license)
+    }
+
     private fun save(
         type: TeaType,
         origin: String,
@@ -121,6 +142,7 @@ class TeaCatalogServiceIT : AbstractIntegrationTest() {
         names: List<Triple<String, String, Boolean>>,
         descriptionShort: String?,
         flavors: List<Pair<FlavorDimension, Int>>,
+        images: List<Triple<Int, String, String?>> = emptyList(),
     ): Long {
         val tea = Tea(type = type, source = "curated", dedupKey = dedup, wikidataQid = qid, originCountry = origin)
         names.forEach { (locale, name, primary) ->
@@ -129,6 +151,9 @@ class TeaCatalogServiceIT : AbstractIntegrationTest() {
         descriptionShort?.let { tea.addDescription(TeaDescription(locale = "en", shortText = it)) }
         flavors.forEach { (dimension, intensity) ->
             tea.addFlavor(TeaFlavor(dimension = dimension, intensity = intensity.toShort()))
+        }
+        images.forEach { (position, url, license) ->
+            tea.addImage(TeaImage(position = position.toShort(), url = url, license = license))
         }
         return requireNotNull(teaRepository.saveAndFlush(tea).id)
     }

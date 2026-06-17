@@ -6,6 +6,7 @@ import com.macsia.teatiers.dto.PageDto
 import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.ResolveStatus
 import com.macsia.teatiers.dto.TeaDetailDto
+import com.macsia.teatiers.dto.TeaImageDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
@@ -90,7 +91,11 @@ class TeaControllerTest {
             oxidationMin = null,
             oxidationMax = null,
             brand = null,
-            image = null,
+            image = TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
+            images = listOf(
+                TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
+                TeaImageDto("https://img.example/longjing-2.jpg", "CC BY 4.0", "https://commons.example/longjing2"),
+            ),
             names = listOf(TeaNameDto("en", "Longjing", isPrimary = true)),
             descriptions = emptyList(),
             flavors = emptyList(),
@@ -102,6 +107,10 @@ class TeaControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(7))
             .andExpect(jsonPath("$.wikidataQid").value("Q474971"))
+            // The image list is exposed, and `image` stays as the first one for back-compat (#70.2).
+            .andExpect(jsonPath("$.images.length()").value(2))
+            .andExpect(jsonPath("$.images[0].url").value("https://img.example/longjing.jpg"))
+            .andExpect(jsonPath("$.image.url").value("https://img.example/longjing.jpg"))
     }
 
     @Test
@@ -143,7 +152,7 @@ class TeaControllerTest {
             tea = TeaDetailDto(
                 id = 11, wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
                 region = null, cultivar = null, oxidationMin = null, oxidationMax = null, brand = null,
-                image = null, names = listOf(TeaNameDto("en", "Longjing tea", true)),
+                image = null, images = emptyList(), names = listOf(TeaNameDto("en", "Longjing tea", true)),
                 descriptions = emptyList(), flavors = emptyList(),
                 provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),
                 enrichmentState = null,

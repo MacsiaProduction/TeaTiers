@@ -1418,3 +1418,17 @@ deviated.
     actually disabled for the SA/folder — via this header *or* the folder-level setting — in the Yandex
     console before deploying a real key. Added to the **release gate** (plan §7.1). The tier stays off until a
     key is deployed, so there is no live exposure now.
+
+75. **Backend catalog image LIST** (resolves open #70.2; AskUserQuestion → "pull into MVP"). The catalog now
+    stores a **list** of reference images per tea instead of the single `image_url` triple — matching the
+    app, which already renders a photo list. **Flyway V3** adds `tea_image` (`tea_id` FK cascade, `position`,
+    `url`, `license`, `source_url`, `source`; `UNIQUE(tea_id, position)`), **migrates** any existing single
+    image to position 0, and **drops** `tea.image_url/image_license/image_source_url`. New `TeaImage`
+    `@OneToMany` (`@OrderBy position`) + `addImage`; `SeedTea` gains `images` and `CatalogSeeder` seeds them.
+    `TeaDetailDto` exposes **`images: List<TeaImageDto>`** and keeps **`image`** = the first, for back-compat
+    (the current app reads `image`; the new `images` is ignored by its lenient JSON until it adds a gallery).
+    Still **CC/Wikimedia + user photos only** — web image fetching stays banned (#24); Wikidata import sets no
+    image. Tests: `TeaCatalogServiceIT` (ordered list + first-as-`image`), `TeaControllerTest` (JSON shape).
+    Full server suite green (Testcontainers ITs, `TESTCONTAINERS_RYUK_DISABLED=true` locally). *App-side
+    gallery (showing >1 image on the detail sheet) is a small optional follow-up; back-compat means no app
+    change is required.*

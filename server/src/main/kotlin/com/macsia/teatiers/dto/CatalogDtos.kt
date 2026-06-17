@@ -62,7 +62,9 @@ data class TeaDetailDto(
     val oxidationMin: Int?,
     val oxidationMax: Int?,
     val brand: String?,
+    // [image] is the first of [images], kept for back-compat with clients that show one thumbnail (#70.2).
     val image: TeaImageDto?,
+    val images: List<TeaImageDto>,
     val names: List<TeaNameDto>,
     val descriptions: List<TeaDescriptionDto>,
     val flavors: List<TeaFlavorDto>,
