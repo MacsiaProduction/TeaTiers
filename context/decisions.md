@@ -1534,3 +1534,40 @@ deviated.
       README it stays attached harmlessly (its only role binding is gone). `registry.tf` now holds just the
       SA; the `registry_id` output is removed. Service healthy throughout; **no Yandex Container Registry
       remains** — image delivery is fully ghcr (#76).
+
+84. **Typo-tolerant catalog search BUILT** (implements the #79 locked design; resolves #67; closes the
+    original `task.md` "search ... allows several wrong symbols" requirement + the MVP release-gate line).
+    The live search path was literal `LIKE '%q%'` (zero edit-distance); it is now in-Postgres `pg_trgm`.
+    - **Migration `V4__name_norm_trgm.sql`:** IMMUTABLE `f_unaccent(text)` wrapper
+      (`public.unaccent('public.unaccent', $1)`), a `tea_name.name_norm` `GENERATED ALWAYS AS
+      (lower(f_unaccent(name))) STORED` column, a GIN `gin_trgm_ops` index on `name_norm`, and a drop of the
+      V1 raw-name `tea_name_trgm_idx` (replaced). Applies on top of V1–V3 with data (ALTER ADD GENERATED
+      backfills existing rows) — verified.
+    - **Query (`TeaSearchRepositoryImpl`):** blank `q` keeps the Criteria id-cursor browse; non-blank `q`
+      runs a native ranked query — `lower(f_unaccent(:q)) <% n.name_norm` (GIN-indexed) OR `strpos(...) > 0`
+      (literal substring; covers exact CJK and sub-3-char queries trigrams handle poorly), `GROUP BY t.id`,
+      `ORDER BY max(word_similarity) DESC, max(similarity) DESC, t.id`, single page (`nextCursor=null`).
+      The `similarity()` tiebreaker makes an exact short name outrank the same word inside a longer one
+      (e.g. "пуэр" -> "Пуэр" above "Шу Пуэр Менхай"). The threshold is lowered transaction-locally with
+      `select set_config('pg_trgm.word_similarity_threshold','0.3',true)` — the ORM-safe `SET LOCAL` (a
+      plain SELECT, no native-DML ambiguity). `TeaCatalogService.search` reorders the fetched teas back to
+      the ranked-id order (`findAllWithNames` re-sorts by id) and only paginates the browse path.
+    - **Threshold = 0.3**, tuned on the run-09 gold set: the hardest case (1-char substitution in a short
+      word, "улонг" -> "Улун") scores `word_similarity` 0.333, so 0.3 keeps full recall; everything else is
+      >= 0.41. Encoded as a constant; re-tune via `TeaSearchFuzzyIT`.
+    - **Collation prereq — RESOLVED empirically (the #79 open risk):** verified against the production image
+      `postgres:16-alpine` that its DEFAULT cluster locale is `en_US.utf8` (libc provider, UTF8 encoding) —
+      NOT the feared `C`/`POSIX`. Under it musl libc folds Cyrillic case correctly (`lower('УЛУН')`='улун')
+      and trigram-classifies Cyrillic as characters, and `f_unaccent('Lǜ Chá')`='Lu Cha' strips pinyin tone
+      marks. So **no explicit ICU collation and no cluster re-init are required**. `TeaSearchFuzzyIT` asserts
+      the prereq (datcollate not in C/POSIX, encoding UTF8) so a regression to a C-locale image fails in CI,
+      not production.
+    - **Tests:** `TeaSearchFuzzyIT` (new) — the 20-query ru/en/pinyin/zh gold set, the collation assertion,
+      the ranking tiebreaker, locale scoping, a false-positive guard, and single-page-no-cursor — all green
+      against real `postgres:16-alpine`; existing `TeaCatalogServiceIT` (substring + locale + browse cursor)
+      still green; full `./gradlew check` (tests + ktlint + detekt) passes. **No app change needed** — the
+      client already calls `/teas/search?q=` and gets typo tolerance for free (it just no longer paginates a
+      text query, which the #79 design accepts). **Hanzi typo tolerance stays out of scope** (Tom Lane:
+      trigrams "fairly useless" on multibyte); exact Hanzi substring works via the `strpos` branch.
+      Meilisearch CE (MIT) remains the documented fallback only if a future gold set fails. Not yet deployed
+      to the live VM (next image ship runs V4).

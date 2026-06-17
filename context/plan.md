@@ -437,8 +437,9 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   `exportSchema` on + a committed baseline; "public schema starts at vN" declared (open #70.1).
 - [ ] **Backup fidelity:** export/import round-trips all current columns incl. the v5
   enrichment fields ✅ (#69) and photos ✅ (#26) — re-verify on each new column.
-- [ ] **Typo-tolerant catalog search** implemented + passes a ru/en/pinyin/zh search-gold set
-  (run 09, #67).
+- [x] **Typo-tolerant catalog search** implemented + passes a ru/en/pinyin/zh search-gold set
+  (run 09, #67) — ✅ pg_trgm `name_norm` + `word_similarity` (Flyway V4), `TeaSearchFuzzyIT` gold set green
+  (#84). Not yet shipped to the live VM (next image runs V4).
 - [ ] **Queued enrichment** is either durable (WorkManager) or the UI copy honestly says
   "runs only while the app is open."
 - [ ] **`/resolve` contract** aligned with the client (async `ENRICHING` ✅ #66) + a **global

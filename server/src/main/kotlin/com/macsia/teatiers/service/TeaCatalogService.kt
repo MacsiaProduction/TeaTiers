@@ -22,7 +22,11 @@ class TeaCatalogService(
     private val teaRepository: TeaRepository,
 ) {
 
-    /** Cursor-paged catalog search. A blank query returns every tea (ordered by id). */
+    /**
+     * Catalog search. A blank query browses every tea (ordered by id, keyset-paginated); a non-blank
+     * query is typo-tolerant (pg_trgm) and returns a single rank-ordered best-match page (decision
+     * #79). The cursor only applies to browse.
+     */
     fun search(
         query: String?,
         locale: String?,
@@ -32,18 +36,21 @@ class TeaCatalogService(
         limit: Int,
     ): PageDto<TeaSummaryDto> {
         val capped = limit.coerceIn(1, MAX_LIMIT)
+        val fuzzy = !query.isNullOrBlank()
         val ids = teaRepository.searchIds(
             q = query,
             locale = locale,
             type = type,
             origin = origin,
-            cursor = cursor,
+            cursor = if (fuzzy) null else cursor,
             limit = capped,
         )
         if (ids.isEmpty()) return PageDto(emptyList(), null)
 
-        val items = teaRepository.findAllWithNames(ids).map { it.toSummary() }
-        val nextCursor = if (items.size == capped) items.last().id else null
+        // findAllWithNames re-sorts by id, so re-impose the searchIds order (rank for fuzzy).
+        val byId = teaRepository.findAllWithNames(ids).associateBy { requireNotNull(it.id) }
+        val items = ids.mapNotNull { byId[it]?.toSummary() }
+        val nextCursor = if (!fuzzy && items.size == capped) items.last().id else null
         return PageDto(items, nextCursor)
     }
 
