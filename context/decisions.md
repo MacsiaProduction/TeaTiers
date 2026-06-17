@@ -1677,3 +1677,16 @@ deviated.
     idempotent (dedup on en-name+pinyin+type), so it adds only the 37 new rows on the next deploy;
     `CatalogSeederIT` green against the 50-tea bundle. Doubles as a fuzzy-search gold-set source. **Next
     stage: 50 → 100 → ~300.**
+
+94. **Chinese (zh) support DEFERRED to the far future (user decision).** Scope narrows to **ru + en**:
+    - **UI:** Chinese removed from the in-app language picker — dropped `AppLanguage.CHINESE`, the
+      `locales_config.xml` `zh` entry, and the unused `settings_language_zh` string; a previously-stored
+      `zh` per-app override now falls through to SYSTEM. (en UI still planned for M5; ru is the source.)
+    - **OCR:** Chinese/Hanzi is out of scope for the OCR feature (run 10) — it targets **ru + en only**,
+      which removes the hardest requirement (vertical/curved Hanzi) and simplifies the engine choice.
+    - **Catalog data is NOT touched:** existing `zh-Hans` (Hanzi) names on Chinese teas stay as reference
+      display data (authoritative names, harmless), and **`pinyin` remains the romanized search key** so a
+      Chinese-named tea is still findable by typing Latin/transliterated text. The seed keeps carrying
+      Hanzi+pinyin for Chinese teas — deferral is about *Chinese-language UI/OCR/input support*, not about
+      dropping Chinese teas or their names from the product.
+    Revisit (zh UI translations, Chinese OCR) only in the far future. Tests updated (`SettingsModelsTest`).

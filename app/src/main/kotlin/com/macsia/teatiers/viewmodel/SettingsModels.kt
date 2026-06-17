@@ -10,7 +10,7 @@ enum class AppLanguage(val tag: String?) {
     SYSTEM(null),
     RUSSIAN("ru"),
     ENGLISH("en"),
-    CHINESE("zh"),
+    // Chinese (zh) UI is deferred to the far future (decision #94) — not offered in the picker.
 }
 
 /**
@@ -37,7 +37,7 @@ fun appLanguageOf(languageTags: String?): AppLanguage {
     return when (primary) {
         "ru" -> AppLanguage.RUSSIAN
         "en" -> AppLanguage.ENGLISH
-        "zh" -> AppLanguage.CHINESE
+        // A previously-stored "zh" override now falls through to SYSTEM (Chinese UI deferred, #94).
         else -> AppLanguage.SYSTEM
     }
 }

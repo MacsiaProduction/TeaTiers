@@ -24,14 +24,15 @@ class SettingsModelsTest {
     fun `appLanguageOf maps the primary subtag regardless of region or script`() {
         assertEquals(AppLanguage.RUSSIAN, appLanguageOf("ru"))
         assertEquals(AppLanguage.ENGLISH, appLanguageOf("en-US"))
-        assertEquals(AppLanguage.CHINESE, appLanguageOf("zh-Hans-CN"))
     }
 
     @Test
-    fun `appLanguageOf falls back to SYSTEM for empty, null, or unknown tags`() {
+    fun `appLanguageOf falls back to SYSTEM for empty, null, unknown, or deferred-zh tags`() {
         assertEquals(AppLanguage.SYSTEM, appLanguageOf(null))
         assertEquals(AppLanguage.SYSTEM, appLanguageOf(""))
         assertEquals(AppLanguage.SYSTEM, appLanguageOf("fr"))
+        // Chinese UI is deferred (#94): a stored zh override now falls through to SYSTEM.
+        assertEquals(AppLanguage.SYSTEM, appLanguageOf("zh-Hans-CN"))
     }
 
     @Test
@@ -45,6 +46,7 @@ class SettingsModelsTest {
         assertEquals(null, AppLanguage.SYSTEM.tag)
         assertEquals("ru", AppLanguage.RUSSIAN.tag)
         assertEquals("en", AppLanguage.ENGLISH.tag)
-        assertEquals("zh", AppLanguage.CHINESE.tag)
+        // Chinese (zh) is intentionally absent from the picker — deferred to the far future (#94).
+        assertEquals(listOf("ru", "en"), AppLanguage.entries.mapNotNull { it.tag })
     }
 }
