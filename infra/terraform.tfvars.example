@@ -1,6 +1,7 @@
 # Copy to terraform.tfvars (gitignored) and fill in. cloud_id/folder_id/zone/domain default in
-# variables.tf; you usually only set server_image after the first push to Container Registry.
+# variables.tf; you usually only set server_image after the first image is published to ghcr.
 
-# server_image = "cr.yandex/<registry-id>/teatiers-server:latest"
-# domain       = "tea.macsia.fun"
-# acme_email   = "you@example.com"
+# server_image  = "ghcr.io/macsiaproduction/teatiers-server:latest"
+# domain        = "tea.macsia.fun"
+# acme_email    = "you@example.com"
+# backup_bucket = "teatiers-backups"   # globally-unique Object Storage bucket for off-box DB dumps (#77)
