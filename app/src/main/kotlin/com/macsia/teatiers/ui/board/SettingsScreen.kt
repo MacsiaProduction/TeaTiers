@@ -259,7 +259,6 @@ private fun AppLanguage.labelRes(): Int = when (this) {
     AppLanguage.SYSTEM -> R.string.settings_language_system
     AppLanguage.RUSSIAN -> R.string.settings_language_ru
     AppLanguage.ENGLISH -> R.string.settings_language_en
-    AppLanguage.CHINESE -> R.string.settings_language_zh
 }
 
 /** Applies (or clears, for [AppLanguage.SYSTEM]) the per-app locale; AppCompat recreates the UI. */
