@@ -1706,3 +1706,29 @@ deviated.
     commercial/community-DB imports. By-type spread now: green 28, black 18, herbal 18, oolong 13, blended
     9, white 5, yellow 4, dark 3, pu'er 2. `CatalogSeederIT` green against the 100-tea bundle (idempotent;
     redeploy adds only the 50 new rows). **Next stage: 100 → ~300.**
+
+96. **2026-06-18 architecture review dispositioned** (`context/review/2026-06-18-current-design-architecture-review.md`;
+    verified by an 11-agent review workflow that confirmed all findings, corrected severities, refuted one
+    exploit chain, and surfaced 6 missed issues). **Cleanup done in this slice:**
+    - **Privacy copy re-fixed (trust bug I re-introduced in #87):** `settings_about_privacy` said the typed
+      name is sent and "больше ничего" — false once the optional `sourceText` ships. Rewrote it to disclose
+      that the pasted "описание с упаковки" is also sent for clarification and not stored in the catalog
+      (matches the honest per-field hint #87 and plan.md §8). values/ is the only locale dir.
+    - **Seed data fixes:** `Lu'an Guapian` ru name `Лю Ань`→`Луань` (six 六 here reads *lù*, matching its own
+      pinyin/region); Japanese translit normalized to the dominant `-ча` (`Генмайтя`→`Генмайча`,
+      `Синтя`→`Синча`). The other 99 teas verified clean (0 dedup collisions, all 39 Hanzi↔pinyin pairs correct).
+    - **Stale `plan.md` rows refreshed:** GHCR move "Planned" → DONE (#76/#83, YCR retired); run-09 row
+      "Implementation queued" → BUILT + DEPLOYED LIVE (#84/#91).
+    - **`.gitignore`:** added `*.code-workspace`.
+    - **Live deploy recorded:** after #95 the VM was `docker compose pull && up -d` to the 100-tea image —
+      verified live (Darjeeling First Flush, Krasnodar, Yerba Mate etc. resolve on tea.macsia.fun); the
+      earlier #91 entry only covered the V4/13-tea state.
+    - **Offline catalog cache search is intentionally substring-only (`LIKE`) for MVP** — typo tolerance is a
+      server/pg_trgm-only feature; on-device fuzzy fallback is out of scope (no Meilisearch/FTS for the cache).
+    **Open decisions resolved (user, 2026-06-18):** dependency advisory gate = **OSV-Scanner in CI** (one job,
+    both Gradle modules + infra); **SSH ingress kept world-open (key-only) for now** (revisit before public
+    release) — but Caddy will be made authoritative for `X-Forwarded-For` + 8080 confirmed closed regardless;
+    **backup import/export to be hardened now** (size/count caps + streaming, OOM guard); **next feature =
+    OCR slice 1** (PaddleOCR PP-OCRv5 sidecar + `/teas/ocr` endpoint, per the #25/run-10 server-side opt-in
+    design). Room destructive-migration cutover **stays deferred to M5** (#70.1, re-confirmed). Each follow-up
+    lands as its own PR.
