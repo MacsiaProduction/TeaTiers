@@ -190,6 +190,8 @@
     <string name="flavor_show_less">Свернуть дополнительные</string>
     <string name="field_tier">Тир</string>
     <string name="field_notes">Заметки</string>
+    <string name="field_source_text">Описание с упаковки (необязательно)</string>
+    <string name="field_source_text_hint">Вставьте текст с упаковки — он поможет точнее определить вкус и стиль. Отправляется в сервис каталога для уточнения, не сохраняется в общем каталоге.</string>
     <string name="field_purchase">Место покупки</string>
     <string name="field_purchase_label">Название места</string>
     <string name="field_purchase_text">Описание</string>

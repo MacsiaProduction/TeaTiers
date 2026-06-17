@@ -70,6 +70,7 @@ import com.macsia.teatiers.viewmodel.ExtendedRateDimensions
 import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
+import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
 import kotlin.math.roundToInt
 
@@ -320,6 +321,30 @@ fun AddTeaScreen(
                 label = { Text(stringResource(R.string.field_notes)) },
                 modifier = Modifier.fillMaxWidth().height(112.dp),
             )
+
+            // Optional grounding blurb (#25), add mode only: a pasted vendor/packaging description
+            // sent once with background enrichment to sharpen the flavor profile. Hard-capped to the
+            // server limit; the hint states it is sent for enrichment and not stored in the catalog.
+            if (!isEdit) {
+                OutlinedTextField(
+                    value = form.sourceText,
+                    onValueChange = { v ->
+                        if (v.length <= SourceTextMaxLength) viewModel.update { it.copy(sourceText = v) }
+                    },
+                    label = { Text(stringResource(R.string.field_source_text)) },
+                    supportingText = {
+                        Row(Modifier.fillMaxWidth()) {
+                            Text(
+                                text = stringResource(R.string.field_source_text_hint),
+                                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            )
+                            Text(text = "${form.sourceText.length}/$SourceTextMaxLength")
+                        }
+                    },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             PurchaseEditor(
                 purchases = form.purchases,

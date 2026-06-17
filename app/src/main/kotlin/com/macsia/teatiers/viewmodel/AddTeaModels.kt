@@ -48,6 +48,12 @@ data class PurchaseDraft(
     val url: String = "",
 )
 
+/**
+ * Server cap on the grounded `sourceText` blurb (mirrors the backend `MAX_SOURCE_TEXT_LENGTH`,
+ * decision #64); the add form hard-stops typing/pasting here so an over-long blurb never 400s.
+ */
+const val SourceTextMaxLength = 4_000
+
 /** Mutable state of the add/edit form. [isValid] gates the Save action. */
 data class AddTeaForm(
     val nameRu: String = "",
@@ -63,6 +69,10 @@ data class AddTeaForm(
     // Set when the user prefilled from a catalog result; the strongest local identity key (#42) so the
     // tea dedups by catalog id, not just by name, and skips a redundant background re-resolve.
     val catalogTeaId: Long? = null,
+    // Optional pasted vendor/packaging blurb that grounds background enrichment of a typed tea (#25).
+    // Transient add-mode input only: sent once with /resolve, never written to Room (raw vendor text
+    // is not stored locally or republished), so it is intentionally absent from toTea()/toForm().
+    val sourceText: String = "",
 ) {
     val isValid: Boolean get() = nameRu.isNotBlank()
 }
