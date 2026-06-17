@@ -1662,3 +1662,18 @@ deviated.
     non-device-verifiable wiring), the offline card copy now states the real behavior:
     `enrichment_status_queued` = **"Нет сети — уточним при открытии"** (was the vague "В очереди"). Durable
     WorkManager remains a documented post-MVP upgrade if background durability is later required.
+
+93. **Curated seed expanded 13 → 50 (review P2; first stage of the ~300 target, decision #10).** Added
+    37 own-authored, verified teas to `catalog-seed.json` (bundle `version` 2): more Chinese greens
+    (Taiping Houkui, Lu'an Guapian, Xinyang Maojian, Anji Bai Cha, Gunpowder), oolongs (Phoenix Dan Cong,
+    Rougui, Shui Xian, Dong Ding, Alishan, Jin Xuan, Baozhong, Huangjin Gui), blacks (Dianhong, Jin Jun
+    Mei), whites (Bai Mudan, Shou Mei), yellow (Meng Ding Huang Ya), dark/pu'er (Sheng Pu'er, Liu Bao, Fu
+    Zhuan), plus **Japanese** greens (Sencha, Gyokuro, Matcha, Hojicha, Genmaicha, Bancha — en+ru names
+    only, no zh-Hans/pinyin), **Taiwanese** oolongs, Indian/Ceylon blacks (Nilgiri, Ceylon, Masala Chai),
+    blends (English Breakfast, Jasmine), **herbal** (Rooibos, Hibiscus/Karkade, Chamomile, Peppermint),
+    and Korean Nokcha. Each carries multilingual names (ru transliteration + Hanzi + toned pinyin for
+    Chinese teas), an own-worded en+ru blurb, and an 11-axis flavor profile; `source=curated`,
+    `verificationStatus=verified`. No commercial/community-DB imports (provenance lock). Seeder is
+    idempotent (dedup on en-name+pinyin+type), so it adds only the 37 new rows on the next deploy;
+    `CatalogSeederIT` green against the 50-tea bundle. Doubles as a fuzzy-search gold-set source. **Next
+    stage: 50 → 100 → ~300.**

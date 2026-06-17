@@ -1,26 +1,64 @@
 {
-  "version": 1,
+  "version": 2,
   "teas": [
     {
       "type": "GREEN",
       "originCountry": "CN",
       "region": "West Lake, Hangzhou, Zhejiang",
       "names": [
-        { "locale": "en", "name": "Longjing", "isPrimary": true },
-        { "locale": "en", "name": "Dragon Well", "isPrimary": false },
-        { "locale": "ru", "name": "Лунцзин", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "龙井", "isPrimary": true },
-        { "locale": "pinyin", "name": "lóngjǐng", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Longjing",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Dragon Well",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Лунцзин",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "龙井",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "lóngjǐng",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Pan-fired green tea from West Lake, Hangzhou; flat jade leaves with a mellow, nutty sweetness." },
-        { "locale": "ru", "short": "Обжаренный в воке зелёный чай из Ханчжоу (озеро Сиху); плоские нефритовые листья, мягкий орехово-сладкий вкус." }
+        {
+          "locale": "en",
+          "short": "Pan-fired green tea from West Lake, Hangzhou; flat jade leaves with a mellow, nutty sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Обжаренный в воке зелёный чай из Ханчжоу (озеро Сиху); плоские нефритовые листья, мягкий орехово-сладкий вкус."
+        }
       ],
       "flavors": [
-        { "dimension": "GRASSY", "intensity": 3 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 3 },
-        { "dimension": "SWEETNESS", "intensity": 3 },
-        { "dimension": "UMAMI", "intensity": 2 }
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -28,21 +66,59 @@
       "originCountry": "CN",
       "region": "Dongting, Jiangsu",
       "names": [
-        { "locale": "en", "name": "Biluochun", "isPrimary": true },
-        { "locale": "en", "name": "Green Snail Spring", "isPrimary": false },
-        { "locale": "ru", "name": "Билочунь", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "碧螺春", "isPrimary": true },
-        { "locale": "pinyin", "name": "bìluóchūn", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Biluochun",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Green Snail Spring",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Билочунь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "碧螺春",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "bìluóchūn",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Spiral-rolled green tea from Dongting, Jiangsu; delicate and fruity-floral with downy tips." },
-        { "locale": "ru", "short": "Спиральный зелёный чай из Дунтина (Цзянсу); нежный, фруктово-цветочный, с ворсистыми типсами." }
+        {
+          "locale": "en",
+          "short": "Spiral-rolled green tea from Dongting, Jiangsu; delicate and fruity-floral with downy tips."
+        },
+        {
+          "locale": "ru",
+          "short": "Спиральный зелёный чай из Дунтина (Цзянсу); нежный, фруктово-цветочный, с ворсистыми типсами."
+        }
       ],
       "flavors": [
-        { "dimension": "FLORAL", "intensity": 3 },
-        { "dimension": "FRUITINESS", "intensity": 3 },
-        { "dimension": "SWEETNESS", "intensity": 3 },
-        { "dimension": "GRASSY", "intensity": 2 }
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -50,19 +126,50 @@
       "originCountry": "CN",
       "region": "Huangshan, Anhui",
       "names": [
-        { "locale": "en", "name": "Huangshan Maofeng", "isPrimary": true },
-        { "locale": "ru", "name": "Хуаншань Маофэн", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "黄山毛峰", "isPrimary": true },
-        { "locale": "pinyin", "name": "huángshān máofēng", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Huangshan Maofeng",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Хуаншань Маофэн",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "黄山毛峰",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "huángshān máofēng",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Green tea from the Yellow Mountains, Anhui; orchid aroma, clean and gently sweet." },
-        { "locale": "ru", "short": "Зелёный чай с Жёлтых гор (Аньхой); орхидейный аромат, чистый и мягко-сладкий." }
+        {
+          "locale": "en",
+          "short": "Green tea from the Yellow Mountains, Anhui; orchid aroma, clean and gently sweet."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай с Жёлтых гор (Аньхой); орхидейный аромат, чистый и мягко-сладкий."
+        }
       ],
       "flavors": [
-        { "dimension": "FLORAL", "intensity": 3 },
-        { "dimension": "SWEETNESS", "intensity": 2 },
-        { "dimension": "GRASSY", "intensity": 2 }
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -72,21 +179,59 @@
       "oxidationMin": 20,
       "oxidationMax": 50,
       "names": [
-        { "locale": "en", "name": "Tieguanyin", "isPrimary": true },
-        { "locale": "en", "name": "Iron Goddess of Mercy", "isPrimary": false },
-        { "locale": "ru", "name": "Тегуаньинь", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "铁观音", "isPrimary": true },
-        { "locale": "pinyin", "name": "tiěguānyīn", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Tieguanyin",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Iron Goddess of Mercy",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Тегуаньинь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "铁观音",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "tiěguānyīn",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Anxi oolong, often lightly oxidized; lush orchid florals over a creamy, sweet body." },
-        { "locale": "ru", "short": "Улун из Аньси, чаще слабой ферментации; пышная орхидея и сливочно-сладкое тело." }
+        {
+          "locale": "en",
+          "short": "Anxi oolong, often lightly oxidized; lush orchid florals over a creamy, sweet body."
+        },
+        {
+          "locale": "ru",
+          "short": "Улун из Аньси, чаще слабой ферментации; пышная орхидея и сливочно-сладкое тело."
+        }
       ],
       "flavors": [
-        { "dimension": "FLORAL", "intensity": 4 },
-        { "dimension": "SWEETNESS", "intensity": 3 },
-        { "dimension": "ROASTED", "intensity": 1 },
-        { "dimension": "ASTRINGENCY", "intensity": 1 }
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 1
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 1
+        }
       ]
     },
     {
@@ -96,21 +241,59 @@
       "oxidationMin": 50,
       "oxidationMax": 70,
       "names": [
-        { "locale": "en", "name": "Da Hong Pao", "isPrimary": true },
-        { "locale": "en", "name": "Big Red Robe", "isPrimary": false },
-        { "locale": "ru", "name": "Да Хун Пао", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "大红袍", "isPrimary": true },
-        { "locale": "pinyin", "name": "dàhóngpáo", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Da Hong Pao",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Big Red Robe",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Да Хун Пао",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "大红袍",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "dàhóngpáo",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Wuyi rock oolong; roasted, mineral 'yan yun' with dark fruit and a long warming finish." },
-        { "locale": "ru", "short": "Уишаньский скальный улун; обжарка, минеральность «янь юнь», тёмные фрукты, долгое согревающее послевкусие." }
+        {
+          "locale": "en",
+          "short": "Wuyi rock oolong; roasted, mineral 'yan yun' with dark fruit and a long warming finish."
+        },
+        {
+          "locale": "ru",
+          "short": "Уишаньский скальный улун; обжарка, минеральность «янь юнь», тёмные фрукты, долгое согревающее послевкусие."
+        }
       ],
       "flavors": [
-        { "dimension": "ROASTED", "intensity": 4 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 3 },
-        { "dimension": "FRUITINESS", "intensity": 2 },
-        { "dimension": "SWEETNESS", "intensity": 2 }
+        {
+          "dimension": "ROASTED",
+          "intensity": 4
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -118,21 +301,60 @@
       "originCountry": "CN",
       "region": "Fuding, Fujian",
       "names": [
-        { "locale": "en", "name": "Baihao Yinzhen", "isPrimary": true },
-        { "locale": "en", "name": "Silver Needle", "isPrimary": false },
-        { "locale": "ru", "name": "Бай Хао Иньчжэнь", "isPrimary": true },
-        { "locale": "ru", "name": "Серебряные иглы", "isPrimary": false },
-        { "locale": "zh-Hans", "name": "白毫银针", "isPrimary": true },
-        { "locale": "pinyin", "name": "báiháo yínzhēn", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Baihao Yinzhen",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Silver Needle",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Бай Хао Иньчжэнь",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Серебряные иглы",
+          "isPrimary": false
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "白毫银针",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "báiháo yínzhēn",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Fuding white tea of downy buds only; delicate, hay-sweet with melon and a soft finish." },
-        { "locale": "ru", "short": "Фудинский белый чай только из почек; нежный, медово-сенный, с дыней и мягким финишем." }
+        {
+          "locale": "en",
+          "short": "Fuding white tea of downy buds only; delicate, hay-sweet with melon and a soft finish."
+        },
+        {
+          "locale": "ru",
+          "short": "Фудинский белый чай только из почек; нежный, медово-сенный, с дыней и мягким финишем."
+        }
       ],
       "flavors": [
-        { "dimension": "SWEETNESS", "intensity": 3 },
-        { "dimension": "FLORAL", "intensity": 2 },
-        { "dimension": "GRASSY", "intensity": 2 }
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -140,19 +362,50 @@
       "originCountry": "CN",
       "region": "Junshan Island, Hunan",
       "names": [
-        { "locale": "en", "name": "Junshan Yinzhen", "isPrimary": true },
-        { "locale": "ru", "name": "Цзюньшань Иньчжэнь", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "君山银针", "isPrimary": true },
-        { "locale": "pinyin", "name": "jūnshān yínzhēn", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Junshan Yinzhen",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Цзюньшань Иньчжэнь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "君山银针",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "jūnshān yínzhēn",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Rare yellow tea from Junshan Island, Hunan; smooth, sweet-corn mellowness without grassiness." },
-        { "locale": "ru", "short": "Редкий жёлтый чай с острова Цзюньшань (Хунань); гладкий, сладко-кукурузный, без травянистости." }
+        {
+          "locale": "en",
+          "short": "Rare yellow tea from Junshan Island, Hunan; smooth, sweet-corn mellowness without grassiness."
+        },
+        {
+          "locale": "ru",
+          "short": "Редкий жёлтый чай с острова Цзюньшань (Хунань); гладкий, сладко-кукурузный, без травянистости."
+        }
       ],
       "flavors": [
-        { "dimension": "SWEETNESS", "intensity": 3 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 2 },
-        { "dimension": "UMAMI", "intensity": 2 }
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -160,21 +413,59 @@
       "originCountry": "CN",
       "region": "Qimen, Anhui",
       "names": [
-        { "locale": "en", "name": "Keemun", "isPrimary": true },
-        { "locale": "en", "name": "Qimen Hongcha", "isPrimary": false },
-        { "locale": "ru", "name": "Кимун", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "祁门红茶", "isPrimary": true },
-        { "locale": "pinyin", "name": "qímén hóngchá", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Keemun",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Qimen Hongcha",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Кимун",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "祁门红茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "qímén hóngchá",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Anhui black tea; wine-like fruit, cocoa and a gentle smoky-floral 'Keemun aroma'." },
-        { "locale": "ru", "short": "Чёрный чай из Аньхоя; винные фрукты, какао и мягкий дымно-цветочный «кимунский» аромат." }
+        {
+          "locale": "en",
+          "short": "Anhui black tea; wine-like fruit, cocoa and a gentle smoky-floral 'Keemun aroma'."
+        },
+        {
+          "locale": "ru",
+          "short": "Чёрный чай из Аньхоя; винные фрукты, какао и мягкий дымно-цветочный «кимунский» аромат."
+        }
       ],
       "flavors": [
-        { "dimension": "FRUITINESS", "intensity": 3 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 3 },
-        { "dimension": "SWEETNESS", "intensity": 2 },
-        { "dimension": "SMOKY", "intensity": 1 }
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SMOKY",
+          "intensity": 1
+        }
       ]
     },
     {
@@ -182,20 +473,55 @@
       "originCountry": "CN",
       "region": "Wuyi Mountains, Fujian",
       "names": [
-        { "locale": "en", "name": "Lapsang Souchong", "isPrimary": true },
-        { "locale": "en", "name": "Zhengshan Xiaozhong", "isPrimary": false },
-        { "locale": "ru", "name": "Лапсанг Сушонг", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "正山小种", "isPrimary": true },
-        { "locale": "pinyin", "name": "zhèngshān xiǎozhǒng", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Lapsang Souchong",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Zhengshan Xiaozhong",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Лапсанг Сушонг",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "正山小种",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "zhèngshān xiǎozhǒng",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Pinewood-smoked Wuyi black tea; campfire smoke over dried-longan sweetness." },
-        { "locale": "ru", "short": "Уишаньский чёрный чай, копчённый над сосной; костровый дым и сладость сушёного лонгана." }
+        {
+          "locale": "en",
+          "short": "Pinewood-smoked Wuyi black tea; campfire smoke over dried-longan sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Уишаньский чёрный чай, копчённый над сосной; костровый дым и сладость сушёного лонгана."
+        }
       ],
       "flavors": [
-        { "dimension": "SMOKY", "intensity": 5 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 2 },
-        { "dimension": "SWEETNESS", "intensity": 2 }
+        {
+          "dimension": "SMOKY",
+          "intensity": 5
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
       ]
     },
     {
@@ -203,20 +529,55 @@
       "originCountry": "CN",
       "region": "Yunnan",
       "names": [
-        { "locale": "en", "name": "Shou Pu'er", "isPrimary": true },
-        { "locale": "en", "name": "Ripe Pu-erh", "isPrimary": false },
-        { "locale": "ru", "name": "Шу Пуэр", "isPrimary": true },
-        { "locale": "zh-Hans", "name": "熟普洱", "isPrimary": true },
-        { "locale": "pinyin", "name": "shú pǔ'ěr", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Shou Pu'er",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Ripe Pu-erh",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Шу Пуэр",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "熟普洱",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "shú pǔ'ěr",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Wet-piled fermented Yunnan dark tea; earthy, smooth and sweet with notes of damp wood." },
-        { "locale": "ru", "short": "Влажно-ферментированный тёмный чай из Юньнани; землистый, гладкий и сладковатый, с нотами влажного дерева." }
+        {
+          "locale": "en",
+          "short": "Wet-piled fermented Yunnan dark tea; earthy, smooth and sweet with notes of damp wood."
+        },
+        {
+          "locale": "ru",
+          "short": "Влажно-ферментированный тёмный чай из Юньнани; землистый, гладкий и сладковатый, с нотами влажного дерева."
+        }
       ],
       "flavors": [
-        { "dimension": "EARTHY_NUTTY", "intensity": 5 },
-        { "dimension": "SWEETNESS", "intensity": 2 },
-        { "dimension": "BITTERNESS", "intensity": 1 }
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 1
+        }
       ]
     },
     {
@@ -224,18 +585,44 @@
       "originCountry": "IN",
       "region": "Assam",
       "names": [
-        { "locale": "en", "name": "Assam", "isPrimary": true },
-        { "locale": "ru", "name": "Ассам", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Assam",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ассам",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Brisk, malty black tea from the Assam valley; full-bodied and ideal with milk." },
-        { "locale": "ru", "short": "Бодрящий солодовый чёрный чай из долины Ассам; насыщенный, хорош с молоком." }
+        {
+          "locale": "en",
+          "short": "Brisk, malty black tea from the Assam valley; full-bodied and ideal with milk."
+        },
+        {
+          "locale": "ru",
+          "short": "Бодрящий солодовый чёрный чай из долины Ассам; насыщенный, хорош с молоком."
+        }
       ],
       "flavors": [
-        { "dimension": "ASTRINGENCY", "intensity": 3 },
-        { "dimension": "EARTHY_NUTTY", "intensity": 3 },
-        { "dimension": "BITTERNESS", "intensity": 2 },
-        { "dimension": "SWEETNESS", "intensity": 1 }
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 1
+        }
       ]
     },
     {
@@ -243,36 +630,1982 @@
       "originCountry": "IN",
       "region": "Darjeeling, West Bengal",
       "names": [
-        { "locale": "en", "name": "Darjeeling", "isPrimary": true },
-        { "locale": "ru", "name": "Дарджилинг", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Darjeeling",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Дарджилинг",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "High-grown Himalayan black tea; light, floral 'muscatel' character, the champagne of teas." },
-        { "locale": "ru", "short": "Высокогорный гималайский чёрный чай; лёгкий, цветочный «мускатный» характер, «шампанское среди чаёв»." }
+        {
+          "locale": "en",
+          "short": "High-grown Himalayan black tea; light, floral 'muscatel' character, the champagne of teas."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокогорный гималайский чёрный чай; лёгкий, цветочный «мускатный» характер, «шампанское среди чаёв»."
+        }
       ],
       "flavors": [
-        { "dimension": "FLORAL", "intensity": 3 },
-        { "dimension": "FRUITINESS", "intensity": 3 },
-        { "dimension": "ASTRINGENCY", "intensity": 2 },
-        { "dimension": "SWEETNESS", "intensity": 2 }
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
       ]
     },
     {
       "type": "BLENDED",
       "originCountry": "GB",
       "names": [
-        { "locale": "en", "name": "Earl Grey", "isPrimary": true },
-        { "locale": "ru", "name": "Эрл Грей", "isPrimary": true }
+        {
+          "locale": "en",
+          "name": "Earl Grey",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Эрл Грей",
+          "isPrimary": true
+        }
       ],
       "descriptions": [
-        { "locale": "en", "short": "Black tea blend scented with bergamot oil; bright citrus aroma over a brisk base." },
-        { "locale": "ru", "short": "Купаж чёрного чая с маслом бергамота; яркий цитрусовый аромат и бодрящая основа." }
+        {
+          "locale": "en",
+          "short": "Black tea blend scented with bergamot oil; bright citrus aroma over a brisk base."
+        },
+        {
+          "locale": "ru",
+          "short": "Купаж чёрного чая с маслом бергамота; яркий цитрусовый аромат и бодрящая основа."
+        }
       ],
       "flavors": [
-        { "dimension": "FRUITINESS", "intensity": 3 },
-        { "dimension": "FLORAL", "intensity": 2 },
-        { "dimension": "ASTRINGENCY", "intensity": 2 },
-        { "dimension": "BITTERNESS", "intensity": 1 }
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Taiping, Anhui",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Taiping Houkui",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Monkey King",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Тайпин Хоукуй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "太平猴魁",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "tàipíng hóukuí",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Large flat-pressed green tea from Anhui; orchid-floral, smooth and very low in astringency."
+        },
+        {
+          "locale": "ru",
+          "short": "Крупнолистовой прессованный зелёный чай из Аньхоя; орхидейно-цветочный, мягкий, почти без вяжущести."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Lu'an, Anhui",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Lu'an Guapian",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Melon Seed",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Лю Ань Гуапянь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "六安瓜片",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "lù'ān guāpiàn",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Leaf-only green tea from Anhui, pan-roasted to a toasty, mellow cup with a hint of chestnut."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай из одних листьев (Аньхой); прожаренный до поджаристой мягкости с каштановой ноткой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Xinyang, Henan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Xinyang Maojian",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Синьян Маоцзянь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "信阳毛尖",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "xìnyáng máojiān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Downy-tipped green tea from Henan; brisk and fresh with a light chestnut sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай с ворсистыми типсами из Хэнани; бодрящий и свежий, с лёгкой каштановой сладостью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Anji, Zhejiang",
+      "cultivar": "Baiye No.1",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Anji Bai Cha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Аньцзи Байча",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "安吉白茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "ānjí báichá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A green tea (despite the name) from a pale Zhejiang cultivar; high amino sweetness and umami."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай (несмотря на название) из бледного сорта в Чжэцзяне; высокая аминокислотная сладость и умами."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Zhejiang",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Gunpowder",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Pearl Tea",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Зелёный порох",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "珠茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "zhūchá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Tightly rolled pellets of green tea; strong and slightly smoky, the classic base for mint tea."
+        },
+        {
+          "locale": "ru",
+          "short": "Плотно скрученные шарики зелёного чая; крепкий, чуть дымный — классическая основа для чая с мятой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SMOKY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Phoenix Mountain, Guangdong",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Phoenix Dan Cong",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Фэнхуан Дань Цун",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "凤凰单丛",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "fènghuáng dāncóng",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Aromatic Guangdong oolong famous for naturally mimicking flower and fruit fragrances."
+        },
+        {
+          "locale": "ru",
+          "short": "Ароматный гуандунский улун, славится природной «имитацией» цветочных и фруктовых ароматов."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Wuyi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Rougui",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Жоугуй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "肉桂",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "ròuguì",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Wuyi rock oolong with a warm cinnamon-spice and roasted, mineral character."
+        },
+        {
+          "locale": "ru",
+          "short": "Уишаньский скальный улун с тёплой корично-пряной и обжаренно-минеральной нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 4
+        },
+        {
+          "dimension": "SPICY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Wuyi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Shui Xian",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Water Sprite",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Шуйсянь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "水仙",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "shuǐxiān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Mellow, woody Wuyi oolong; roasted and smooth with a faint narcissus floral note."
+        },
+        {
+          "locale": "ru",
+          "short": "Мягкий древесный уишаньский улун; обжаренный, гладкий, с лёгкой нарциссовой ноткой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "TW",
+      "region": "Nantou",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Dong Ding",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Дун Дин",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "冻顶乌龙",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "dòngdǐng wūlóng",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Classic Taiwanese rolled oolong; creamy and lightly roasted with a floral sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Классический тайваньский скрученный улун; сливочный, слегка обжаренный, с цветочной сладостью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "TW",
+      "region": "Chiayi",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Alishan",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Алишань",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "阿里山",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "ālǐshān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "High-mountain Taiwanese oolong; buttery, floral and sweet with very low astringency."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокогорный тайваньский улун; маслянистый, цветочный и сладкий, почти без вяжущести."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "TW",
+      "cultivar": "Jin Xuan (TTES No.12)",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Jin Xuan",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Milk Oolong",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Молочный улун",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "金萱",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "jīnxuān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Taiwanese cultivar oolong with a naturally creamy, milky-sweet aroma."
+        },
+        {
+          "locale": "ru",
+          "short": "Тайваньский сортовой улун с природным сливочно-молочным сладким ароматом."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "TW",
+      "region": "Pinglin",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Baozhong",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Pouchong",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Баочжун",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "包种",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "bāozhǒng",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Lightly oxidized Taiwanese oolong, almost green; lilac-floral and fresh."
+        },
+        {
+          "locale": "ru",
+          "short": "Слабоокисленный тайваньский улун, почти зелёный; сиренево-цветочный и свежий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Anxi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Huangjin Gui",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Golden Cassia",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Хуан Цзинь Гуй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "黄金桂",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "huángjīn guì",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Anxi oolong named for its osmanthus-like 'golden cassia' aroma; bright and floral."
+        },
+        {
+          "locale": "ru",
+          "short": "Аньсийский улун, названный за османтусовый аромат «золотой корицы»; яркий и цветочный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "CN",
+      "region": "Yunnan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Dianhong",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Yunnan Gold",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Дяньхун",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "滇红",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "diānhóng",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Golden-tipped Yunnan black tea; malty and sweet with sweet-potato and cocoa notes."
+        },
+        {
+          "locale": "ru",
+          "short": "Юньнаньский красный чай с золотыми типсами; солодовый и сладкий, с нотами батата и какао."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "CN",
+      "region": "Tongmu, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Jin Jun Mei",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Цзинь Цзюнь Мэй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "金骏眉",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "jīn jùn méi",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Premium buds-only Wuyi black tea; honey-sweet with cocoa and no smoke."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокосортный почковый уишаньский красный чай; медово-сладкий, с какао и без дыма."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "WHITE",
+      "originCountry": "CN",
+      "region": "Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Bai Mudan",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "White Peony",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Бай Мудань",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "白牡丹",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "báimǔdān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Bud-and-leaf white tea from Fujian; soft, hay-sweet and lightly floral."
+        },
+        {
+          "locale": "ru",
+          "short": "Белый чай из почек и листьев (Фуцзянь); мягкий, медово-сенный, слегка цветочный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "WHITE",
+      "originCountry": "CN",
+      "region": "Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Shou Mei",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Шоу Мэй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "寿眉",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "shòuméi",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Robust later-harvest white tea; mellow, fruity and faintly woody, and it ages well."
+        },
+        {
+          "locale": "ru",
+          "short": "Насыщенный белый чай позднего сбора; мягкий, фруктовый, чуть древесный, хорошо стареет."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "YELLOW",
+      "originCountry": "CN",
+      "region": "Mount Mengding, Sichuan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Meng Ding Huang Ya",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Мэндин Хуанъя",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "蒙顶黄芽",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "méngdǐng huángyá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Sichuan yellow-bud tea, gently 'sealed-yellowed' for a mellow, corn-sweet, low-astringency cup."
+        },
+        {
+          "locale": "ru",
+          "short": "Сычуаньский жёлтый почковый чай; «томлёный» до мягкого кукурузно-сладкого вкуса без вяжущести."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "PUER",
+      "originCountry": "CN",
+      "region": "Yunnan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Sheng Pu'er",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Raw Pu-erh",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Шэн Пуэр",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "生普洱",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "shēng pǔ'ěr",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Raw, sun-dried Yunnan pu-erh; brisk and bittersweet when young, mellowing for years with age."
+        },
+        {
+          "locale": "ru",
+          "short": "Сырой пуэр солнечной сушки из Юньнани; в молодости бодрящий и горько-сладкий, годами смягчается."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "DARK",
+      "originCountry": "CN",
+      "region": "Guangxi",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Liu Bao",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Лю Бао",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "六堡茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "liùbǎo chá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Aged Guangxi dark tea; smooth and earthy-woody with a characteristic mellow 'areca' note."
+        },
+        {
+          "locale": "ru",
+          "short": "Выдержанный тёмный чай из Гуанси; гладкий, землисто-древесный, с характерной мягкой нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 4
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SMOKY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "DARK",
+      "originCountry": "CN",
+      "region": "Hunan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Fu Zhuan",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Fu Brick",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Фу Чжуань",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "茯砖茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "fúzhuān chá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Compressed Hunan dark tea cultured with 'golden flower' fungus; mellow, earthy and smooth."
+        },
+        {
+          "locale": "ru",
+          "short": "Прессованный тёмный чай из Хунани с «золотыми цветками»; мягкий, землистый, гладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Sencha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Сенча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Japan's everyday steamed green tea; grassy and marine-fresh with a gentle astringency."
+        },
+        {
+          "locale": "ru",
+          "short": "Повседневный японский паровой зелёный чай; травянисто-свежий, с лёгкой вяжущестью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Gyokuro",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Гёкуро",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Shade-grown Japanese green tea; intense umami and sweetness, almost broth-like."
+        },
+        {
+          "locale": "ru",
+          "short": "Теневой японский зелёный чай; насыщенные умами и сладость, почти бульонная плотность."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Matcha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Матча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Stone-ground shade-grown green tea whisked into a frothy cup; creamy umami with a vegetal bitterness."
+        },
+        {
+          "locale": "ru",
+          "short": "Каменный помол теневого зелёного чая, взбитого в пену; сливочное умами с травянистой горчинкой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 4
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Hojicha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ходзича",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Roasted Japanese green tea; toasty and caramel-sweet, and very low in caffeine."
+        },
+        {
+          "locale": "ru",
+          "short": "Обжаренный японский зелёный чай; поджаристый и карамельно-сладкий, с малым кофеином."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 4
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Genmaicha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Генмайтя",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Japanese green tea blended with roasted brown rice; toasty, popcorn-like and comforting."
+        },
+        {
+          "locale": "ru",
+          "short": "Японский зелёный чай с обжаренным коричневым рисом; поджаристый, с нотой попкорна."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Bancha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Банча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Everyday late-harvest Japanese green tea; mild and woody, and low in caffeine."
+        },
+        {
+          "locale": "ru",
+          "short": "Повседневный японский зелёный чай позднего сбора; мягкий, древесный, малокофеиновый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "IN",
+      "region": "Nilgiri, Tamil Nadu",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Nilgiri",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Нилгири",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Brisk, fragrant South Indian black tea; smooth and fruity, and excellent iced."
+        },
+        {
+          "locale": "ru",
+          "short": "Бодрящий ароматный южноиндийский красный чай; гладкий и фруктовый, отлично холодным."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "LK",
+      "region": "Sri Lanka",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Ceylon",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Цейлонский чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Bright, brisk Sri Lankan black tea with a citrusy edge; the classic strong cup."
+        },
+        {
+          "locale": "ru",
+          "short": "Яркий бодрящий шри-ланкийский красный чай с цитрусовой ноткой; классическая крепкая чашка."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "IN",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Masala Chai",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Масала чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Black tea brewed with milk and warming spices — cardamom, ginger, cinnamon and clove."
+        },
+        {
+          "locale": "ru",
+          "short": "Чёрный чай, заваренный с молоком и согревающими специями — кардамон, имбирь, корица, гвоздика."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SPICY",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "GB",
+      "names": [
+        {
+          "locale": "en",
+          "name": "English Breakfast",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Английский завтрак",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Robust blend of black teas built to take milk; full-bodied and malty."
+        },
+        {
+          "locale": "ru",
+          "short": "Крепкий купаж чёрных чаёв под молоко; насыщенный и солодовый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "CN",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Jasmine Tea",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Жасминовый чай",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "茉莉花茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "mòlì huāchá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Green tea scented with fresh jasmine blossoms; intensely floral and sweet."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай, ароматизированный свежими цветами жасмина; насыщенно-цветочный и сладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "ZA",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Rooibos",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ройбуш",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free South African 'red bush'; naturally sweet, woody and smooth."
+        },
+        {
+          "locale": "ru",
+          "short": "Южноафриканский «красный куст» без кофеина; природно-сладкий, древесный и мягкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "EG",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Hibiscus",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Karkade",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Каркаде",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Tart, ruby-red infusion of hibiscus calyxes; cranberry-sour and fruity."
+        },
+        {
+          "locale": "ru",
+          "short": "Терпкий рубиновый настой из цветков гибискуса; кисло-клюквенный и фруктовый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Chamomile",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ромашковый чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free infusion of chamomile flowers; soft, apple-floral and calming."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой цветков ромашки без кофеина; мягкий, яблочно-цветочный, успокаивающий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Peppermint",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Мятный чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free peppermint infusion; cooling, crisp and refreshing."
+        },
+        {
+          "locale": "ru",
+          "short": "Мятный настой без кофеина; охлаждающий, свежий и бодрящий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "KR",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Nokcha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Нокча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Korean green tea; gentle and nutty-sweet, less marine than Japanese greens."
+        },
+        {
+          "locale": "ru",
+          "short": "Корейский зелёный чай; мягкий, орехово-сладкий, менее «морской», чем японские зелёные."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
       ]
     }
   ]
