@@ -1645,3 +1645,20 @@ deviated.
     `updateTea` edit path. Local `tea_flavors` stay user-owned — never overwritten by the catalog
     (decision #23). Tests: new `TeaDetailViewModelTest` (linked → fetched; unlinked → empty + no lookup;
     copy → `updateTea` with the reference profile); app unit suite green.
+
+91. **pg_trgm typo search DEPLOYED + verified live (closes #84's "not yet deployed" + the release-gate
+    line).** Pulled `ghcr.io/macsiaproduction/teatiers-server:latest` (the last server change was the V4
+    merge #49; #50/#52/#53/#54 were app-only so the image was unchanged) on the `teatiers` VM and
+    `docker compose up -d`. Flyway **V4 applied** on the live catalog DB (history now 1–4; `name_norm`
+    populated for 55 names; `tea_name_norm_trgm_idx` present); health stayed UP. **Live typo probes over
+    HTTPS** (`/api/v1/teas/search?q=`) resolve to the right tea: `longjng`→Longjing, `biluochn`→Biluochun,
+    `тегуанинь`→Tieguanyin (Cyrillic fuzzy works), `лапсанг сучонг`→Lapsang Souchong, `keemnu`→Keemun,
+    `龙井`→Longjing; `zzzqqq`→no match. The original task.md "several wrong symbols" requirement is now
+    real in production.
+
+92. **Queued-enrichment copy made honest instead of adding WorkManager (resolves the open #70.6 fork;
+    user picked the minimal-MVP path).** A tea queued while offline still retries only on app-open
+    (`resumePending`), not via a durable background job. Rather than add AndroidX WorkManager (dependency +
+    non-device-verifiable wiring), the offline card copy now states the real behavior:
+    `enrichment_status_queued` = **"Нет сети — уточним при открытии"** (was the vague "В очереди"). Durable
+    WorkManager remains a documented post-MVP upgrade if background durability is later required.
