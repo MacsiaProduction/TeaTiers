@@ -55,8 +55,16 @@ data class TierEntity(
  * [catalogTeaId] links the tea to its shared-catalog row once resolved (#21); [enrichmentState]
  * holds the [com.macsia.teatiers.domain.model.EnrichmentState] name driving the optimistic
  * background enrichment status + retry (#28). Both default for custom/seed teas.
+ *
+ * The UNIQUE index on [catalogTeaId] makes catalog identity a schema-level invariant (second-pass
+ * review P1): SQLite treats NULLs as distinct, so unlimited custom (null-id) teas are fine, but two
+ * user-teas can never link to the same catalog row — closing the gap the repository check alone left
+ * open to concurrent adds / backup import.
  */
-@Entity(tableName = "teas")
+@Entity(
+    tableName = "teas",
+    indices = [Index(value = ["catalogTeaId"], unique = true)],
+)
 data class TeaEntity(
     @PrimaryKey val id: String,
     val nameRu: String,

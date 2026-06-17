@@ -16,6 +16,9 @@ import androidx.room.RoomDatabase
  * v5 (M4 enrichment): adds `teas.catalogTeaId` + `teas.enrichmentState` for the optimistic
  * background catalog enrichment (#21/#28). Still destructive on bump (pre-launch).
  *
+ * v6 (second-pass review): UNIQUE index on `teas.catalogTeaId` so catalog identity is a schema-level
+ * invariant (NULLs stay distinct → custom teas unaffected). Still destructive (pre-launch).
+ *
  * exportSchema stays false until we ship to real users — at that point flip it on with
  * room.schemaLocation + a committed JSON baseline so migration tests have something to diff.
  */
@@ -30,7 +33,7 @@ import androidx.room.RoomDatabase
         PhotoEntity::class,
         CatalogCacheEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class TeaDatabase : RoomDatabase() {

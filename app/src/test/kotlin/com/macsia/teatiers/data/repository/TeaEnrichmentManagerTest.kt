@@ -71,6 +71,24 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
+    fun `a Matched but still-FAILED server stub keeps the row FAILED and does not patch`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // The server found the row (MATCHED) but it's a FAILED LLM stub it didn't re-arm (LLM off /
+            // budget spent). Forcing DONE would hide the failure + drop retry (second-pass review P0).
+            coEvery { catalog.resolve(any(), any(), any()) } returns
+                ResolveResult.Matched(detail(id = 9, state = EnrichmentState.FAILED))
+            val (manager, dao) = managerWith(teaRow("t1", name = "Мой чай"))
+
+            manager.enrich("t1", "Мой чай")
+            advanceUntilIdle()
+
+            val row = dao.loadTeaRow("t1")!!
+            assertEquals("Мой чай", row.nameRu) // not patched to the catalog name
+            assertEquals(null, row.catalogTeaId) // no catalog link written
+            assertEquals(EnrichmentState.FAILED.name, row.enrichmentState)
+        }
+
+    @Test
     fun `Enriching polls the detail until DONE then patches`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Enriching(catalogTeaId = 9)
         // First poll still PENDING, second poll DONE — exercises the polling loop.
