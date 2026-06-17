@@ -1631,3 +1631,17 @@ deviated.
     dropping all but the first. Web-image fetching stays banned — curated CC/Wikimedia or user photos only.
     Tests: new `CatalogMappersTest` (list mapped + `image`=first; single-`image` fallback → one-item list;
     none → empty + null); app unit suite green.
+
+90. **Reference-vs-mine flavor shown together on the user-tea detail (review P1; fulfills the #23
+    promise).** Catalog detail already showed reference flavors while browsing, and the user's own
+    rating showed on the local tea, but the two were never side-by-side on a catalog-linked user tea.
+    `TeaDetailViewModel` now exposes `referenceFlavors: StateFlow<List<FlavorScore>>` — fetched **on
+    demand** via `catalog.detail(catalogTeaId)` (no Room cache → no schema bump), keyed on the catalog id
+    (distinct, so a boards re-emit never re-fetches) and **fail-closed** (unlinked/offline/error → empty,
+    block hidden). `TeaDetailScreen` renders a labeled "Моя оценка" block and, for a linked tea, a
+    "Справочно из каталога" block beside it (a shared `FlavorBlock` = radar≥3 axes + strip, reference in
+    `tertiary` colour). When the user has **no** rating yet, it shows the reference as the suggestion plus a
+    one-tap **"Использовать как мою оценку"** that copies it into the user's ratings via the existing
+    `updateTea` edit path. Local `tea_flavors` stay user-owned — never overwritten by the catalog
+    (decision #23). Tests: new `TeaDetailViewModelTest` (linked → fetched; unlinked → empty + no lookup;
+    copy → `updateTea` with the reference profile); app unit suite green.

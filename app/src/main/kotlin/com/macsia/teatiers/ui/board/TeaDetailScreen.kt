@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.components.FlavorRadar
@@ -71,6 +73,7 @@ fun TeaDetailScreen(
 ) {
     LaunchedEffect(teaId) { viewModel.bind(teaId) }
     val tea by viewModel.tea.collectAsStateWithLifecycle()
+    val referenceFlavors by viewModel.referenceFlavors.collectAsStateWithLifecycle()
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -127,6 +130,8 @@ fun TeaDetailScreen(
         } else {
             TeaDetailBody(
                 tea = current,
+                referenceFlavors = referenceFlavors,
+                onUseReference = viewModel::useReferenceAsMyRating,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
@@ -160,7 +165,12 @@ fun TeaDetailScreen(
 }
 
 @Composable
-private fun TeaDetailBody(tea: Tea, modifier: Modifier = Modifier) {
+private fun TeaDetailBody(
+    tea: Tea,
+    referenceFlavors: List<FlavorScore>,
+    onUseReference: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val liquor = TeaTheme.colors.liquorByType[tea.type] ?: MaterialTheme.colorScheme.secondary
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -209,22 +219,32 @@ private fun TeaDetailBody(tea: Tea, modifier: Modifier = Modifier) {
             }
         }
 
-        if (tea.flavor.isNotEmpty()) {
+        // "Catalog reference vs my rating" (#23). Show the user's own profile and, for a
+        // catalog-linked tea, the reference profile beside it. With no personal rating yet, offer
+        // the reference as a one-tap starting point.
+        if (tea.flavor.isNotEmpty() || referenceFlavors.isNotEmpty()) {
             Section(title = stringResource(R.string.detail_flavor_title)) {
-                if (tea.flavor.size >= 3) {
-                    FlavorRadar(
-                        flavors = tea.flavor,
-                        accent = liquor,
-                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                if (tea.flavor.isNotEmpty()) {
+                    FlavorBlock(stringResource(R.string.detail_flavor_mine), tea.flavor, liquor)
+                    if (referenceFlavors.isNotEmpty()) {
+                        Spacer(Modifier.height(20.dp))
+                        FlavorBlock(
+                            stringResource(R.string.detail_flavor_reference),
+                            referenceFlavors,
+                            MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                } else {
+                    FlavorBlock(
+                        stringResource(R.string.detail_flavor_reference),
+                        referenceFlavors,
+                        MaterialTheme.colorScheme.tertiary,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = onUseReference) {
+                        Text(stringResource(R.string.detail_flavor_use_reference))
+                    }
                 }
-                FlavorStrip(
-                    flavors = tea.flavor,
-                    accent = liquor,
-                    max = tea.flavor.size,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
 
@@ -257,6 +277,31 @@ private fun Section(title: String, content: @Composable () -> Unit) {
         Spacer(Modifier.height(10.dp))
         content()
     }
+}
+
+/** One labeled flavor profile (radar when ≥3 axes, plus the strip) — used for both "mine" and the catalog reference. */
+@Composable
+private fun FlavorBlock(label: String, flavors: List<FlavorScore>, accent: Color) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    if (flavors.size >= 3) {
+        FlavorRadar(
+            flavors = flavors,
+            accent = accent,
+            modifier = Modifier.fillMaxWidth().height(260.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+    }
+    FlavorStrip(
+        flavors = flavors,
+        accent = accent,
+        max = flavors.size,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
