@@ -151,6 +151,9 @@
 
     <!-- Tea detail -->
     <string name="detail_flavor_title">Вкус</string>
+    <string name="detail_flavor_mine">Моя оценка</string>
+    <string name="detail_flavor_reference">Справочно из каталога</string>
+    <string name="detail_flavor_use_reference">Использовать как мою оценку</string>
     <string name="detail_notes_title">Заметки</string>
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
