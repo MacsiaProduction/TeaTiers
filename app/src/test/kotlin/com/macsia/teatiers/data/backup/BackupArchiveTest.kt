@@ -2,6 +2,7 @@ package com.macsia.teatiers.data.backup
 
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayOutputStream
@@ -33,5 +34,54 @@ class BackupArchiveTest {
         val parsed = BackupArchive.read(out.toByteArray().inputStream())
         assertTrue(parsed.json.isBlank())
         assertArrayEquals(byteArrayOf(7), parsed.photoBytes["x.png"])
+    }
+
+    @Test
+    fun `read rejects a photo larger than the per-photo cap`() {
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(out, "{}", mapOf("big.jpg" to ByteArray(50)))
+        assertThrows(BackupArchive.TooLargeException::class.java) {
+            BackupArchive.read(out.toByteArray().inputStream(), BackupArchive.Limits(maxPhotoBytes = 10))
+        }
+    }
+
+    @Test
+    fun `read rejects more photos than the count cap`() {
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(out, "{}", mapOf("a.jpg" to byteArrayOf(1), "b.jpg" to byteArrayOf(2), "c.jpg" to byteArrayOf(3)))
+        assertThrows(BackupArchive.TooLargeException::class.java) {
+            BackupArchive.read(out.toByteArray().inputStream(), BackupArchive.Limits(maxPhotoCount = 2))
+        }
+    }
+
+    @Test
+    fun `read rejects when cumulative uncompressed size exceeds the total cap`() {
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(out, "{}", mapOf("a.jpg" to ByteArray(8), "b.jpg" to ByteArray(8)))
+        assertThrows(BackupArchive.TooLargeException::class.java) {
+            BackupArchive.read(out.toByteArray().inputStream(), BackupArchive.Limits(maxTotalBytes = 10))
+        }
+    }
+
+    @Test
+    fun `read rejects a json entry larger than the json cap`() {
+        val out = ByteArrayOutputStream()
+        BackupArchive.write(out, """{"k":"aaaaaaaaaaaaaaaaaaaa"}""", emptyMap())
+        assertThrows(BackupArchive.TooLargeException::class.java) {
+            BackupArchive.read(out.toByteArray().inputStream(), BackupArchive.Limits(maxJsonBytes = 5))
+        }
+    }
+
+    @Test
+    fun `read skips nested or path-traversal photo names`() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.putNextEntry(ZipEntry(BACKUP_PHOTO_DIR + "../evil.png")); zip.write(byteArrayOf(1)); zip.closeEntry()
+            zip.putNextEntry(ZipEntry(BACKUP_PHOTO_DIR + "sub/ok.png")); zip.write(byteArrayOf(2)); zip.closeEntry()
+            zip.putNextEntry(ZipEntry(BACKUP_PHOTO_DIR + "good.png")); zip.write(byteArrayOf(3)); zip.closeEntry()
+        }
+        val parsed = BackupArchive.read(out.toByteArray().inputStream())
+        assertEquals(setOf("good.png"), parsed.photoBytes.keys)
+        assertArrayEquals(byteArrayOf(3), parsed.photoBytes["good.png"])
     }
 }

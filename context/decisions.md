@@ -1732,3 +1732,17 @@ deviated.
     OCR slice 1** (PaddleOCR PP-OCRv5 sidecar + `/teas/ocr` endpoint, per the #25/run-10 server-side opt-in
     design). Room destructive-migration cutover **stays deferred to M5** (#70.1, re-confirmed). Each follow-up
     lands as its own PR.
+
+97. **Backup import hardened against OOM / zip bombs (#96 follow-up; review P1→P2).** `BackupArchive.read`
+    now enforces a `Limits` budget while reading an untrusted picked archive: per-photo cap (20 MB),
+    per-JSON cap (16 MB), photo-count cap (1000), and a **cumulative-decompressed cap (256 MB)** that bounds
+    peak memory and defends against a zip bomb (a 200 MB archive could otherwise decompress to GBs). Breach →
+    `BackupArchive.TooLargeException`. `BackupManager.importFrom` adds a cheap up-front SAF size pre-check
+    (reject > 200 MB before reading) and maps the exception to a new `BackupResult.TooLarge` →
+    `backup_too_large` user message. Path-traversal/nested photo entry names are skipped defensively (on top
+    of the existing UUID-rename mitigation). `Limits` defaults = production values; tests pass tiny values.
+    Tests: 5 new `BackupArchiveTest` cases (per-photo / count / cumulative / json caps + nested-name skip);
+    app unit suite green. NOTE: peak memory is now *bounded* (≤ ~256 MB, off-main-thread) but photos are still
+    buffered in a `Map` before write — full streaming (eliminating the Map) is a deferred optimization, and
+    export (own data) was left unbounded. The Caddy `X-Forwarded-For` authoritative-header fix + dev-8080
+    localhost bind land in a separate infra PR + deploy.
