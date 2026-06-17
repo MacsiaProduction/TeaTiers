@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "teas": [
     {
       "type": "GREEN",
@@ -2605,6 +2605,2318 @@
         {
           "dimension": "UMAMI",
           "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Wuyi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Shui Jin Gui",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Шуй Цзинь Гуй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "水金龟",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "shuǐjīnguī",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "One of the four famous Wuyi rock oolongs; roasted, mineral and smooth with a sweet finish."
+        },
+        {
+          "locale": "ru",
+          "short": "Один из четырёх знаменитых уишаньских скальных улунов; обжаренный, минеральный, гладкий, со сладким послевкусием."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Wuyi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Bai Ji Guan",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "White Cockscomb",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Бай Цзи Гуань",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "白鸡冠",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "báijīguān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A pale-leafed Wuyi rock oolong; lighter and sweeter than its roasted cousins, lightly herbal."
+        },
+        {
+          "locale": "ru",
+          "short": "Светлолистовой уишаньский скальный улун; мягче и слаще обжаренных собратьев, с лёгкой травяной нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "OOLONG",
+      "originCountry": "CN",
+      "region": "Wuyi, Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Tie Luo Han",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Iron Arhat",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Те Ло Хань",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "铁罗汉",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "tiěluóhàn",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Deeply roasted Wuyi rock oolong; robust, woody and mineral with dark-caramel sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Сильно обжаренный уишаньский скальный улун; крепкий, древесный, минеральный, с тёмно-карамельной сладостью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ROASTED",
+          "intensity": 4
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SPICY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Mount Emei, Sichuan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Zhu Ye Qing",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Чжу Е Цин",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "竹叶青",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "zhúyèqīng",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Slender bud-only green tea from Mount Emei, Sichuan; fresh, sweet and lightly nutty."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай из одних почек с горы Эмэй (Сычуань); свежий, сладкий, с лёгкой ореховой нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Enshi, Hubei",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Enshi Yu Lu",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Эньши Юйлу",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "恩施玉露",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "ēnshī yùlù",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A rare steamed Chinese green tea from Hubei; marine-fresh and umami, closer to Japanese sencha."
+        },
+        {
+          "locale": "ru",
+          "short": "Редкий китайский зелёный чай паровой фиксации из Хубэя; морски-свежий, с умами, ближе к японской сенче."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Duyun, Guizhou",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Duyun Maojian",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Дуюнь Маоцзянь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "都匀毛尖",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "dūyún máojiān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Curly downy-tipped green tea from Guizhou; brisk, fresh and chestnut-sweet."
+        },
+        {
+          "locale": "ru",
+          "short": "Кручёный зелёный чай с ворсистыми типсами из Гуйчжоу; бодрящий, свежий, с каштановой сладостью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Mount Mengding, Sichuan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Mengding Ganlu",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Мэндин Ганьлу",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "蒙顶甘露",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "méngdǐng gānlù",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Ancient curly green tea from Mount Mengding, Sichuan; soft, sweet and downy-smooth."
+        },
+        {
+          "locale": "ru",
+          "short": "Старинный кручёный зелёный чай с горы Мэндин (Сычуань); мягкий, сладкий, бархатисто-гладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "CN",
+      "region": "Laoshan, Shandong",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Laoshan Green",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Лаошань Люйча",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "崂山绿茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "láoshān lǜchá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Northern Chinese green tea from coastal Shandong; thick, bean-sweet and full-bodied."
+        },
+        {
+          "locale": "ru",
+          "short": "Северокитайский зелёный чай с побережья Шаньдуна; плотный, с бобовой сладостью, насыщенный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "WHITE",
+      "originCountry": "CN",
+      "region": "Yunnan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Yueguang Bai",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Moonlight White",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Юэгуан Бай",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "月光白",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "yuèguāng bái",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Yunnan white tea from large-leaf assamica; honey and dried-fruit sweetness with a dark-leaf look."
+        },
+        {
+          "locale": "ru",
+          "short": "Юньнаньский белый чай из крупнолистовой ассамики; медово-сухофруктовая сладость и тёмный лист."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "WHITE",
+      "originCountry": "CN",
+      "region": "Fujian",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Gongmei",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Гун Мэй",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "贡眉",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "gòngméi",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A leafier Fujian white tea between Bai Mudan and Shou Mei; mellow, hay-sweet and fruity."
+        },
+        {
+          "locale": "ru",
+          "short": "Более листовой фуцзяньский белый чай между Бай Мудань и Шоу Мэй; мягкий, медово-сенный, фруктовый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "YELLOW",
+      "originCountry": "CN",
+      "region": "Mount Huo, Anhui",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Huoshan Huangya",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Хошань Хуанъя",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "霍山黄芽",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "huòshān huángyá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Anhui yellow bud tea, gently 'sealed-yellowed'; mellow, sweet-corn and chestnut, low astringency."
+        },
+        {
+          "locale": "ru",
+          "short": "Аньхойский жёлтый почковый чай; «томлёный» до мягкого кукурузно-каштанового вкуса без вяжущести."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "DARK",
+      "originCountry": "CN",
+      "region": "Anhua, Hunan",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Tian Jian",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Тянь Цзянь",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "天尖",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "tiānjiān",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Loose Hunan dark tea, the top grade of Anhua hei cha; smooth, woody-sweet with a clean pine note."
+        },
+        {
+          "locale": "ru",
+          "short": "Рассыпной тёмный чай из Хунани, высший сорт аньхуа хэйча; гладкий, древесно-сладкий, с чистой сосновой нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SMOKY",
+          "intensity": 1
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Kukicha",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Twig Tea",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Кукича",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Japanese green tea made from stems and twigs; light, creamy-sweet and very low in caffeine."
+        },
+        {
+          "locale": "ru",
+          "short": "Японский зелёный чай из стебельков и веточек; лёгкий, сливочно-сладкий, с минимумом кофеина."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Shincha",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "New Tea",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Синтя",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "The first sencha of the year; vivid, fresh and sweet with bright spring-green vegetal notes."
+        },
+        {
+          "locale": "ru",
+          "short": "Первая сенча сезона; яркая, свежая и сладкая, с весенними травянисто-зелёными нотами."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Kabusecha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Кабусеча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Briefly shade-grown Japanese green tea, between sencha and gyokuro; sweet, umami and smooth."
+        },
+        {
+          "locale": "ru",
+          "short": "Слегка теневой японский зелёный чай между сенчой и гёкуро; сладкий, с умами, гладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Tencha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Тенча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Shade-grown, unrolled leaf that is ground into matcha; delicate, sweet and deeply umami."
+        },
+        {
+          "locale": "ru",
+          "short": "Теневой нескрученный лист, из которого мелют матчу; нежный, сладкий, с глубоким умами."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "UMAMI",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Konacha",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Sushi Tea",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Конача",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Fine sencha dust and small leaf served in sushi shops; strong, brisk and grassy."
+        },
+        {
+          "locale": "ru",
+          "short": "Мелкая крошка и обрезки сенчи, что подают в суши-барах; крепкий, бодрящий, травянистый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "JP",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Mecha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Меча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Japanese green tea of rolled buds and tips sieved out during sencha production; bold and fresh."
+        },
+        {
+          "locale": "ru",
+          "short": "Японский зелёный чай из скрученных почек и кончиков, отсеянных при производстве сенчи; яркий и свежий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "KR",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Sejak",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Седжак",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Early-spring Korean green tea of small leaves; gentle, nutty-sweet and smooth."
+        },
+        {
+          "locale": "ru",
+          "short": "Корейский зелёный чай раннего весеннего сбора из мелких листьев; мягкий, орехово-сладкий, гладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "UMAMI",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "YELLOW",
+      "originCountry": "KR",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Hwangcha",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Хванча",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Lightly oxidized 'yellow' Korean tea; mellow and sweet with honey and roasted-grain notes."
+        },
+        {
+          "locale": "ru",
+          "short": "Слабоокисленный «жёлтый» корейский чай; мягкий и сладкий, с нотами мёда и поджаренного зерна."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "IN",
+      "region": "Darjeeling, West Bengal",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Darjeeling First Flush",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Дарджилинг первого сбора",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Spring-picked Darjeeling; pale, brisk and floral-fresh with a signature muscatel hint."
+        },
+        {
+          "locale": "ru",
+          "short": "Весенний дарджилинг; светлый, бодрящий, цветочно-свежий, с фирменной мускатной ноткой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "IN",
+      "region": "Darjeeling, West Bengal",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Darjeeling Second Flush",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Дарджилинг второго сбора",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Summer Darjeeling; amber, fuller and rounder with the prized ripe-muscatel grape character."
+        },
+        {
+          "locale": "ru",
+          "short": "Летний дарджилинг; янтарный, более плотный и округлый, с ценимым спело-мускатным виноградным характером."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "IN",
+      "region": "Temi, Sikkim",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Sikkim Temi",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Sikkim",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Сиккимский чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Single-garden black tea from Sikkim's Temi estate; smooth and fruity, Darjeeling-like but rounder."
+        },
+        {
+          "locale": "ru",
+          "short": "Чёрный чай с единственного сада Теми в Сиккиме; гладкий и фруктовый, похож на дарджилинг, но округлее."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "NP",
+      "region": "Ilam",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Nepali Black",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Ilam",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Непальский чёрный",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "High-grown black tea from Ilam, Nepal; bright and aromatic, akin to Darjeeling at gentler prices."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокогорный чёрный чай из Илама (Непал); яркий и ароматный, родственник дарджилинга."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "LK",
+      "region": "Nuwara Eliya",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Nuwara Eliya",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Нувара-Элия",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "High-elevation Ceylon black tea; light, bright and delicately floral, almost like a fine green."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокогорный цейлонский чёрный чай; светлый, яркий, тонко-цветочный, почти как изысканный зелёный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "LK",
+      "region": "Uva",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Uva",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ува",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Eastern Ceylon highland black tea; brisk and bright with a distinctive cooling, wintergreen note."
+        },
+        {
+          "locale": "ru",
+          "short": "Высокогорный чёрный чай востока Цейлона; бодрящий и яркий, с характерной охлаждающей ноткой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "KE",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Kenyan Black",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Кенийский чёрный",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Brisk, full-bodied East African black tea; bold and coppery, the backbone of many breakfast blends."
+        },
+        {
+          "locale": "ru",
+          "short": "Бодрящий насыщенный восточноафриканский чёрный чай; яркий, медно-красный, основа многих утренних купажей."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 4
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "TR",
+      "region": "Rize",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Turkish Tea",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Rize",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Турецкий чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Strong Rize black tea brewed in a double pot and served in tulip glasses; brisk and robust."
+        },
+        {
+          "locale": "ru",
+          "short": "Крепкий чёрный чай из Ризе, заваренный в двойном чайнике и поданный в стаканах-тюльпанах; бодрящий и насыщенный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 4
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "GE",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Georgian Tea",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Грузинский чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caucasian black tea with a long tradition; smooth, mild and lightly sweet with a soft body."
+        },
+        {
+          "locale": "ru",
+          "short": "Кавказский чёрный чай с давней традицией; гладкий, мягкий, слегка сладкий, нежного тела."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLACK",
+      "originCountry": "RU",
+      "region": "Krasnodar Krai",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Krasnodar Tea",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Краснодарский чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Russia's own black tea from Krasnodar Krai, the world's northernmost; mild, soft and slightly sweet."
+        },
+        {
+          "locale": "ru",
+          "short": "Российский чёрный чай из Краснодарского края, самый северный в мире; мягкий, нежный, чуть сладкий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "GREEN",
+      "originCountry": "VN",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Vietnamese Green",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Вьетнамский зелёный",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Robust highland green tea from Vietnam; strong, brisk and grassy with a touch of smoke."
+        },
+        {
+          "locale": "ru",
+          "short": "Насыщенный высокогорный зелёный чай из Вьетнама; крепкий, бодрящий, травянистый, с лёгкой дымкой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SMOKY",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "RU",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Russian Caravan",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Русский караван",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A blend of black (and often oolong/keemun) teas with a gentle campfire smokiness."
+        },
+        {
+          "locale": "ru",
+          "short": "Купаж чёрных (часто с улуном/кимуном) чаёв с лёгкой костровой дымностью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SMOKY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "MA",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Moroccan Mint",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Марокканская мята",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Gunpowder green tea brewed with fresh spearmint and plenty of sugar; sweet, cooling and refreshing."
+        },
+        {
+          "locale": "ru",
+          "short": "Зелёный чай «порох», заваренный со свежей мятой и сахаром; сладкий, охлаждающий, освежающий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "IE",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Irish Breakfast",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ирландский завтрак",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A bold malty black blend, heavy on Assam; strong and full-bodied, built for milk."
+        },
+        {
+          "locale": "ru",
+          "short": "Крепкий солодовый чёрный купаж с упором на ассам; насыщенный, полнотелый, под молоко."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 3
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "originCountry": "GB",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Lady Grey",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Леди Грей",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "A lighter Earl Grey with bergamot plus orange and lemon peel; citrus-bright and floral."
+        },
+        {
+          "locale": "ru",
+          "short": "Облегчённый «Эрл Грей» с бергамотом, апельсиновой и лимонной цедрой; цитрусово-яркий и цветочный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "BLENDED",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Vanilla Black",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Чёрный с ванилью",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Black tea scented with vanilla; smooth, sweet and creamy with a soft malty base."
+        },
+        {
+          "locale": "ru",
+          "short": "Чёрный чай, ароматизированный ванилью; гладкий, сладкий и сливочный, на мягкой солодовой основе."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "ROASTED",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Lemongrass",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Лемонграсс",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free infusion of lemongrass; bright, citrusy and clean."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой лемонграсса без кофеина; яркий, цитрусовый, чистый."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Ginger Tea",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Имбирный чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free ginger infusion; hot, spicy and warming with a clean sweet finish."
+        },
+        {
+          "locale": "ru",
+          "short": "Имбирный настой без кофеина; жгучий, пряный, согревающий, с чистым сладким послевкусием."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SPICY",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Lavender",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Лавандовый чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free lavender infusion; intensely floral and soothing with a soft honey sweetness."
+        },
+        {
+          "locale": "ru",
+          "short": "Лавандовый настой без кофеина; насыщенно-цветочный, успокаивающий, с мягкой медовой сладостью."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 5
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "IN",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Tulsi",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Holy Basil",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Тулси",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free holy basil infusion from India; herbaceous, peppery-sweet and calming."
+        },
+        {
+          "locale": "ru",
+          "short": "Индийский настой священного базилика без кофеина; травянистый, перечно-сладкий, успокаивающий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SPICY",
+          "intensity": 3
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "ZA",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Honeybush",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Ханибуш",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free South African cousin of rooibos; rounder and sweeter with a clear honey note."
+        },
+        {
+          "locale": "ru",
+          "short": "Южноафриканский родственник ройбуша без кофеина; округлее и слаще, с явной медовой нотой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Rosehip",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Шиповник",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free rosehip infusion; tart and fruity with a bright vitamin-C tang."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой шиповника без кофеина; терпкий и фруктовый, с яркой витаминной кислинкой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 4
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Lemon Verbena",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Лимонная вербена",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free lemon verbena infusion; soft, sweet-lemony and gently relaxing."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой лимонной вербены без кофеина; мягкий, сладко-лимонный, расслабляющий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "TH",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Butterfly Pea",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Blue Tea",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Анчан",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free blue-flower infusion that turns purple with lemon; mild, earthy and faintly floral."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой синих цветков без кофеина, лиловеющий от лимона; мягкий, землистый, чуть цветочный."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "AR",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Yerba Mate",
+          "isPrimary": true
+        },
+        {
+          "locale": "en",
+          "name": "Mate",
+          "isPrimary": false
+        },
+        {
+          "locale": "ru",
+          "name": "Йерба мате",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "South American holly infusion sipped from a gourd; brisk, grassy-bitter and energizing."
+        },
+        {
+          "locale": "ru",
+          "short": "Южноамериканский настой падуба, что пьют из калебаса; бодрящий, травянисто-горький, тонизирующий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "BITTERNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        },
+        {
+          "dimension": "ASTRINGENCY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Spearmint",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Кудрявая мята",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free spearmint infusion; sweet, cooling and softer than peppermint."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой кудрявой мяты без кофеина; сладкий, охлаждающий, мягче перечной мяты."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 2
+        },
+        {
+          "dimension": "FLORAL",
+          "intensity": 1
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Fennel",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Фенхель",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free fennel-seed infusion; sweet and anise-like, soothing for digestion."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой семян фенхеля без кофеина; сладкий, с анисовой нотой, мягкий для пищеварения."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "SPICY",
+          "intensity": 3
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Elderflower",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Цветки бузины",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free elderflower infusion; delicate, sweet and floral with a muscat-grape lift."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой цветков бузины без кофеина; нежный, сладкий, цветочный, с мускатно-виноградной ноткой."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "FRUITINESS",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Nettle",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Крапивный чай",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free nettle infusion; green, grassy and mineral with a clean earthy body."
+        },
+        {
+          "locale": "ru",
+          "short": "Крапивный настой без кофеина; зелёный, травянистый, минеральный, с чистым землистым телом."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "GRASSY",
+          "intensity": 4
+        },
+        {
+          "dimension": "EARTHY_NUTTY",
+          "intensity": 2
+        }
+      ]
+    },
+    {
+      "type": "HERBAL",
+      "originCountry": "CN",
+      "names": [
+        {
+          "locale": "en",
+          "name": "Chrysanthemum",
+          "isPrimary": true
+        },
+        {
+          "locale": "ru",
+          "name": "Хризантемовый чай",
+          "isPrimary": true
+        },
+        {
+          "locale": "zh-Hans",
+          "name": "菊花茶",
+          "isPrimary": true
+        },
+        {
+          "locale": "pinyin",
+          "name": "júhuā chá",
+          "isPrimary": true
+        }
+      ],
+      "descriptions": [
+        {
+          "locale": "en",
+          "short": "Caffeine-free infusion of dried chrysanthemum flowers; light, sweet-floral and cooling."
+        },
+        {
+          "locale": "ru",
+          "short": "Настой сушёных цветков хризантемы без кофеина; лёгкий, сладко-цветочный, охлаждающий."
+        }
+      ],
+      "flavors": [
+        {
+          "dimension": "FLORAL",
+          "intensity": 4
+        },
+        {
+          "dimension": "SWEETNESS",
+          "intensity": 3
+        },
+        {
+          "dimension": "GRASSY",
+          "intensity": 1
         }
       ]
     }

@@ -1690,3 +1690,19 @@ deviated.
       Hanzi+pinyin for Chinese teas — deferral is about *Chinese-language UI/OCR/input support*, not about
       dropping Chinese teas or their names from the product.
     Revisit (zh UI translations, Chinese OCR) only in the far future. Tests updated (`SettingsModelsTest`).
+
+95. **Curated seed expanded 50 → 100 (continues #93; second stage of the ~300 target).** Added 50 more
+    own-authored, verified teas (bundle `version` 3), deliberately **biased non-Chinese** (aligns with the
+    #94 ru+en focus and avoids Hanzi-accuracy risk): more **Japanese** (Kukicha, Shincha, Kabusecha,
+    Tencha, Konacha, Mecha), **Korean** (Sejak, Hwangcha), **Indian/Nepali** (Darjeeling first/second
+    flush, Sikkim Temi, Ilam), **Ceylon** regions (Nuwara Eliya, Uva), other black origins (Kenyan,
+    Turkish/Rize, Georgian, **Krasnodar** — the RU home tea, Vietnamese green), classic **blends** (Russian
+    Caravan, Moroccan Mint, Irish Breakfast, Lady Grey, Vanilla Black), a broad **herbal/tisane** set
+    (Lemongrass, Ginger, Lavender, Tulsi, Honeybush, Rosehip, Lemon Verbena, Butterfly Pea, Yerba Mate,
+    Spearmint, Fennel, Elderflower, Nettle, Chrysanthemum), plus a confident batch of famous **Chinese**
+    teas keeping Hanzi+pinyin as reference (Wuyi Shui Jin Gui / Bai Ji Guan / Tie Luo Han, Zhu Ye Qing,
+    Enshi Yu Lu, Duyun Maojian, Mengding Ganlu, Laoshan Green, Yueguang Bai, Gongmei, Huoshan Huangya,
+    Tian Jian). All en+ru blurbs own-worded, 11-axis flavor profiles, `source=curated`/`verified`; no
+    commercial/community-DB imports. By-type spread now: green 28, black 18, herbal 18, oolong 13, blended
+    9, white 5, yellow 4, dark 3, pu'er 2. `CatalogSeederIT` green against the 100-tea bundle (idempotent;
+    redeploy adds only the 50 new rows). **Next stage: 100 → ~300.**
