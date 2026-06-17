@@ -27,6 +27,10 @@ class FoundationModelsClient(
     private val restClient: RestClient = RestClient.builder()
         .baseUrl(props.endpoint)
         .defaultHeader(HttpHeaders.AUTHORIZATION, "Api-Key ${props.apiKey}")
+        // Opt out of Yandex request/response logging (AI Studio ToS cl. 4.1/3.15): the basis for
+        // storing + re-serving model output. Standard on the native API; harmless if the OpenAI-compat
+        // endpoint ignores it. Confirm logging is actually off (header or folder-level) before deploy.
+        .defaultHeader("x-data-logging-enabled", "false")
         .requestFactory(
             SimpleClientHttpRequestFactory().apply {
                 setConnectTimeout(Duration.ofMillis(props.connectTimeoutMs.toLong()))
