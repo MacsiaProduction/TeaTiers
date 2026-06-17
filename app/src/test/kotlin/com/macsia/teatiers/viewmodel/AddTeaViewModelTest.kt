@@ -126,6 +126,34 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `submit forwards a pasted source description to enrichment, trimmed`() = runTest {
+        coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Лунцзин", sourceText = "  Высокогорный улун, мёд и орхидея  ") }
+
+        viewModel.submit { }
+        advanceUntilIdle()
+
+        verify(exactly = 1) {
+            enrichmentManager.enrich(eq("tea-1"), any(), eq("Высокогорный улун, мёд и орхидея"))
+        }
+    }
+
+    @Test
+    fun `submit passes null source text when the blurb is blank`() = runTest {
+        coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Лунцзин", sourceText = "   ") }
+
+        viewModel.submit { }
+        advanceUntilIdle()
+
+        verify(exactly = 1) { enrichmentManager.enrich(eq("tea-1"), any(), isNull()) }
+    }
+
+    @Test
     fun `submit does not enrich an auto-linked existing tea`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = false)
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)

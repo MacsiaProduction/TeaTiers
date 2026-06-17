@@ -1594,3 +1594,19 @@ deviated.
     while scoping; no resources left behind. Macsia AI (`teatiers-llm` SA + `teatiers-llm-api-key` Lockbox)
     stays in place but dormant (tier off, #82) — nothing bills AI to macsia today. Revisit when rights are
     granted.
+
+87. **"Paste a description" grounding field shipped (#25 UI; resolves the review's "server-ready, not
+    product-ready" P1).** The backend has accepted/forwarded `sourceText` since #64/#66, but the app had
+    no way to provide it — obscure-tea enrichment was zero-shot (highest hallucination risk). Added an
+    optional **add-mode-only** multiline field in `AddTeaScreen` (after Notes), hard-capped to the server
+    limit (`SourceTextMaxLength = 4000`, mirrors `MAX_SOURCE_TEXT_LENGTH`) with a live counter and a hint
+    that the text is sent to the catalog service for clarification and **not** stored in the shared
+    catalog. `sourceText` lives only on the transient `AddTeaForm` — intentionally NOT in `toTea()`/Room
+    (raw vendor text is never persisted locally or republished, per the run-10 / #65 guards). On save,
+    `submit()` passes `form.sourceText.trim().ifBlank{null}` into the existing
+    `enrichmentManager.enrich(teaId, name, sourceText)` → `catalog.resolve(...)` chain, only for a
+    genuinely-new, non-catalog-linked tea. Tests: two `AddTeaViewModelTest` cases (blurb forwarded trimmed;
+    blank → null); app unit suite green. Note: with the LLM tier off in prod (#82) the blurb is accepted by
+    `/resolve` but not yet acted on; the field carries its own disclosure, so global
+    `settings_about_privacy` (#85) was left unchanged. The OCR photo → sourceText path (run 10) feeds this
+    same field later (on-device RapidOCR/PaddleOCR, not ML Kit — see run-10 RATING).
