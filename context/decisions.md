@@ -1359,9 +1359,10 @@ deviated.
       for durable `QUEUED`/`PENDING` enrichment retry (the app-scope manager stays for in-app optimistic
       patching). Search typo-tolerance stays gated on **run 09** (#67); ghcr on **#68**.
     - **OPEN — needs your decision (not actioned; recorded as unresolved):**
-      - **#70.1 Room public-schema cutover.** Pick the "public schema starts at vN" line (likely v5), turn on
-        `exportSchema` + commit the baseline, drop the destructive fallback for future bumps. Until then
-        internal builds keep wiping on upgrade. *Release blocker once an APK reaches a real user.*
+      - **#70.1 Room public-schema cutover** — **RESOLVED 2026-06-17: leave as-is until M5.** Keep
+        destructive `fallbackToDestructiveMigration` + `exportSchema=false` during active M4/M5 development;
+        the cutover (export schema + commit baseline + drop destructive + real migrations) is an **M5
+        release-gate task** (plan §7.1). Until then internal builds wipe on upgrade — accepted.
       - **#70.2 Catalog image list (backend).** Is a backend `tea_image` *list* table in MVP scope, or do
         catalog teas stay single-`image_url` until post-MVP? (Web image fetching stays banned regardless.)
       - **#70.3 Off-box DB backup.** `/resolve` writes non-seed rows, so the DB is no longer reproducible from
@@ -1409,3 +1410,11 @@ deviated.
     retry via **WorkManager** — it adds a dependency and a Hilt+WorkManager runtime integration that can't be
     device-verified in this environment against the AGP 9 / Kotlin 2.4 toolchain, for modest reward over
     resume-on-app-open. Recorded as **open decision #70.6** below.
+
+74. **LLM data-logging opt-out header (ToS)** (review finding on #32; AskUserQuestion). `FoundationModelsClient`
+    now sends **`x-data-logging-enabled: false`** on every call — the AI Studio ToS cl. 4.1/3.15 basis for
+    storing + re-serving model output (plan §6). Standard on the native Foundation Models API; harmless if the
+    OpenAI-compat endpoint ignores it. **Deploy prerequisite (user to verify):** confirm request logging is
+    actually disabled for the SA/folder — via this header *or* the folder-level setting — in the Yandex
+    console before deploying a real key. Added to the **release gate** (plan §7.1). The tier stays off until a
+    key is deployed, so there is no live exposure now.

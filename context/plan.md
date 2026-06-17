@@ -442,6 +442,8 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   "runs only while the app is open."
 - [ ] **`/resolve` contract** aligned with the client (async `ENRICHING` ✅ #66) + a **global
   daily LLM ceiling** that fails closed ✅ (#71).
+- [ ] **LLM data-logging off** — `x-data-logging-enabled: false` header sent ✅ (#74); **verify** logging
+  is actually disabled (header or folder-level) for the SA/folder before deploying a key (ToS, #32).
 - [ ] **Dependency/security check** (OWASP Dependency-Check) wired, or deferred with a date.
 - [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
 - [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).

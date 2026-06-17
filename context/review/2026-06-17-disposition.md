@@ -8,7 +8,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 |---|---------|-------------|
 | P0 | Search lacks typo tolerance (live `LIKE`) | ⏳ **research run 09 first** (decision #67) — pg_trgm vs engine; then implement. Not started in code by design. |
 | P0 | Backup drops v5 enrichment fields | ✅ **done** — `BackupTea` + both mappers + round-trip tests (folded into #69 / PR #35). |
-| P0 | Destructive Room migrations are a release blocker | ❓ **needs decision** — when to draw the "public schema starts at vN" line + turn on `exportSchema`. See Open decisions. |
+| P0 | Destructive Room migrations are a release blocker | ✅ **decided (#70.1): leave as-is until M5** — cutover (export schema + drop destructive + real migrations) is an M5 release-gate task; internal builds wipe on upgrade until then. |
 | P1 | Queued enrichment isn't durable (app-scope only) | partly ✅ (#73): resume now runs on **app-open** (home), de-duped in-flight. Full **background** WorkManager (post-process-death) is ❓ **open #70.6** — adds a dependency + non-device-verifiable runtime wiring. |
 | P1 | `/resolve` contract drift (sourceText ignored; async status) | partly ✅: the async `ENRICHING` status + server stub shipped in **#66**; `sourceText` is now consumed by the LLM tier. Remaining: the **"paste a description" UI field** (#25) and a **global daily LLM ceiling** (below). |
 | P1 | Catalog image model behind app photo list | ❓ **needs decision** — whether a backend `tea_image` *list* is in scope (vs the single `image_url` triple). See Open decisions. |
