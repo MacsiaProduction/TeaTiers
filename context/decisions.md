@@ -1746,3 +1746,17 @@ deviated.
     buffered in a `Map` before write — full streaming (eliminating the Map) is a deferred optimization, and
     export (own data) was left unbounded. The Caddy `X-Forwarded-For` authoritative-header fix + dev-8080
     localhost bind land in a separate infra PR + deploy.
+
+98. **X-Forwarded-For spoofing — verified NON-issue; documented + dev-8080 bind (#96 follow-up; review P1
+    deploy-boundary).** The review feared a client could spoof XFF to evade the per-client `/resolve` cost
+    limiter (which keys off the first XFF hop). **Verified against Caddy docs:** Caddy v2 with NO
+    `trusted_proxies` set (our case — Caddy is the edge) **ignores client-supplied `X-Forwarded-*` and sets
+    the real client IP**, so the header is not spoofable; the backend is also only reachable through Caddy
+    (8080 unpublished in prod). My first attempt added `header_up X-Forwarded-For {remote_host}` — Caddy
+    flagged it as *unnecessary* (the default already does this), confirming the spoof gap doesn't exist on
+    2.7+. Reverted that to a documenting comment (and a note: add `trusted_proxies` only if a CDN is ever
+    fronted). Also bound the **dev** compose 8080 to `127.0.0.1` (LAN hygiene; prod already publishes only
+    Caddy 80/443). SSH ingress **stays world-open (key-only)** per the 2026-06-18 decision — revisit before
+    public release. The corrected (comment-only) Caddyfile was deployed via scp + `caddy reload` (graceful);
+    site healthy, live search verified. Net: no functional infra change was needed — the protection already
+    held; this entry records the verification + the dev-bind.

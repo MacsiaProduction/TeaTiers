@@ -7,5 +7,10 @@
 
 {$DOMAIN} {
 	encode zstd gzip
+	# X-Forwarded-For spoofing note (decision #98): the backend keys its per-client /resolve rate
+	# limit off the first XFF hop. Caddy v2 with NO `trusted_proxies` set (our case — Caddy is the
+	# edge) IGNORES client-supplied X-Forwarded-* and sets the real client IP, so the header is not
+	# spoofable. The backend is also only reachable through Caddy (8080 unpublished in prod). If a
+	# CDN is ever put in front of Caddy, add `trusted_proxies` for that CDN's ranges.
 	reverse_proxy server:8080
 }
