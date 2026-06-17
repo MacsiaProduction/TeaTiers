@@ -74,7 +74,15 @@ class TeaEnrichmentManager @Inject constructor(
         try {
             dao.updateEnrichmentState(teaId, EnrichmentState.PENDING.name)
             when (val result = catalog.resolve(name = name, locale = null, sourceText = sourceText)) {
-                is ResolveResult.Matched -> applyPatch(teaId, result.detail)
+                // A MATCHED row may still be a FAILED/PENDING LLM stub the server didn't re-arm (LLM tier
+                // off, or the daily budget is spent). Don't force it to DONE — that would hide the failure
+                // and drop the retry affordance (second-pass review P0). Patch to DONE only when the row
+                // is actually settled (DONE, or null = not LLM-managed, e.g. a Wikidata/cached hit).
+                is ResolveResult.Matched -> when (result.detail.enrichmentState) {
+                    EnrichmentState.FAILED -> dao.updateEnrichmentState(teaId, EnrichmentState.FAILED.name)
+                    EnrichmentState.PENDING -> pollUntilSettled(teaId, result.detail.id)
+                    else -> applyPatch(teaId, result.detail)
+                }
                 is ResolveResult.Enriching -> pollUntilSettled(teaId, result.catalogTeaId)
                 // Tried, nothing to add — leave the typed tea as-is and clear the spinner.
                 ResolveResult.Unresolved -> dao.updateEnrichmentState(teaId, EnrichmentState.DONE.name)

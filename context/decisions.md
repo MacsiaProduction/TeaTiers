@@ -1456,3 +1456,17 @@ deviated.
     `/opt/teatiers/backup.env` from the `backup_*` outputs (kept out of VCS), `apt install awscli`, run the
     service, and do the documented **restore rehearsal** (pull latest dump from S3 → load into a throwaway
     DB → sanity-check). `tofu validate` + `fmt` clean. Local-on-disk dumps remain the default if not enabled.
+
+78. **Second-pass review correctness fixes (app)** (`context/review/2026-06-17-second-pass.md`; off `main`).
+    Two findings from the post-merge review:
+    - **P0 — a FAILED/PENDING stub returned as `MATCHED` was hidden as local `DONE`.** When the server's
+      `cacheHit` finds an existing LLM stub but can't re-arm it (LLM tier off, or `LlmDailyBudget` spent), it
+      returns `MATCHED` with the row's `enrichmentState` still `FAILED`. The client mapped `MATCHED` →
+      `applyPatch` → always wrote local `DONE`, **silently dropping the retry affordance**. Fixed in
+      `TeaEnrichmentManager`: a `Matched` result now branches on `detail.enrichmentState` — `FAILED` → keep
+      local `FAILED`; `PENDING` → poll it out; `DONE`/null (settled, e.g. Wikidata/cached) → patch + `DONE`.
+      Regression test added (Matched-but-FAILED keeps FAILED, no patch).
+    - **P1 — `catalogTeaId` dedup wasn't DB-enforced.** Added a **UNIQUE index** on `teas.catalogTeaId`
+      (Room **v6**, destructive pre-launch). SQLite treats NULLs as distinct, so unlimited custom teas are
+      fine, but two user-teas can never link to the same catalog row — closing the gap the repository check
+      (#72) alone left to concurrent adds / backup import. Full app suite green.
