@@ -439,9 +439,11 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   enrichment fields ✅ (#69) and photos ✅ (#26) — re-verify on each new column.
 - [x] **Typo-tolerant catalog search** implemented + passes a ru/en/pinyin/zh search-gold set
   (run 09, #67) — ✅ pg_trgm `name_norm` + `word_similarity` (Flyway V4), `TeaSearchFuzzyIT` gold set green
-  (#84). Not yet shipped to the live VM (next image runs V4).
-- [ ] **Queued enrichment** is either durable (WorkManager) or the UI copy honestly says
-  "runs only while the app is open."
+  (#84). **Deployed + verified live (#91)** — V4 applied on the VM, live typos resolve correctly incl.
+  Cyrillic (тегуанинь→Tieguanyin) on `tea.macsia.fun`.
+- [x] **Queued enrichment** — UI copy now honest (#92): the offline card says "Нет сети — уточним при
+  открытии" (retries on app-open), not a background promise. Durable WorkManager intentionally deferred
+  (#70.6).
 - [ ] **`/resolve` contract** aligned with the client (async `ENRICHING` ✅ #66) + a **global
   daily LLM ceiling** that fails closed ✅ (#71).
 - [ ] **LLM data-logging off** — `x-data-logging-enabled: false` header sent ✅ (#74); **verify** logging
