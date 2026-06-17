@@ -43,7 +43,7 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 
 - Reasoning, planning, and self-critique: English. Final user-facing output: language of the user's message.
 - User-facing app copy is localized (ru/en/zh) — never hardcode a single language in UI or data.
-- Never push commits, open PRs, or reply to review comments without explicit user instruction.
+- You may branch, commit, push, and create and merge PRs without asking. Let required CI checks pass before merging; never force-push `main` or bypass branch protection (see `40-devops`).
 - Prefer editing existing files over creating new ones; don't add README/docs unless asked.
 - When unsure, read `context/` and `task.md` first, ask the user second, guess last.
 - Prefer asking a quick question over guessing an API, version, or schema.
