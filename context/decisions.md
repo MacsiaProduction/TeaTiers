@@ -1501,3 +1501,21 @@ deviated.
     (ML Kit needs GMS — unavailable on RuStore; Tesseract/PaddleOCR are GMS-free options) vs server-side; how
     it ties into the existing `sourceText` path + the injection/copyright guards (#65). Big new workstream —
     own research + slice. Flagged for your direction.
+
+82. **Autonomous deploy run (off-box backup live; ghcr publish confirmed)** (user granted `gh`+`yc`).
+    - **Off-box DB backup (#77) — DEPLOYED + verified end-to-end.** `tofu apply` created the
+      `teatiers-backups` bucket + `teatiers-backup` SA + key (clean plan: 4 add / 0 change / 0 destroy; the
+      bucket needed one retry past Yandex IAM propagation). On the VM: installed **AWS CLI v2** (apt has no
+      `awscli` on noble → official zip), wrote `/opt/teatiers/backup.env` (0600, from the `backup_*` tofu
+      outputs), enabled the daily `teatiers-backup.timer` (next 03:17 UTC), and ran a **restore rehearsal** —
+      pulled the latest dump from S3, loaded it into a throwaway DB (13 teas / 55 names), dropped it. **Bug
+      found + fixed:** AWS CLI v2 derives a malformed `ru-central1-` region from VM metadata and aborts →
+      pinned `--region ru-central1` in `backup.sh`. Live service stayed healthy (200) throughout.
+    - **ghcr (#76) — image confirmed published** (the `publish-image.yml` run on the #42 merge succeeded), so
+      `ghcr.io/macsiaproduction/teatiers-server` exists. **Cutover still pending one GitHub-UI step:** make the
+      package **public** — the `gh` CLI token lacks `read:packages`/`write:packages` and there is no REST path
+      to flip a *user* package's visibility, so it can't be done autonomously. The VM stays on **YCR**
+      (healthy, `Up 18h`) until the package is public + the VM is repointed; **YCR not retired** (destructive,
+      gated on the cutover).
+    - **LLM logging-off (#74) — moot:** the VM `.env` has no `TEATIERS_LLM_API_KEY`, so the tier is off and
+      nothing is logged; the header ships with the next image regardless.
