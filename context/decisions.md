@@ -1519,3 +1519,18 @@ deviated.
       gated on the cutover).
     - **LLM logging-off (#74) — moot:** the VM `.env` has no `TEATIERS_LLM_API_KEY`, so the tier is off and
       nothing is logged; the header ships with the next image regardless.
+
+83. **ghcr cutover complete + YCR retired** (after you made the `teatiers-server` package public).
+    - **VM cut over to ghcr** (`SERVER_IMAGE=ghcr.io/macsiaproduction/teatiers-server:latest`, `compose pull`
+      + `up -d`). The ghcr `:latest` was **newer than the running container** (which was the original V1
+      deploy), so this also **shipped the latest server code**: Flyway **V1→V2→V3 all applied** on the live
+      DB (enrichment_state #66 + tea_image #75), verified — `tea_image` table + `enrichment_state` column
+      present, and the live API returns search + detail with the new `images` field. Health stayed `200`.
+      Both migrations were schema-only on the 13 seed teas (no data to migrate). `.env` backed up to
+      `.env.bak-ycr`.
+    - **YCR retired:** deleted the registry image (`yc container image delete`) then the **registry +
+      its IAM binding** (`tofu apply`; plan was 2-destroy / 1-change / 0-add). The **puller SA is kept** —
+      it is the VM's `service_account_id` (compute.tf), so destroying it would force a VM update; per the
+      README it stays attached harmlessly (its only role binding is gone). `registry.tf` now holds just the
+      SA; the `registry_id` output is removed. Service healthy throughout; **no Yandex Container Registry
+      remains** — image delivery is fully ghcr (#76).
