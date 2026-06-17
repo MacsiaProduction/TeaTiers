@@ -1,13 +1,14 @@
 name: Publish server image
 
-# Builds the catalog server image on a (native amd64) runner and pushes it to Yandex
-# Container Registry. GitHub runners are amd64, so this avoids the local cross-arch
-# buildx/podman problem that forced the first image to be built on the VM (decision #57).
+# Builds the catalog server image on a (native amd64) GitHub runner and pushes it to the
+# GitHub Container Registry, ghcr.io/<owner>/teatiers-server (decision #76, task.md). GitHub
+# runners are amd64, so this avoids the local cross-arch buildx/podman problem that forced the
+# first image to be built on the VM (decision #57). Auth uses the built-in GITHUB_TOKEN, so no
+# external registry secret is needed.
 #
-# Inert until two repo settings exist (Settings -> Secrets and variables -> Actions):
-#   - secret YC_SA_KEY        : JSON key of a service account with container-registry.images.pusher
-#   - variable YC_REGISTRY_ID : the Container Registry id (tofu output -raw registry_id)
-# Without them the job no-ops with a notice, so main never goes red.
+# Post-merge one-time setup (so the VM can pull anonymously, no token on the box):
+#   - make the package public: repo -> Packages -> teatiers-server -> Package settings -> Public.
+# Then point the VM at the ghcr ref and `docker compose pull` (see infra/README.md).
 
 on:
   push:
@@ -24,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: publish-image-${{ github.ref }}
@@ -31,39 +33,23 @@ concurrency:
 
 jobs:
   publish:
-    name: build + push to YCR
+    name: build + push to ghcr.io
     runs-on: ubuntu-latest
     steps:
-      - name: Gate on credentials
-        id: gate
-        env:
-          YC_SA_KEY: ${{ secrets.YC_SA_KEY }}
-          YC_REGISTRY_ID: ${{ vars.YC_REGISTRY_ID }}
-        run: |
-          if [ -z "$YC_SA_KEY" ] || [ -z "$YC_REGISTRY_ID" ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::YC_SA_KEY secret and/or YC_REGISTRY_ID variable not set; skipping image publish."
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          fi
+      - uses: actions/checkout@v6
 
-      - if: steps.gate.outputs.enabled == 'true'
-        uses: actions/checkout@v6
-
-      - name: Log in to Container Registry
-        if: steps.gate.outputs.enabled == 'true'
-        env:
-          YC_SA_KEY: ${{ secrets.YC_SA_KEY }}
-        run: printf '%s' "$YC_SA_KEY" | docker login --username json_key --password-stdin cr.yandex
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build + push
-        if: steps.gate.outputs.enabled == 'true'
         env:
-          REG: ${{ vars.YC_REGISTRY_ID }}
+          OWNER: ${{ github.repository_owner }}
           EXTRA_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          repo="cr.yandex/${REG}/teatiers-server"
+          # ghcr requires a lowercase owner/namespace.
+          owner_lc=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
+          repo="ghcr.io/${owner_lc}/teatiers-server"
           tags=("${repo}:latest" "${repo}:${GITHUB_SHA::12}")
           [ -n "${EXTRA_TAG}" ] && tags+=("${repo}:${EXTRA_TAG}")
           args=(); for t in "${tags[@]}"; do args+=(-t "$t"); done

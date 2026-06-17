@@ -1,4 +1,7 @@
-# Container Registry holds the server image; the VM pulls from it (decision: image delivery = YCR).
+# DEPRECATED (decision #76): image delivery moved to ghcr.io. This Yandex Container Registry + the
+# puller SA below are no longer used by the publish workflow or the VM. They are kept provisioned to
+# avoid destroying the registry holding the currently-running image; REMOVE this whole file (and the
+# `registry_id`/`puller_sa_id` outputs) once the VM is confirmed pulling from ghcr (infra/README.md).
 resource "yandex_container_registry" "teatiers" {
   name      = "teatiers"
   folder_id = var.folder_id

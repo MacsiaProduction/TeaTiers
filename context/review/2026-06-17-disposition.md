@@ -15,7 +15,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 | P1 | Local dedup should prefer `catalogTeaId` | ✅ **done** (#72) — `addTea` matches by `catalogTeaId` first (then name); a catalog pick carries the id + skips re-resolve. |
 | P1 | Release gate not explicit | ✅ **done** — added **plan.md §7.1 "MVP release gate"** (this PR). |
 | P1 | Missing global daily LLM ceiling | ✅ **done** (#71) — `LlmDailyBudget` global daily cap; a miss fails closed to `UNRESOLVED` when exhausted. |
-| P2 | GHCR migration | ⏳ **planned** (decision #68) — GH Actions push to `ghcr.io`, digest pins, verify VM pull before retiring YCR. |
+| P2 | GHCR migration | ✅ **done** (#76) — `publish-image.yml` pushes to `ghcr.io` via `GITHUB_TOKEN`; cloud-init pulls public. YCR kept provisioned-but-deprecated; you do the cutover steps (make package public, point VM, verify, retire YCR). |
 | P2 | Backend backup is local-only | ❓ **needs decision** — enable off-box Object Storage backups now (resolve writes non-seed rows) vs accept local-only in writing. See Open decisions. |
 | P2 | Catalog seed too small (13 vs ~300) | ❓ **needs decision / effort** — curated-seed expansion is real content work; sequence vs fuzzy search. See Open decisions. |
 | P2 | Keep custom back stack / drag / self-hosted PG | ✅ **no action** — agreed, keep as-is until a concrete trigger appears. |

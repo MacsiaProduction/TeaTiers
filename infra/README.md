@@ -76,27 +76,27 @@ If `plan` proposes to replace the VM, stop and reconcile `compute.tf` to the liv
 
 ### 3. Build + push the server image
 
-The bootJar is JVM bytecode (architecture-independent), so build it once natively, then wrap it in
-an amd64 runtime image. `REG="$(tofu output -raw registry_id)"`.
+**Image delivery = ghcr.io (decision #76).** The `publish-image.yml` GitHub Action builds the image on
+a native-amd64 runner and pushes `ghcr.io/macsiaproduction/teatiers-server:latest` + `:<sha>` using the
+built-in `GITHUB_TOKEN` — no external registry secret. It runs on every push to `main` touching
+`server/**`. So normally you do **nothing here**; the image is published by CI.
 
+**One-time ghcr cutover (after the first publish):**
+1. Make the package public so the VM can pull anonymously: repo → **Packages** → `teatiers-server` →
+   **Package settings** → **Change visibility → Public**. (Or keep it private and put a read-only PAT on
+   the VM via `docker login ghcr.io` — public is simpler and what cloud-init assumes.)
+2. Point the VM at the ghcr ref: set `SERVER_IMAGE=ghcr.io/macsiaproduction/teatiers-server:latest` in
+   `/opt/teatiers/.env`, then `ssh … 'cd /opt/teatiers && sudo docker compose pull && sudo docker compose up -d'`.
+3. `curl https://tea.macsia.fun/actuator/health` → `{"status":"UP"}`.
+4. Once confirmed, **retire YCR**: delete `infra/registry.tf` + the `registry_id`/`puller_sa_id`
+   outputs and `tofu apply` (the puller SA can stay attached to the VM harmlessly, or be detached).
+
+Manual build (rarely needed; CI is the path):
 ```
 cd ../server && ./gradlew bootJar          # build/libs/teatiers-server-*.jar
+echo "$GH_PAT" | docker login ghcr.io -u <user> --password-stdin
+docker build -t ghcr.io/macsiaproduction/teatiers-server:latest . && docker push ghcr.io/macsiaproduction/teatiers-server:latest
 ```
-
-- **With buildx (Docker Desktop / a docker-container builder):**
-  ```
-  yc container registry configure-docker
-  docker buildx build --platform linux/amd64 -t "cr.yandex/$REG/teatiers-server:latest" --push ../server
-  ```
-- **Without buildx (e.g. a podman machine, where cross-arch builds fail on overlay mounts):** copy
-  the jar to the amd64 VM and build the runtime image there (native, no Gradle compile), then push
-  with an IAM token:
-  ```
-  scp -i ~/.ssh/teatiers server/build/libs/teatiers-server-*.jar yc-user@93.77.185.62:/tmp/app.jar
-  # on the VM: a 4-line Dockerfile (FROM eclipse-temurin:21-jre-jammy / COPY app.jar / USER 10001 /
-  # ENTRYPOINT java -jar) -> docker build -t cr.yandex/$REG/teatiers-server:latest .
-  yc iam create-token | ssh ... 'docker login --username iam --password-stdin cr.yandex && docker push cr.yandex/'$REG'/teatiers-server:latest'
-  ```
 
 ### 4. Deploy on the VM
 
@@ -122,7 +122,7 @@ no-ops with a notice, so CI never goes red.
 
 | Workflow | Trigger | What it does | Needs |
 |----------|---------|--------------|-------|
-| `.github/workflows/publish-image.yml` | push to `main`/`trunk` touching `server/**`; manual | builds the server image on a native amd64 runner (no buildx/podman cross-arch issue) and pushes `:latest` + `:<sha>` to CR | secret `YC_SA_KEY` (a SA with `container-registry.images.pusher`), variable `YC_REGISTRY_ID` (`tofu output -raw registry_id`) |
+| `.github/workflows/publish-image.yml` | push to `main`/`trunk` touching `server/**`; manual | builds the server image on a native amd64 runner (no buildx/podman cross-arch issue) and pushes `:latest` + `:<sha>` to `ghcr.io/<owner>/teatiers-server` (decision #76) | nothing — uses the built-in `GITHUB_TOKEN` (`packages: write`). One-time: make the package public so the VM pulls anonymously |
 | `.github/workflows/infra.yml` | `plan` on infra PRs; `apply` only via manual dispatch | `tofu init/plan` (and `apply` when dispatched with `action=apply`) against the S3 backend | secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (the bootstrap static key) + `YC_SA_KEY` (folder editor) |
 
 Apply-on-main is deliberately **not** automatic: single operator + `prevent_destroy` on the VM/IP
@@ -130,8 +130,8 @@ make an unattended apply risky. Run `infra.yml` with `action=apply` by hand afte
 plan. Provider install on the runner still goes through `tofurc`'s Yandex mirror; if a GH runner
 can't reach `terraform-mirror.yandexcloud.net`, run `tofu` locally per the runbook instead.
 
-The pusher SA for `YC_SA_KEY` is separate from the VM's `teatiers-puller` (least privilege): create
-it with `container-registry.images.pusher` on the registry and export a JSON key (kept out of VCS).
+Image publishing no longer needs a Yandex pusher SA (decision #76): `publish-image.yml` pushes to
+ghcr with the built-in `GITHUB_TOKEN`. The `YC_SA_KEY` secret is now only used by `infra.yml`.
 
 ## Backups
 
