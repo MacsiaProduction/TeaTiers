@@ -35,6 +35,7 @@ service-account*.json
 .idea/
 *.iml
 .vscode/
+*.code-workspace
 
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store

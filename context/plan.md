@@ -487,10 +487,10 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   path. Pin the provider (verify; `0.206.0`), and use the **`terraform-mirror.yandexcloud.net`**
   mirror (registry.terraform.io may be blocked from RU). `Makefile` + GitHub Actions
   (`plan` on PR, `apply` on main) drive it. Image stays portable (still just compose).
-  **Planned (#68, task.md): move the image off Yandex Container Registry to `ghcr.io`** —
-  retire the CR + puller SA, swap the cloud-init `docker login` to a ghcr token, and fold
-  it into the still-open "build image in CI" item (GH Actions pushes to ghcr natively).
-  Target M5 infra polish; settle ghcr reachability-from-RU + public-vs-token auth at build time.
+  **DONE (#76/#83): image moved off Yandex Container Registry to `ghcr.io`** — `publish-image.yml`
+  builds + pushes `ghcr.io/macsiaproduction/teatiers-server` on server changes to `main`; the VM was
+  cut over (`SERVER_IMAGE=ghcr.io/...:latest`) and **YCR is retired** (no Yandex Container Registry
+  remains). pg_trgm search (V4) was later deployed + verified live the same way (#91).
 
 ## 9. Research & outcomes
 
@@ -504,7 +504,7 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 | `research/06-yandex-alice/` | ✅ alice | **Alice AI LLM** = distinct Foundation Models model (`aliceai-llm`, 64k; `aliceai-llm-flash` cheaper), same API/json_schema. Keep YandexGPT Lite primary, **benchmark Alice Flash** in M4. Bonus: Yandex hosts **Qwen3-235B/DeepSeek natively** → VPN dropped (#18) | §6, decision #18 |
 | `research/07-flavor-prompt-tuning/` | ✅ opus | Calibrated 0–5 flavor prompts (zero-shot + grounded, #25): anchor rubric, ru system/user templates, strict `json_schema` (`$defs.dim`, inline if `$defs` rejected), ≤3 few-shot, injection hardening, multiplicative confidence gate, MAE≤1.0 eval. **Yandex caveats:** `json_schema` unconfirmed on Lite (keep `json_object` fallback), no Yandex-managed DeepSeek URI, native vs OpenAI-compat request shapes differ, Qwen3 thinking-mode ≠ structured output | §6 step 3, decision #44, #25/#23 |
 | `research/08-ai-web-search/` | ✅ opus → **not adopted (#45)** | Revisited §6 under a DE-VPN premise that #18 retired. **Decision #45: keep "no web crawling".** No compliant path under #18's no-VPN/Yandex-native lock (Yandex Search ToS-blocked 2.7.4; Yandex LLMs no built-in search; Tavily/Gemini = the egress #18 removed). Durable findings kept for a future revisit: never store built-in `googleSearch`-grounded output (Gemini ToS); Tavily = only card-free search-only API; Wikidata weak on RU transliterations → user-pasted text is the right long-tail grounding | §6, decision #45 |
-| `research/09-typo-search/` | ✅ opus (#79) | **Typo-tolerant catalog search** → **in-Postgres `pg_trgm`** for ru/en/pinyin (no new always-on service, #19); Hanzi weak (accepted), Meilisearch CE the documented fallback if a gold set fails. Locked design: IMMUTABLE `f_unaccent` + `name_norm` generated column + GIN `gin_trgm_ops` + `word_similarity`-ranked query; ICU collation prereq. **Implementation queued** (not built) | §4a search, backend slice |
+| `research/09-typo-search/` | ✅ opus (#79) | **Typo-tolerant catalog search** → **in-Postgres `pg_trgm`** for ru/en/pinyin (no new always-on service, #19); Hanzi weak (accepted), Meilisearch CE the documented fallback if a gold set fails. Locked design: IMMUTABLE `f_unaccent` + `name_norm` generated column + GIN `gin_trgm_ops` + `word_similarity`-ranked query; ICU collation prereq. **BUILT + DEPLOYED LIVE (#84/#91)** — Flyway V4, `TeaSearchFuzzyIT` gold set green, live typo probes resolve on tea.macsia.fun | §4a search, backend slice |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.
