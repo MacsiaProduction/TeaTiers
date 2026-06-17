@@ -3,7 +3,7 @@ package com.macsia.teatiers.domain.model
 /**
  * Full reference detail for a shared-catalog tea (plan §5, `GET /teas/{id}`). Read-only suggestion
  * data: the user may pull it into their own [Tea] via the add form, but never owns it (#21). Adds
- * descriptions, a reference flavor profile, an optional CC image, and provenance on top of the
+ * descriptions, a reference flavor profile, curated CC images, and provenance on top of the
  * search-time [CatalogTea]. Localized-name helpers mirror [CatalogTea] so both render the same way.
  */
 data class CatalogTeaDetail(
@@ -15,7 +15,9 @@ data class CatalogTeaDetail(
     val oxidationMin: Int?,
     val oxidationMax: Int?,
     val brand: String?,
+    // [image] is the first of [images], kept for back-compat; [images] is the full ordered list (#70.2).
     val image: CatalogImage?,
+    val images: List<CatalogImage> = emptyList(),
     val names: List<CatalogName>,
     val descriptions: List<CatalogDescription>,
     val flavors: List<FlavorScore>,
