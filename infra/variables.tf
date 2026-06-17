@@ -30,7 +30,7 @@ variable "acme_email" {
 
 variable "server_image" {
   type        = string
-  description = "Fully-qualified server image ref in Container Registry, e.g. cr.yandex/<reg-id>/teatiers-server:<tag>. Empty until the registry exists and the first image is pushed."
+  description = "Fully-qualified server image ref, e.g. ghcr.io/macsiaproduction/teatiers-server:latest (decision #76). Empty until the first image is published to ghcr."
   default     = ""
 }
 

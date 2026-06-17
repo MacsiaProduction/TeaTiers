@@ -1432,3 +1432,16 @@ deviated.
     Full server suite green (Testcontainers ITs, `TESTCONTAINERS_RYUK_DISABLED=true` locally). *App-side
     gallery (showing >1 image on the detail sheet) is a small optional follow-up; back-compat means no app
     change is required.*
+
+76. **Image delivery moved to ghcr.io** (resolves #68 / task.md "move from yandex image repository to open
+    ones like ghcr"; AskUserQuestion). The server image now publishes to **`ghcr.io/macsiaproduction/
+    teatiers-server`** instead of Yandex Container Registry. `publish-image.yml` pushes `:latest` + `:<sha>`
+    on every `main` push touching `server/**` using the built-in **`GITHUB_TOKEN`** (`packages: write`) — no
+    external registry secret, and it solves the cross-arch buildx/podman problem (#57) on a native amd64
+    runner. Cloud-init drops the `docker login cr.yandex` IAM step (the ghcr package is **public**, so the VM
+    pulls anonymously). `outputs.tf`/`variables.tf` point at the ghcr ref. **YCR + the puller SA are kept
+    provisioned but deprecated** (`registry.tf` flagged) — *not destroyed* in this change so the
+    currently-running image isn't lost. **User to do at cutover** (infra/README §3): (1) make the ghcr
+    package public; (2) set `SERVER_IMAGE=ghcr.io/macsiaproduction/teatiers-server:latest` on the VM +
+    `docker compose pull && up -d`; (3) verify `tea.macsia.fun/actuator/health`; (4) then delete
+    `registry.tf` + its outputs and `tofu apply` to retire YCR. `tofu validate` + `fmt` clean.
