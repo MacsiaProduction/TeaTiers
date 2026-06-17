@@ -1610,3 +1610,24 @@ deviated.
     `/resolve` but not yet acted on; the field carries its own disclosure, so global
     `settings_about_privacy` (#85) was left unchanged. The OCR photo → sourceText path (run 10) feeds this
     same field later (on-device RapidOCR/PaddleOCR, not ML Kit — see run-10 RATING).
+
+88. **AI-billing move to summertime98755 DROPPED for now; AI tier stays off for MVP (closes the #86
+    direction + the review's "LLM production enablement" P1).** User decision: do not pursue the summertime
+    billing move at this time (the folder-`admin` rights gap from #86 isn't worth resolving now). The
+    Foundation Models tier therefore stays **off in production** (no `TEATIERS_LLM_API_KEY` on the VM, #82);
+    enrichment is Wikidata + curated/cached catalog only. No code change needed — the user-facing copy is
+    already AI-neutral and truthful (search/clarification "sends the tea name to the catalog service", #85;
+    the #25 field says "sent for clarification", #87) and the en/zh picker already says ru-only
+    (`settings_language_hint`). The macsia `teatiers-llm` SA + `teatiers-llm-api-key` Lockbox stay dormant.
+    Revisit (and the run-12 async design) only if/when AI enrichment is actually turned on.
+
+89. **App renders the catalog image LIST, not just the first (review P1; backend ready since #75/#70.2).**
+    The backend `TeaDetailDto` has exposed `images: List` (+ back-compat `image`) since #75, but the app
+    decoded only `image`. Added `images: List<TeaImageDto>` to the app `TeaDetailDto` and
+    `images: List<CatalogImage>` to the `CatalogTeaDetail` domain (kept `image` as the first-of-list
+    back-compat). The mapper tolerates either wire shape (prefer the list; fall back to the single
+    `image`; keep `image` populated as `images.first`). `CatalogDetailSheet` now renders every image in the
+    detail gallery and credits each one in the provenance block (per-image CC attribution), instead of
+    dropping all but the first. Web-image fetching stays banned — curated CC/Wikimedia or user photos only.
+    Tests: new `CatalogMappersTest` (list mapped + `image`=first; single-`image` fallback → one-item list;
+    none → empty + null); app unit suite green.

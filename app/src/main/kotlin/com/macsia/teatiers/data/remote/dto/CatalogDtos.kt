@@ -75,7 +75,9 @@ data class TeaDetailDto(
     val oxidationMin: Int? = null,
     val oxidationMax: Int? = null,
     val brand: String? = null,
+    // [image] is the first image, kept for back-compat; [images] is the full list (server #70.2).
     val image: TeaImageDto? = null,
+    val images: List<TeaImageDto> = emptyList(),
     val names: List<TeaNameDto> = emptyList(),
     val descriptions: List<TeaDescriptionDto> = emptyList(),
     val flavors: List<TeaFlavorDto> = emptyList(),

@@ -68,7 +68,10 @@ fun TeaDetailDto.toDomain(): CatalogTeaDetail = CatalogTeaDetail(
     oxidationMin = oxidationMin,
     oxidationMax = oxidationMax,
     brand = brand,
-    image = image?.toDomain(),
+    // Tolerate either wire shape: prefer the explicit list, fall back to the single back-compat
+    // [image]; keep [image] populated as the first of [images] for older consumers.
+    image = image?.toDomain() ?: images.firstOrNull()?.toDomain(),
+    images = images.map { it.toDomain() }.ifEmpty { listOfNotNull(image?.toDomain()) },
     names = names.map { it.toDomain() },
     // A description with neither short nor full text carries no content — drop it.
     descriptions = descriptions

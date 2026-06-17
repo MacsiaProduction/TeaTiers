@@ -142,7 +142,7 @@ private fun CatalogDetailContent(detail: CatalogTeaDetail, onUse: () -> Unit) {
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        detail.image?.let { image ->
+        detail.images.forEach { image ->
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(image.url)
@@ -267,7 +267,7 @@ private fun ProvenanceBlock(detail: CatalogTeaDetail) {
             sourceUrl = detail.provenance.sourceUrl,
             license = detail.provenance.license,
         )
-        detail.image?.let { image ->
+        detail.images.forEach { image ->
             val credit = image.sourceUrl ?: image.license
             if (credit != null) {
                 LinkedText(
