@@ -8,16 +8,19 @@ prompts aren't comparable); these are counts only. See `README.md` → *Leaderbo
 
 | Model  | Wins | Runs judged | Notable strengths |
 |--------|:----:|:-----------:|-------------------|
-| opus   |  7   |      7      | Legal/ToS/license precision (incl. Gemini Grounded-Results store-ban), exact API+pricing specifics, Yandex-API dialect quirks, honest caveats, flags bad QIDs & version conflicts |
+| opus   | 10   |     10      | Legal/ToS/license precision (incl. Gemini Grounded-Results store-ban), exact API+pricing specifics, Yandex-API dialect quirks, honest caveats, flags bad QIDs & version conflicts |
 | alice  |  2   |      6      | Best on the Yandex-native topics (Terraform, Alice LLM, Gemini-EEA-paid-only clause): RU-specific gotchas, official docs, honest "unverified" caveats |
-| gemini |  0   |      9      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting and Wikidata QIDs; occasionally over-confident on unverified specifics, misses ToS storage traps |
+| gemini |  0   |     12      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting and Wikidata QIDs; occasionally over-confident on unverified specifics, misses ToS/privacy traps (run 10: server-side OCR breaks the photo-stays-on-device lock) |
 | gpt    |  0   |      7      | Concise but shallow, with recurring factual errors (GigaChat free tier; Gemini-EEA question backwards; recommended the booby-trapped Gemini-grounding-store path in 08) |
-| deepseek | 0 |      5      | Useful ideas (COI image, app-fetches-Lockbox) but recurring wrong specifics (provider/model ids, "no JSON-schema") and the same Gemini-grounding-store trap as gpt in 08 |
+| deepseek | 0 |      8      | Useful ideas (COI image, app-fetches-Lockbox, on-device PaddleOCR for ru OCR) but recurring stale/uncertain specifics (model ids, library version pins, Maven coords) |
 | kimi   |  0   |      0      |                   |
 | grok   |  0   |      0      |                   |
 | fable  |  0   |      0      |                   |
 
 <!-- Log (newest first): -->
+<!-- 12-batch-enrichment → winner: opus (2026-06-17)  models judged: opus, gemini, deepseek -->
+<!-- 11-flavor-backfill → winner: opus (2026-06-17)  models judged: opus, gemini, deepseek -->
+<!-- 10-photo-ocr-grounding → winner: opus (2026-06-17)  models judged: opus, gemini, deepseek -->
 <!-- 09-typo-search     → winner: opus (2026-06-17)  models judged: opus, gemini, gpt, alice -->
 <!-- 08-ai-web-search   → winner: opus (2026-06-15)  models judged: opus, alice, gemini, gpt, deepseek -->
 <!-- 07-flavor-prompt-tuning → winner: opus (2026-06-15)  models judged: opus, gemini, deepseek, alice, gpt -->
