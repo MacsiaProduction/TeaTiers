@@ -111,10 +111,11 @@ Adopt the winning (opus) schema; firm the exact DDL in the first Flyway migratio
 - Search: `pg_trgm` GIN on `tea_name.name` for prefix/substring across Cyrillic + CJK
   (trigrams cover CJK *substring* matching; defer `zhparser`/`pg_cjk_parser` word
   segmentation until actually needed). `unaccent` for Latin; ICU collations on PG 16.
-  **Typo tolerance ("several wrong symbols", task.md) is a pending gap (#67):** the live
-  search path is still exact-substring `LIKE` (the trgm index is unused for similarity).
-  Approach (in-Postgres `pg_trgm` similarity vs a dedicated engine) is **deferred to
-  research run 09** before any build — see §9 / §11.
+  **Typo tolerance ("several wrong symbols", task.md):** run 09 (#79) chose **in-Postgres `pg_trgm`**
+  — an IMMUTABLE `f_unaccent` + a `tea_name.name_norm` generated column + a GIN `gin_trgm_ops` index +
+  a `word_similarity`-ranked, threshold-gated query (ICU collation prereq); Meilisearch CE is the
+  documented fallback. The live path is **still exact-substring `LIKE`** — the pg_trgm slice is the
+  queued next backend build (see §9 / §11).
 - Per-row provenance is mandatory for ODbL/CC-BY-SA share-alike. Keep ODbL-derived
   (Open Food Facts) rows isolated from curated data to avoid copyleft pollution.
 - **Enrichment provenance** (AI/web-derived rows): `verification_status`
@@ -500,7 +501,7 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 | `research/06-yandex-alice/` | ✅ alice | **Alice AI LLM** = distinct Foundation Models model (`aliceai-llm`, 64k; `aliceai-llm-flash` cheaper), same API/json_schema. Keep YandexGPT Lite primary, **benchmark Alice Flash** in M4. Bonus: Yandex hosts **Qwen3-235B/DeepSeek natively** → VPN dropped (#18) | §6, decision #18 |
 | `research/07-flavor-prompt-tuning/` | ✅ opus | Calibrated 0–5 flavor prompts (zero-shot + grounded, #25): anchor rubric, ru system/user templates, strict `json_schema` (`$defs.dim`, inline if `$defs` rejected), ≤3 few-shot, injection hardening, multiplicative confidence gate, MAE≤1.0 eval. **Yandex caveats:** `json_schema` unconfirmed on Lite (keep `json_object` fallback), no Yandex-managed DeepSeek URI, native vs OpenAI-compat request shapes differ, Qwen3 thinking-mode ≠ structured output | §6 step 3, decision #44, #25/#23 |
 | `research/08-ai-web-search/` | ✅ opus → **not adopted (#45)** | Revisited §6 under a DE-VPN premise that #18 retired. **Decision #45: keep "no web crawling".** No compliant path under #18's no-VPN/Yandex-native lock (Yandex Search ToS-blocked 2.7.4; Yandex LLMs no built-in search; Tavily/Gemini = the egress #18 removed). Durable findings kept for a future revisit: never store built-in `googleSearch`-grounded output (Gemini ToS); Tavily = only card-free search-only API; Wikidata weak on RU transliterations → user-pasted text is the right long-tail grounding | §6, decision #45 |
-| `research/09-typo-search/` | ⏳ queued (#67) | **Typo-tolerant catalog search** (task.md "several wrong symbols"). Compare in-Postgres `pg_trgm` similarity/`word_similarity` + threshold (no new infra) vs a dedicated engine (Meilisearch/Typesense/OpenSearch) for **ru+en+CJK** edit-distance tolerance, weighed against the single-VM ops-simple ethos (#19). Research-first per AskUserQuestion; not on the M4 path | §4a search, M5/backend slice |
+| `research/09-typo-search/` | ✅ opus (#79) | **Typo-tolerant catalog search** → **in-Postgres `pg_trgm`** for ru/en/pinyin (no new always-on service, #19); Hanzi weak (accepted), Meilisearch CE the documented fallback if a gold set fails. Locked design: IMMUTABLE `f_unaccent` + `name_norm` generated column + GIN `gin_trgm_ops` + `word_similarity`-ranked query; ICU collation prereq. **Implementation queued** (not built) | §4a search, backend slice |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.

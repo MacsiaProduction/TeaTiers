@@ -1470,3 +1470,34 @@ deviated.
       (Room **v6**, destructive pre-launch). SQLite treats NULLs as distinct, so unlimited custom teas are
       fine, but two user-teas can never link to the same catalog row — closing the gap the repository check
       (#72) alone left to concurrent adds / backup import. Full app suite green.
+
+79. **Research run 09 judged → typo search = pg_trgm in Postgres** (resolves #67; `research/09-typo-search/`).
+    Winner **opus** (gemini #2, gpt #3, alice #4); 3/4 picked pg_trgm-first, alice dissented (Meilisearch).
+    **Decision: implement in-Postgres `pg_trgm`** for ru/en/pinyin typo tolerance — no new always-on service
+    (honors the ops-simplicity lock #19); **Hanzi is weak** (Tom Lane: trigrams "fairly useless" on multibyte
+    — accepted), with **Meilisearch CE (MIT)** as the documented fallback *only if* a gold set fails.
+    **Locked design (opus, verbatim — next implementation slice):**
+    - Flyway: an **IMMUTABLE `f_unaccent(text)`** wrapper (`public.unaccent('public.unaccent', $1)`; plain
+      `unaccent` is only STABLE), a **`tea_name.name_norm`** `GENERATED ALWAYS AS (lower(f_unaccent(name)))
+      STORED` column, and a **GIN `gin_trgm_ops`** index on `name_norm` (replacing `tea_name_trgm_idx`).
+    - Query: `word_similarity(qnorm, name_norm)` / the `<%` operator, **threshold ~0.3–0.45** (tune on a
+      ru/en/pinyin gold set), ranked `ORDER BY max(word_similarity) DESC, id`; exact-substring always matches.
+    - **Prereq:** the DB must NOT be `C`/`POSIX` collation (ICU provider) or pg_trgm ignores Cyrillic; the
+      IT must verify this. Ranked results don't id-cursor-paginate cleanly → fuzzy queries return a single
+      best-match page (`nextCursor=null`); the blank-query browse path keeps id-cursor. **Not yet built.**
+
+80. **(task.md, future) Python flavor-backfill model — recorded, not started.** task.md grew: *"writing our
+    own model in python to backfill flavors for all wiki teas."* The Wikidata-imported catalog rows have **no
+    flavor profile** (only curated seed + LLM-enriched rows do). Idea: an offline Python job that estimates a
+    flavor profile (the 11-dim 0–5 vocab) for every Wikidata tea and backfills `tea_flavor` as `unverified`.
+    *Needs a decision:* model approach (a small trained/regression model vs reuse the existing LLM tier as a
+    batch job), provenance/confidence, and whether it's MVP or post-MVP. Big new workstream — would get its
+    own research run + plan slice. Flagged for your direction.
+
+81. **(task.md, future) OCR tea-photo text → enrichment grounding — recorded, not started.** task.md grew:
+    *"tea photos can also include tea text description, so we should use local model to get text from them and
+    include in prompts to local/cloud model."* Idea: OCR the packaging text off a user/catalog photo and feed
+    it as the `sourceText` grounding the flavor/blurb enrichment (#25). *Needs a decision:* on-device OCR
+    (ML Kit needs GMS — unavailable on RuStore; Tesseract/PaddleOCR are GMS-free options) vs server-side; how
+    it ties into the existing `sourceText` path + the injection/copyright guards (#65). Big new workstream —
+    own research + slice. Flagged for your direction.
