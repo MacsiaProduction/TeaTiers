@@ -30,7 +30,10 @@ echo "wrote $out ($(du -h "$out" | cut -f1))"
 # Optional off-box copy. Needs the AWS CLI + AWS_* creds in the environment (e.g. a backup SA's
 # static key); leave BACKUP_S3_URI unset to keep dumps local-only.
 if [ -n "${BACKUP_S3_URI:-}" ]; then
+  # Pin the region: on a Yandex VM the AWS CLI otherwise derives a malformed 'ru-central1-' from
+  # instance metadata and aborts. Object Storage's region is ru-central1.
   aws --endpoint-url "${AWS_ENDPOINT_URL:-https://storage.yandexcloud.net}" \
+    --region "${AWS_REGION:-ru-central1}" \
     s3 cp "$out" "${BACKUP_S3_URI%/}/$(basename "$out")"
   echo "uploaded to ${BACKUP_S3_URI%/}/$(basename "$out")"
 fi
