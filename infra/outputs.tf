@@ -1,8 +1,3 @@
-output "registry_id" {
-  description = "Yandex Container Registry id. DEPRECATED (decision #76): image delivery moved to ghcr.io; remove the registry + puller SA after the VM is confirmed pulling from ghcr."
-  value       = yandex_container_registry.teatiers.id
-}
-
 output "server_image_repo" {
   description = "Image repository the server is published to (ghcr.io, decision #76; append :<tag>)."
   value       = "ghcr.io/macsiaproduction/teatiers-server"
