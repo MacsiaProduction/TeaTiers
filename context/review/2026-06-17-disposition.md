@@ -6,7 +6,7 @@ is being handled. Statuses: **✅ done**, **🛠 in progress / planned (autonomo
 
 | # | Finding | Disposition |
 |---|---------|-------------|
-| P0 | Search lacks typo tolerance (live `LIKE`) | 🛠 **run 09 judged → pg_trgm decided (#79)**; design locked (f_unaccent + name_norm + GIN + word_similarity). **Implementation queued** — the live path is still `LIKE`. |
+| P0 | Search lacks typo tolerance (live `LIKE`) | ✅ **done (#84)** — Flyway V4 (`f_unaccent` + `name_norm` GENERATED + GIN `gin_trgm_ops`) + native `word_similarity`/`<%` ranked query; `TeaSearchFuzzyIT` ru/en/pinyin/zh gold set green. Collation prereq verified on `postgres:16-alpine` (default `en_US.utf8`, no ICU needed). Not yet deployed (next image runs V4). |
 | P0 | Backup drops v5 enrichment fields | ✅ **done** — `BackupTea` + both mappers + round-trip tests (folded into #69 / PR #35). |
 | P0 | Destructive Room migrations are a release blocker | ✅ **decided (#70.1): leave as-is until M5** — cutover (export schema + drop destructive + real migrations) is an M5 release-gate task; internal builds wipe on upgrade until then. |
 | P1 | Queued enrichment isn't durable (app-scope only) | partly ✅ (#73): resume now runs on **app-open** (home), de-duped in-flight. Full **background** WorkManager (post-process-death) is ❓ **open #70.6** — adds a dependency + non-device-verifiable runtime wiring. |
