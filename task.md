@@ -11,3 +11,8 @@ we should support both russian, english and chinise name of tea.
 for search of teas in db  we should utilize ready search index that allows several wrong symbols
 
 move from yandex image repository to open ones like ghcr
+
+we should think about writing our own model in python to backfill flawors for all wiki teas. 
+tea photos can also include tea text descripition, so we should use local model to get text from them and include in prompts to local/cloud model.
+
+you can merge some changes without prs.
