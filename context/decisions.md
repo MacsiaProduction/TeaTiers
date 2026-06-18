@@ -2114,3 +2114,20 @@ deviated.
        accuracy, only an already-mitigated privacy upside], rec-model swap [`cyrillic`≈`eslav`].
      Next concrete action: implement the conditional upscale (C) in the sidecar. Research tooling + docs
      committed straight to main; the sidecar change goes via PR.
+
+115. **Fixed a live prod P1: every Wikidata `/resolve` miss 500'd (2026-06-19).** While verifying the
+     review's §3.1 ask ("is the free Wikidata resolve tier actually ON in prod?"), a gibberish resolve
+     returned **HTTP 500**, not UNRESOLVED. Root cause: `WikidataSparqlClient.query` added the SPARQL as a
+     **literal** `queryParam` value; in RestClient's default `TEMPLATE_AND_VALUES` encoding mode only URI
+     *variables* are percent-encoded, so the SPARQL's `?`, `{`, `}` and spaces stayed raw →
+     `URISyntaxException: Illegal character in query at index 108` → the IllegalArgumentException escaped
+     `query()`'s `RestClientException` catch and surfaced as a 500. **Egress was fine** (the server reaches
+     `query.wikidata.org` → 200; network segmentation #110 intact) — purely a URL-encoding defect. It
+     shipped because the only client test (`WikidataSparqlClientTest`) exercised `parse`/`buildQuery` but
+     **never built the real request URI**. Fix (PR): (1) pass the SPARQL as a URI variable
+     `.uri("?query={q}&format=json", sparql)` so Spring percent-encodes it; (2) **fail closed** — `query()`
+     now also catches non-transient `RuntimeException` and degrades to `null` (UNRESOLVED) so no client-side
+     lookup error can ever 500 a `/resolve` again; (3) regression test `WikidataSparqlClientHttpTest` —
+     a real MockWebServer round-trip asserting the SPARQL round-trips through encoding (no raw `{`) **and**
+     the error→null degrade (test-only `okhttp3:mockwebserver` 4.12.0, not on runtimeClasspath/SBOM). The
+     free Wikidata breadth tier (#64) was effectively broken in prod for every cache-miss; this restores it.

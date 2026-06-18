@@ -25,6 +25,7 @@ dependencies {
     testImplementation(libs.spring.boot.testcontainers)
     testImplementation(libs.kotlin.test.junit5)
     testImplementation(libs.mockk)
+    testImplementation(libs.mockwebserver)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.junit.jupiter)
 }

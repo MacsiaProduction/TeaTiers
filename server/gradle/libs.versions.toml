@@ -5,6 +5,9 @@ kotlin = "2.4.0"
 springBoot = "4.1.0"
 springDependencyManagement = "1.1.7"
 mockk = "1.14.11"
+# OkHttp MockWebServer for client HTTP round-trip tests (test-only; not on runtimeClasspath, so it
+# never reaches the SBOM/OSV gate or the bootJar). Last OkHttp 4.x stable, verified on Maven Central.
+mockwebserver = "4.12.0"
 # CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
 # directly, so we emit an SBOM of the resolved graph and scan that.
 cyclonedx = "3.2.4"
@@ -27,6 +30,7 @@ flyway-database-postgresql = { group = "org.flywaydb", name = "flyway-database-p
 postgresql = { group = "org.postgresql", name = "postgresql" }
 kotlin-test-junit5 = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit5", version.ref = "kotlin" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "mockwebserver" }
 # Testcontainers 2.x renamed module artifacts with a `testcontainers-` prefix; version is
 # managed by the Spring Boot 4.1 BOM (testcontainers 2.0.5).
 testcontainers-postgresql = { group = "org.testcontainers", name = "testcontainers-postgresql" }
