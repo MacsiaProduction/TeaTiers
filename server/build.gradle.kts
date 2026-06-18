@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.jpa)
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
+    alias(libs.plugins.cyclonedx.bom)
 }
 
 group = "com.macsia.teatiers"
@@ -44,3 +45,15 @@ tasks.withType<Test>().configureEach {
 // Spring Boot's repackaged bootJar is the deployable artifact; disabling the plain jar keeps
 // build/libs to a single file so the Docker image's COPY is unambiguous.
 tasks.named("jar") { enabled = false }
+
+// SBOM for the OSV-Scanner CI gate (decision #102). Scope to what the bootJar actually ships
+// (runtimeClasspath) and drop the Gradle/build-tooling graph, so the advisory gate fires on
+// deployed deps — not on test-only or buildscript dependencies we never serve. The aggregate
+// `cyclonedxBom` task derives from this direct task; CI scans its JSON at the pinned path.
+tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
+    includeConfigs.set(listOf("runtimeClasspath"))
+    includeBuildEnvironment.set(false)
+}
+tasks.named<org.cyclonedx.gradle.CyclonedxAggregateTask>("cyclonedxBom") {
+    jsonOutput.set(layout.buildDirectory.file("reports/cyclonedx/bom.json"))
+}

@@ -420,8 +420,8 @@ no UI yet), reference-vs-mine flavor (#23), zh-source/grounded gold sets.*
 ~~Cross-board **"my teas"** search/filter (#27)~~ ✅ **shipped early in M1** (decision #47) +
 in-board filter by type/origin → en/zh UI → catalog **curation pass** (promote
 `unverified`→`verified`, fix bad AI transliterations) → **RuStore packaging** + signing via CI
-secrets → OWASP Dependency-Check → release hardening (no debug logging, cert-pinning
-consideration). Outcome: release-ready MVP.
+secrets → OSV-Scanner advisory gate (✅ wired, #102) → release hardening (no debug logging,
+cert-pinning consideration). Outcome: release-ready MVP.
 
 **M6 — Post-MVP (deferred).**
 **Maps & geopoint** (research 02 / #20: a `LocationPickerProvider` = MapLibre + OpenFreeMap
@@ -452,8 +452,10 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   daily LLM ceiling** that fails closed ✅ (#71).
 - [ ] **LLM data-logging off** — `x-data-logging-enabled: false` header sent ✅ (#74); **verify** logging
   is actually disabled (header or folder-level) for the SA/folder before deploying a key (ToS, #32).
-- [ ] **Dependency/security check** — **OSV-Scanner in CI** (decision #96/#100, supersedes the earlier
-  "OWASP Dependency-Check" wording), or deferred with a date. Chosen but **not yet wired** (#100 P1).
+- [x] **Dependency/security check** — **OSV-Scanner in CI** (decision #96/#100, supersedes the earlier
+  "OWASP Dependency-Check" wording): `.github/workflows/osv-scanner.yml` scans a CycloneDX SBOM of each
+  module's *shipped* graph on every PR + main push (#102). Both modules currently report no advisories.
+  Sidecar (Python) deps get added to the scan when slice 1b lands.
 - [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
 - [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).
 - [ ] **i18n:** `values-en`/`values-zh` shipped, or the picker copy makes ru-only explicit (open #70.5).
@@ -468,7 +470,8 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 - **Testing:** JUnit5 + MockK everywhere; Turbine (Flow), Compose UI tests on the
   app; Testcontainers Postgres + slice tests on the server.
 - **CI:** GitHub Actions, pinned actions, `contents: read`, Gradle cache,
-  `./gradlew check` (compile, test, detekt/ktlint, Android lint, `assembleDebug`).
+  `./gradlew check` (compile, test, detekt/ktlint, Android lint, `assembleDebug`); a separate
+  OSV-Scanner workflow scans a CycloneDX SBOM of each module's shipped graph (#102).
 - **Security (rule 50):** validate all API inputs; parameterized queries; no secrets
   in VCS; TLS only; treat geopoints as sensitive PII (store minimal, never log).
 - **Privacy transparency (#1/#13):** the app is local-first, but *adding/resolving a tea

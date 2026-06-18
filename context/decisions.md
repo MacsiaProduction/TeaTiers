@@ -1840,3 +1840,33 @@ deviated.
      doesn't re-dead-end. Note the matcher is even weaker than the report (nameEn isn't a match key) — broader
      local-dedup hardening is left as a separate follow-up; this fix removes the permanent-FAILED trap. App
      unit suite green.
+
+102. **Prod-container hardening + OSV-Scanner gate + ported healthcheck (#100 step 2).** Three P1s from the
+     post-OCR review, landed together **before** the FastAPI/onnxruntime OCR sidecar (a far larger,
+     image-processing attack surface) joins the host.
+     - **`docker-compose.prod.yml` hardening.** Every service now runs `security_opt: [no-new-privileges]`
+       + `cap_drop: [ALL]`, with only the genuinely-needed caps added back: Caddy `NET_BIND_SERVICE`
+       (bind 80/443); Postgres `CHOWN,DAC_OVERRIDE,FOWNER,SETGID,SETUID` (the official entrypoint's
+       first-boot data-dir chown + gosu drop to the postgres user — no-new-privileges still blocks
+       setuid-binary escalation, and gosu drops rather than gains privileges so it's unaffected). The
+       stateless server (already non-root `appuser`) is `read_only: true` + `tmpfs: [/tmp]` (JVM hsperfdata
+       + Spring's ≤8 MB multipart spill; tmpfs counts against `mem_limit` so it can't grow unbounded).
+       `pids_limit` on all three (server 512 / db 256 / caddy 128); `mem_limit` added to db (768m) + caddy
+       (128m), server keeps 1500m. **`cpus` deliberately deferred to the slice-1b PR** which does the
+       measured 4 GB arithmetic (review's other P1) rather than guessing CPU caps now.
+     - **Ported server healthcheck.** Prod had dropped the dev compose's `server` healthcheck, so a
+       post-reboot Caddy could proxy to a not-yet-migrated server (502s). Added the `curl actuator/health`
+       check (curl ships in the runtime image) and changed Caddy's `depends_on` to
+       `server: {condition: service_healthy}`.
+     - **OSV-Scanner wired (decision #96).** OSV can't parse `build.gradle.kts`, so the chosen path is a
+       **CycloneDX SBOM → OSV**: applied `org.cyclonedx.bom` 3.2.4 to both modules (added to each version
+       catalog), scoped each `cyclonedxBom` to the **shipped** graph only (server `runtimeClasspath`, app
+       `releaseRuntimeClasspath`, `includeBuildEnvironment=false`) and pinned the JSON output path. Scoping
+       was essential: the unscoped app SBOM dragged in AGP build-tooling deps (netty, bouncycastle,
+       httpclient, commons-lang3) with dozens of CVEs that never ship to a device — pure noise. New
+       `.github/workflows/osv-scanner.yml` runs `google/osv-scanner-action@v2.3.8` over each SBOM on PR +
+       main. **Implemented as two jobs (server JDK 21 / app JDK 17) mirroring ci.yml**, not the literal
+       "one job" of #100 — per-module JDK correctness + parallelism, same single gate. Verified locally
+       with osv-scanner 2.3.8: both modules **No issues found** (server 101 pkgs, app 196 pkgs), so the gate
+       is green on introduction. Plan §7.1 gate row + M5 narrative + §8 CI line updated. The sidecar's
+       Python deps get folded into the scan when slice 1b lands.

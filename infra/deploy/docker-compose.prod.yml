@@ -4,6 +4,14 @@
 # the only published ports are Caddy's 80/443.
 # Base images pinned by multi-arch index digest (rule 40-devops); tags kept for readability.
 # Refresh with: docker manifest inspect --verbose <image> | jq '.[0].Descriptor.digest'
+#
+# Privilege hardening (decision #102): every service drops all Linux capabilities and runs with
+# no-new-privileges; only the caps a service genuinely needs are added back (Caddy: bind 80/443;
+# Postgres: the official entrypoint's first-boot chown + gosu user-switch). pids_limit caps fork
+# bombs; mem_limit bounds every service on the 4 GB VM (cpus deferred to the sidecar PR, which
+# does the measured arithmetic — decision #100). The stateless server runs read-only with a tmpfs
+# /tmp (JVM perfdata + Spring's multipart spill). This lands BEFORE the FastAPI/onnxruntime OCR
+# sidecar, which processes attacker-supplied images on the same host.
 services:
   caddy:
     image: caddy:2-alpine@sha256:4679412ccd2114dca9f3017e2c460f76c9d8eb9e1850e72fb9ecda672e05c629
@@ -19,8 +27,19 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    # Wait for the server's actuator/health, not just process start, so a post-reboot Caddy never
+    # proxies to a not-yet-migrated server (502s) — decision #102.
     depends_on:
-      - server
+      server:
+        condition: service_healthy
+    mem_limit: 128m
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE # bind the privileged 80/443; certs/config live on the writable volumes
 
   server:
     image: ${SERVER_IMAGE}
@@ -28,12 +47,31 @@ services:
     restart: unless-stopped
     # Cap heap well under the 4 GB host so Postgres + Caddy + OS have headroom.
     mem_limit: 1500m
+    pids_limit: 512 # JVM: Tomcat worker pool (≤200) + GC/JIT/internal threads, with headroom
     environment:
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0"
       SPRING_PROFILES_ACTIVE: default
       POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Stateless JRE (runs as non-root appuser, uid 10001): lock the root FS read-only and give it a
+    # writable tmpfs /tmp for JVM hsperfdata + Spring's multipart spill (max-file-size 8MB). tmpfs
+    # pages count against mem_limit, so they can't grow past the container's bound.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL # listens on the high port 8080 as non-root; needs no capabilities
+    # Ported from the dev compose so Caddy can gate on readiness (curl ships in the runtime image).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      # First boot runs Flyway + seeding, so allow a generous grace window.
+      start_period: 40s
     depends_on:
       db:
         condition: service_healthy
@@ -42,12 +80,27 @@ services:
     image: postgres:16-alpine@sha256:79950da386bda7fcc9d57aa9aa9be6c6d7407596a9b8f68014b09a778a9ab316
     container_name: teatiers-db
     restart: unless-stopped
+    mem_limit: 768m
+    pids_limit: 256 # one backend process per connection (max_connections 100) + bg workers
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - teatiers_pgdata:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # The official postgres entrypoint starts as root to fix the data-dir ownership, then drops to
+    # the postgres user via gosu — keep only those caps (chown/perms + setuid/setgid). Postgres
+    # itself runs unprivileged thereafter; no-new-privileges still blocks setuid-binary escalation.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
