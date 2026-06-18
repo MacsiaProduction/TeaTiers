@@ -54,6 +54,9 @@ services:
       POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # OCR tier (slice 1b): the private sidecar URL. Unset -> tier degrades to 503. The server does
+      # NOT depend_on the sidecar — OCR fails closed (502) so the catalog stays up if it's down.
+      TEATIERS_OCR_SIDECAR_URL: http://ocr-sidecar:8099
     # Stateless JRE (runs as non-root appuser, uid 10001): lock the root FS read-only and give it a
     # writable tmpfs /tmp for JVM hsperfdata + Spring's multipart spill (max-file-size 8MB). tmpfs
     # pages count against mem_limit, so they can't grow past the container's bound.
@@ -107,6 +110,37 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # RapidOCR sidecar (slice 1b): runs the ONNX OCR for the server's /teas/ocr. Private network only,
+  # never published. Footprint measured at ~250 MB RSS (decision #105) — the cpus/mem caps are the
+  # "measured arithmetic" #102 deferred here: 1g/1.5cpu fits the 4 GB / 2 vCPU VM with headroom.
+  ocr-sidecar:
+    image: ${OCR_SIDECAR_IMAGE}
+    container_name: teatiers-ocr-sidecar
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.5 # bursty inference (intra_op=2); bounded so it can't starve db/server
+    pids_limit: 128
+    # Stateless (non-root appuser, uid 10001); models are baked in, so the root FS is read-only with
+    # a writable tmpfs /tmp for FastAPI's multipart spill.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL # listens on high port 8099 as non-root; no capabilities needed
+    # python:3.12-slim has no curl — probe /health with the stdlib instead.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8099/health',timeout=2).status==200 else 1)"
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 40s # model load + warmup
 
 volumes:
   caddy_data:

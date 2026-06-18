@@ -91,6 +91,14 @@ built-in `GITHUB_TOKEN` — no external registry secret. It runs on every push t
 4. Once confirmed, **retire YCR**: delete `infra/registry.tf` + the `registry_id`/`puller_sa_id`
    outputs and `tofu apply` (the puller SA can stay attached to the VM harmlessly, or be detached).
 
+**OCR sidecar (slice 1b).** The `.github/workflows/ocr-sidecar.yml` pipeline publishes
+`ghcr.io/macsiaproduction/teatiers-ocr-sidecar` the same way. Make that package **public** too, then
+set `OCR_SIDECAR_IMAGE=ghcr.io/macsiaproduction/teatiers-ocr-sidecar:latest` in `/opt/teatiers/.env`
+and `sudo docker compose pull && sudo docker compose up -d ocr-sidecar`. The server reaches it over
+the private compose network (`TEATIERS_OCR_SIDECAR_URL`, already set in the prod compose); the tier
+fails closed to 503/502 if the sidecar is down, so the catalog never depends on it. ~250 MB RSS,
+`mem_limit 1g` / `cpus 1.5` — fits the 4 GB VM (decision #105), no resize.
+
 Manual build (rarely needed; CI is the path):
 ```
 cd ../server && ./gradlew bootJar          # build/libs/teatiers-server-*.jar
@@ -106,8 +114,8 @@ SSH (the puller SA is attached, Docker installed via `apt install docker.io dock
 ```
 scp -i ~/.ssh/teatiers infra/deploy/docker-compose.prod.yml yc-user@93.77.185.62:/opt/teatiers/docker-compose.yml
 scp -i ~/.ssh/teatiers infra/deploy/Caddyfile               yc-user@93.77.185.62:/opt/teatiers/Caddyfile
-# write /opt/teatiers/.env with DOMAIN, ACME_EMAIL, SERVER_IMAGE, POSTGRES_DB/USER and the
-# password from Lockbox:  yc lockbox payload get --name teatiers-db
+# write /opt/teatiers/.env with DOMAIN, ACME_EMAIL, SERVER_IMAGE, OCR_SIDECAR_IMAGE, POSTGRES_DB/USER
+# and the password from Lockbox:  yc lockbox payload get --name teatiers-db
 ssh -i ~/.ssh/teatiers yc-user@93.77.185.62 'cd /opt/teatiers && sudo docker compose up -d'
 ```
 

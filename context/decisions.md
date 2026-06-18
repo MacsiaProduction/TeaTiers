@@ -1920,3 +1920,32 @@ deviated.
      possible later enhancement). **Still owed before any accuracy claim:** CER on real packaging photos —
      this proof only establishes a clean-text floor. The harness + findings are committed; rendered images,
      fetched models, and `out/` are gitignored.
+
+106. **Built the slice-1b OCR sidecar (`ocr-sidecar/`).** A FastAPI service the catalog server proxies
+     `POST /teas/ocr` to (matches slice-1a `OcrClient`: multipart `file` → `{"text": …}`; plus `/health`).
+     Loads RapidOCR once + warmup, **concurrency cap 1** (single uvicorn worker), and **never logs image
+     bytes or text** (only sizes/timing). Engine = the #105-measured config (eslav PP-OCRv5 mobile rec +
+     `ch_PP-OCRv5_det_mobile`, cls off, ONNX intra2/inter1, no mem-arena, det limit 960).
+     - **Provenance/egress:** models pinned in `models.lock` + fetched & SHA256-verified at build by
+       `fetch_models.sh` (a mismatch fails the build — the gate); baked into the image, so the runtime
+       makes **no network calls**. **Gotcha found + fixed:** RapidOCR downloads the angle-cls model at
+       construction *even with `use_cls=false`*, which would break the egress-free/read-only container — so
+       the tiny `ch_ppocr_mobile_v2.0_cls_mobile` is baked too and `Cls.model_path` set to suppress it.
+       Verified locally: with the package cache hidden and only the 3 baked models present, the app boots
+       and `/ocr` returns correct ru+en text with **0 download attempts**.
+     - **Image:** two-stage, `python:3.12-slim` digest-pinned, non-root (uid 10001), `libgomp1` for
+       onnxruntime.
+     - **Compose:** prod gets a hardened `ocr-sidecar` (cap_drop ALL, no-new-privileges, read_only+tmpfs,
+       `pids_limit 128`, **`mem_limit 1g`/`cpus 1.5`** — the measured arithmetic #102 deferred to here,
+       per #105's ~250 MB RSS → fits 4 GB, no resize) + a stdlib `/health` healthcheck. The server gets
+       `TEATIERS_OCR_SIDECAR_URL` but **does NOT `depend_on`** the sidecar — OCR fails closed (503/502) so
+       the catalog stays up if it's down. Dev compose: opt-in `--profile ocr`.
+     - **CI:** new `ocr-sidecar.yml` builds the image (runs the SHA gate), **smoke-tests** it boots +
+       loads models + `/health` green (validates the no-egress boot + native libs in-CI, since Docker is
+       down locally), and pushes to `ghcr.io/<owner>/teatiers-ocr-sidecar` on main (mirrors
+       publish-image.yml). `osv-scanner.yml` gains a Python job: `pip freeze` → scan with `--no-resolve`
+       (complete + deterministic, like the Gradle SBOMs). **The gate already paid off:** it caught
+       `python-multipart==0.0.20`'s 7 CVEs (up to 8.6) → bumped to 0.0.32 before merge.
+     - **Deploy:** `infra/README` documents making the new ghcr package public + adding `OCR_SIDECAR_IMAGE`
+       to the VM `.env`. Backend OCR is now deployable end-to-end; **no client calls it until slice 3**
+       (app scan UI + rewritten privacy copy) — the next step. Real-packaging CER (#105) still owed.

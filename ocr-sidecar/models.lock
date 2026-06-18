@@ -1,0 +1,10 @@
+# Pinned OCR models for the sidecar (research 13 / decision #105). One line per model:
+#   <dest-filename>  <sha256>  <url>
+# The SHA256 are RapidOCR 3.8.4's own default_models.yaml values, byte-verified by the slice-1b
+# proof. fetch_models.sh downloads + checks these at image-build time (no runtime egress). To move
+# to fully-self-converted ONNX later (run-13's preferred provenance), swap the URLs + re-pin SHAs.
+eslav_PP-OCRv5_rec_mobile.onnx       08705d6721849b1347d26187f15a5e362c431963a2a62bfff4feac578c489aab  https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/rec/eslav_PP-OCRv5_rec_mobile.onnx
+ch_PP-OCRv5_det_mobile.onnx          4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae  https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv5/det/ch_PP-OCRv5_det_mobile.onnx
+# Angle-cls is DISABLED at inference (Global.use_cls=false), but RapidOCR downloads the cls model at
+# construction regardless — so we bake it and point Cls.model_path at it to keep the runtime egress-free.
+ch_ppocr_mobile_v2.0_cls_mobile.onnx e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c  https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.8.0/onnx/PP-OCRv4/cls/ch_ppocr_mobile_v2.0_cls_mobile.onnx

@@ -1,0 +1,6 @@
+# Only the app + model fetch/verify inputs belong in the build context.
+*
+!app.py
+!requirements.txt
+!models.lock
+!fetch_models.sh

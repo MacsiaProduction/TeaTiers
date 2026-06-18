@@ -57,3 +57,26 @@ jobs:
         with:
           scan-args: |-
             -L=app/build/reports/cyclonedx/bom.json
+
+  ocr-sidecar:
+    name: ocr-sidecar deps + OSV (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Resolve the FULL transitive set (pip freeze) and scan it with --no-resolve, so coverage is
+      # complete and deterministic (no live deps.dev resolution) — mirrors the Gradle SBOM approach.
+      - name: Resolve full dependency set
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet -r ocr-sidecar/requirements.txt
+          mkdir -p osv-python
+          /tmp/venv/bin/pip freeze > osv-python/requirements.txt
+      - name: Scan resolved deps against the OSV database
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        with:
+          scan-args: |-
+            --no-resolve
+            -L=osv-python/requirements.txt
