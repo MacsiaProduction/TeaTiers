@@ -16,6 +16,11 @@ data class OcrProperties(
     val sidecarUrl: String = "",
     /** Reject uploads larger than this before reading them (also bounded by Spring multipart limits). */
     val maxImageBytes: Long = 8L * 1024 * 1024,
+    /**
+     * Per-client fixed-window cap for POST /ocr. Its own budget, independent of /resolve's, since a
+     * scan triggers sidecar inference (heavier than a Wikidata/cache hit) — so the default is lower.
+     */
+    val ratePerMinute: Int = 10,
     /** Cap on returned text, mirroring the `sourceText` server cap so the review field can't overflow. */
     val maxTextLength: Int = 4_000,
     val connectTimeoutMs: Int = 3_000,

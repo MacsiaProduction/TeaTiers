@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component
 
 /**
  * Global daily ceiling on enrichment LLM calls (plan.md section 6 "quota protection"). The per-IP
- * [ResolveRateLimiter] bounds one caller's burst, but behind NAT / shared mobile networks many users
+ * [FixedWindowRateLimiter] bounds one caller's burst, but behind NAT / shared mobile networks many users
  * share an IP, so this caps total spend across *all* callers per UTC day. Once the cap is hit a
  * Wikidata miss fails closed to `UNRESOLVED` (no stub, no LLM call) until the next UTC midnight.
  *
