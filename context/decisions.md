@@ -1989,3 +1989,31 @@ deviated.
      `{"text":"Тегуаньинь"}` / `{"text":"Da Hong Pao"}` (200) end-to-end through Caddy→server→sidecar. The
      backend OCR tier is live; users reach it once the slice-3 app build (#70) ships. Real-packaging CER (#105)
      still owed.
+
+109. **Two new reviews dispositioned → 8 fixes shipped, after adversarial verification (2026-06-18).** Two
+     files landed under `context/review/`. **`current-design`** is **stale/superseded** — every finding was
+     already resolved this session (privacy copy #107, OSV gate #102, backup OOM #97, deploy hardening/XFF
+     #98/#102, stale docs #104/#67); only the Room cutover (#70.1) + seed→300 (#95) remain, already tracked.
+     **`ocr-workstream-complete`** reviews the never-before-seen sidecar + scan UI; its §2 findings were each
+     **independently verified against source** by a 10-agent workflow before any fix.
+     **Verification mattered:** F1 (pixel-bomb) was *refuted* by a verifier claiming PIL's default
+     `MAX_IMAGE_PIXELS` blocks a 13000² image — but PIL only *warns* at that and *raises* at 2× it, so a
+     169 MP image decodes (warn-only) → I re-confirmed F1 was real and fixed it correctly (header pixel-budget
+     check, NOT lowering PIL's default as the review proposed). Outcomes (PRs #72–#76):
+     - **F1** sidecar decompression-bomb → header pixel-budget 413 (#72). **F8** sidecar output cap + server
+       `OcrSanitizer` cap-early (#72/#73). **F9** sidecar pytest + server `OcrServiceTest` proxy-contract (#72/#73).
+     - **F2** EXIF orientation in `AndroidImageReader` (camera scans were sideways; sidecar has cls off) — #75.
+     - **F3** prod compose network split + **F5** (sidecar portion) `internal` nets so the sidecar can't reach
+       Postgres *or* the internet (#74). **F4** global OCR concurrency `Semaphore` → fast-fail 503 (#73).
+     - **F10** shared startup http(s) validation on the 3 operator-set endpoint URLs (#73).
+     - **F6** merge catalog metadata into same-catalog duplicates (link-free) + `nameEn` in the local
+       matcher (#76).
+     **Deferred (deliberate):** **F7** Wikidata `zh` label broadening — needs live SPARQL verification
+     (row-multiplication risk), cosmetic-reference-only, zh is deferred (#94). **F5 VM-wide egress whitelist**
+     — risky (could break ACME/Wikidata/Yandex), needs measuring real egress; the `internal` nets already
+     neutralize the sidecar-specific risk. §4 carried-forward items (Room cutover, photo-orphan sweep, pooled
+     `RestClient`, supply-chain SHA-pin, restore-RTO runbook, `backup_storage` SA least-privilege) stay tracked,
+     not re-opened. **Research:** run-15 (GMS-free crash telemetry) answers gathered but **unrated** — judge
+     before the public APK; run-13 real-packaging CER (#105) still owed; run-14 reserved. **Redeploy:** the
+     #72/#73 image rebuilds (ghcr `:latest`) + #74 network split applied to the live VM in a controlled
+     redeploy.
