@@ -94,6 +94,11 @@ Adopt the winning (opus) schema; firm the exact DDL in the first Flyway migratio
   (one optional CC/Wikimedia reference image, **stored in Yandex Object Storage, not
   hotlinked** — #24), provenance: `source`, `source_url`, `license`, `retrieved_at`,
   `created_at`, `updated_at`.
+  **⚠ Drifted (refresh, history kept):** the single `image_url` triple is **superseded by
+  #75** — catalog images are now a `tea_image` *list* (`tea_image(tea_id, url, license,
+  source_url, position)`). And the **Yandex Object Storage pipeline was never built**: the
+  implemented reality (#61/#89) stores the CC/Wikimedia URL + license + attribution on the
+  row and loads it client-side via Coil — there is no Object-Storage hop.
 - `tea_name` — `id`, `tea_id` FK, `locale` (`en`|`ru`|`zh-Hans`|`pinyin`), `name`,
   `is_primary`, optional per-name `source`/`license`. `UNIQUE(tea_id, locale, name)` +
   a partial unique index `(tea_id, locale) WHERE is_primary` (one primary per locale).
@@ -132,6 +137,12 @@ Adopt the winning (opus) schema; firm the exact DDL in the first Flyway migratio
   at once can't create duplicate rows.
 
 ### 4b. Android local (Room) — the user's private data
+
+> **⚠ Drifted (refresh, history kept):** the board-scoped `user_tea(boardId, tierId,
+> position)` shape below is **superseded by #42** — teas are now **user-global** (a single
+> `teas` table) with separate **`placements`** (board/tier/position), so one tea can sit on
+> many boards and carry shared notes/photos/flavor. `context/shared-teas/plan.md` is the
+> accurate spec; the bullets below are kept for history.
 
 - `board` — `id`, `name`, `position`, `createdAt`.
 - `tier` — `id`, `boardId` FK, `label`, `colorArgb`, `position`. (Customizable;
@@ -175,6 +186,15 @@ max-length/charset cap on `name`, and a daily enrichment-call budget to protect 
 free-tier AI quota.
 
 ## 6. Catalog enrichment (on-demand, AI + verification)
+
+> **⚠ Status + drift (refresh, history kept):** the whole AI enrichment tier **ships OFF for
+> the MVP** (#88/#100) — only the free **Wikidata → Wikipedia** resolve runs in prod today
+> (live + fixed, #115; the demand-driven seed-from-misses growth engine is #116). When the AI
+> tier *does* ship, the **primary LLM is Alice AI LLM Flash** (`aliceai-llm-flash`),
+> **superseding "YandexGPT Lite primary" (#65)** — Lite was dropped and Alice Flash is already
+> routed in code (#66); read every "YandexGPT Lite primary" below as "Alice Flash primary".
+> Run **14** re-verifies the Yandex async API + the `aliceai-llm-flash` slug/price immediately
+> before this tier is built. The prose below is the original AI-on design, kept for history.
 
 **Providers (research 03–06, decisions #15/#17/#18):** free verification spine
 **Wikidata → Wikipedia** resolves most teas; primary LLM **YandexGPT Lite**
@@ -422,6 +442,11 @@ in-board filter by type/origin → en/zh UI → catalog **curation pass** (promo
 `unverified`→`verified`, fix bad AI transliterations) → **RuStore packaging** + signing via CI
 secrets → OSV-Scanner advisory gate (✅ wired, #102) → release hardening (no debug logging,
 cert-pinning consideration). Outcome: release-ready MVP.
+> **⚠ Refresh (#88/#100/#116):** the curation pass above assumes the AI tier is ON — with it
+> **OFF for the MVP** there are no AI-authored `unverified` rows to promote or transliterations
+> to fix. The MVP curation pass is instead the **demand-driven seed-from-misses** operator loop
+> (#116): review the weekly top no-PII misses and promote real teas to `verified`. The
+> AI-cleanup version applies only once the AI tier ships.
 
 **M6 — Post-MVP (deferred).**
 **Maps & geopoint** (research 02 / #20: a `LocationPickerProvider` = MapLibre + OpenFreeMap
@@ -523,9 +548,22 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 | `research/07-flavor-prompt-tuning/` | ✅ opus | Calibrated 0–5 flavor prompts (zero-shot + grounded, #25): anchor rubric, ru system/user templates, strict `json_schema` (`$defs.dim`, inline if `$defs` rejected), ≤3 few-shot, injection hardening, multiplicative confidence gate, MAE≤1.0 eval. **Yandex caveats:** `json_schema` unconfirmed on Lite (keep `json_object` fallback), no Yandex-managed DeepSeek URI, native vs OpenAI-compat request shapes differ, Qwen3 thinking-mode ≠ structured output | §6 step 3, decision #44, #25/#23 |
 | `research/08-ai-web-search/` | ✅ opus → **not adopted (#45)** | Revisited §6 under a DE-VPN premise that #18 retired. **Decision #45: keep "no web crawling".** No compliant path under #18's no-VPN/Yandex-native lock (Yandex Search ToS-blocked 2.7.4; Yandex LLMs no built-in search; Tavily/Gemini = the egress #18 removed). Durable findings kept for a future revisit: never store built-in `googleSearch`-grounded output (Gemini ToS); Tavily = only card-free search-only API; Wikidata weak on RU transliterations → user-pasted text is the right long-tail grounding | §6, decision #45 |
 | `research/09-typo-search/` | ✅ opus (#79) | **Typo-tolerant catalog search** → **in-Postgres `pg_trgm`** for ru/en/pinyin (no new always-on service, #19); Hanzi weak (accepted), Meilisearch CE the documented fallback if a gold set fails. Locked design: IMMUTABLE `f_unaccent` + `name_norm` generated column + GIN `gin_trgm_ops` + `word_similarity`-ranked query; ICU collation prereq. **BUILT + DEPLOYED LIVE (#84/#91)** — Flyway V4, `TeaSearchFuzzyIT` gold set green, live typo probes resolve on tea.macsia.fun | §4a search, backend slice |
+| `research/10-photo-ocr-grounding/` | ✅ opus (#100) | OCR-grounded custom-add: scan packaging → text → `sourceText`. Picked **on-device** initially, but couldn't device-verify on the RuStore/AGP toolchain → **#100 chose a server-side sidecar** (revisit on-device if a device-verification spike clears it). | OCR feature, #100/#13 |
+| `research/11-flavor-backfill/` | ✅ opus (#100) | Per-dimension flavor **provenance/backfill** design (status/confidence/`enrichment_run` per dimension). Needs a `tea_flavor` schema migration **flagged unbuilt in §4a** — AI-off MVP, so deferred. | §4a `tea_flavor`, #100 |
+| `research/12-batch-enrichment/` | ✅ opus | Background **batch** enrichment via Yandex Foundation Models **async** (`completionAsync` + operations). Gated behind the AI tier (OFF, #88/#100); **run 14 re-verifies** the async API + slug/pricing immediately before it's built. | §6 async tier (deferred) |
+| `research/13-ocr-sidecar-accuracy/` | ✅ opus (#106/#114) | Self-hosted **eslav RapidOCR** server-side sidecar (GMS-free, no runtime egress, opt-in, fits 4 GB). CER **measured** (real-photo ~75% name-capture). **RECONSIDER (2026-06-19) → KEEP** + the one verified win, **conditional low-res upscale** (3/4→4/4); Yandex Vision = pilot. | OCR sidecar, #106/#114 |
+| `research/14-yandex-async-reverify/` | ⏸ reserved (empty) | Intentionally empty — a **re-verify** of the Yandex async/Responses API + `aliceai-llm-flash` slug/price, to run *immediately before* the background-enrichment tier (specs go stale). | §6 async tier (deferred) |
+| `research/15-crash-telemetry/` | ✅ gpt (#111) | Crash/telemetry for the public MVP → **ACRA + a first-party `/client-diagnostics` endpoint** on the existing backend (no heavy dashboard); out-of-Room **count-sentinel** migration/data-loss detector; strict allowlist, opt-in, CI GMS-gate. GlitchTip = documented upgrade path (not on the 4 GB VM). | app telemetry, #111 |
+| `research/16-catalog-breadth/` | ✅ gpt (#116) | Catalog breadth with crawling banned + AI off → **reframe as a famous-tea reference seed + demand-driven no-PII seed-from-misses** (operator promotes top misses to `verified`). Key negative result: **no new redistributable tea dataset** exists beyond the locked Wikidata/Wikipedia/OFF core. Wikidata bulk-sync modest (~200–600 tea entities, all estimates). | §4a/§6 growth, #116 |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.
+
+> **Research-folder hygiene (review 2026-06-19 §6):** `08-ai-web-search/` and
+> `08-model-bakeoff/` share the `08` prefix (the bake-off's RATING notes it does **not** bump
+> the leaderboard — left as-is to avoid churning decision/plan references); run **14** is
+> reserved-but-empty by design (above). The `12-batch-enrichment/prompt.md` internal mis-title
+> ("10-batch-enrichment") is corrected.
 
 ## 10. Risks & mitigations
 
@@ -556,6 +594,13 @@ version pins) are in each run's `RATING.md` — honor them before writing code.
 - **Always-on VM cost (~700–1700 ₽/mo) runs even at zero traffic** → reviewed and
   **accepted (#19)** for operational simplicity over scale-to-zero serverless; the 4,000 ₽
   grant covers the early months. Revisit serverless only if idle cost becomes a concern.
+- **4 GB VM is near its memory boundary (~3.4 GB committed: Postgres + Caddy + server + OCR
+  sidecar)** → **stay on 4 GB for the MVP (user decision 2026-06-19, #116).** The boundary:
+  the demand-driven miss-log (#116) is tiny and fits; the **OCR conditional-upscale is
+  pixel-capped** so it can't blow the RAM bound (#102/#106). **Do not add a new always-on
+  service on this box** — a contribution queue, a co-hosted dashboard (GlitchTip/Sentry are
+  already OUT, §9/#111), or the AI/background-enrichment tier each need headroom. **Resize to
+  8 GB only when AI-on or real load forces it** (re-decide post-launch with usage metrics).
 - **Optimistic enrichment = brief eventual consistency** → a freshly-added tea shows the
   user's typed name for a moment, then names/metadata patch in when `/resolve` returns
   (or stay as typed if offline). Acceptable and clearer than a blocking spinner (#21);

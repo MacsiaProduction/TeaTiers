@@ -2131,3 +2131,44 @@ deviated.
      a real MockWebServer round-trip asserting the SPARQL round-trips through encoding (no raw `{`) **and**
      the error→null degrade (test-only `okhttp3:mockwebserver` 4.12.0, not on runtimeClasspath/SBOM). The
      free Wikidata breadth tier (#64) was effectively broken in prod for every cache-miss; this restores it.
+     **Deployed + verified (2026-06-19):** PR #82 merged, image republished, server redeployed. Live
+     re-verify: the gibberish miss now returns `200 {"status":"UNRESOLVED"}` (was 500), and non-seeded teas
+     resolve through the Wikidata tier — `Lushan Yunwu`→ENRICHED/Q11062782, `Aracha`→ENRICHED/Q2598236,
+     `Dongfang meiren tea`→ENRICHED/Q5295867 (all `source=wikidata`). So §3.1 is answered: the free Wikidata
+     resolve tier is **ON and serving real value**. (Restrictive cases like `gunpowder tea`/`houjicha` return
+     UNRESOLVED because they aren't in the `P31/P279* Q6097` subtree with an exact label — query-shape
+     restrictiveness, not a bug, and exactly the kind of real miss the #116 miss-log will surface.)
+
+116. **Catalog-breadth strategy locked from research run 16 → reframe + demand-driven seed-from-misses
+     (2026-06-19).** Run 16 (winner gpt; `research/16-catalog-breadth/RATING.md`) asked how to grow the
+     catalog past the ~300-row curated seed with crawling banned and the AI tier OFF. The signal was
+     **consensus across all 5 answers**, plus one decisive negative result: **no genuinely new
+     redistributable tea dataset exists** beyond the already-locked Wikidata (CC0) / Wikipedia (CC-BY-SA) /
+     Open Food Facts taxonomy (ODbL, isolated) core — so the open core is the ceiling for free structured
+     data, and breadth must come from a product reframe + demand-driven curation, not a magic table.
+     Wikidata holds only **~200–600 tea entities** (every count in the run is an *estimate* — measure with
+     our own SPARQL before sizing anything), so a bulk-sync is modest and on-demand `/resolve` (now fixed,
+     #115) already covers the famous teas. **Locked strategy:**
+     - **Reframe, don't chase completeness** — position the catalog as a curated *famous-tea reference seed*;
+       make **custom-add + OCR** the first-class hero path; "tea not found" becomes a one-tap *add-your-tea*,
+       never a dead end. Highest leverage, ~0 ops. (Precedent: Beanconqueror — a local journal, no global
+       catalog.)
+     - **Demand-driven seed-from-misses is the growth engine** — log server-side the **aggregate,
+       name-string-only, no-PII** set of resolve/search misses (`query_norm, miss_count, first_seen,
+       last_seen`; DATE granularity; no IP/session/device-id); operator promotes the weekly top-N to
+       `verified`. Smallest possible pipeline; converts real demand into permanent breadth. **BUILD NOW**
+       (user decision 2026-06-19).
+     - **Wikidata resolve stays ON; bulk-sync optional + measure-first; no monthly sync.**
+     - **Anonymous, no-account contribution = operator review queue** (suggest-a-tea / correct-a-row /
+       promote-your-own-custom, hidden until reviewed, non-PII rate-limiting) — **deferred** until the miss
+       log proves it's needed.
+     - **An optional one-off operator LLM batch stays AI-OFF-compliant** *only* fenced as private,
+       human-reviewed tooling over top misses with non-LLM provenance on published rows. Not now.
+     - **Leads to chase (unverified — confirm license first):** Rospatent open GI/NMPT register + EU
+       eAmbrosia (RU/EU tea geographic indications; opus).
+     **Discard:** gemini's invented licenses ("Chinese Standard Exception"; "GOST is public domain" — GB/T &
+     GOST standard *texts* are copyrighted/sold, only facts/terms are reusable); deepseek's misidentified
+     "BioTea" (a biomedical NLP corpus, not tea data); alice's off-constraint OpenAI suggestion; any reliance
+     on the estimated Wikidata counts. **VM stays at 4 GB** (user decision) — the miss-log is tiny and fits;
+     a contribution queue / AI-on would need headroom, so the boundary is documented (no new always-on
+     service on this box; resize only when AI-on or load forces it).

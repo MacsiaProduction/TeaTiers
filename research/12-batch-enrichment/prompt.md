@@ -1,4 +1,4 @@
-# 10-batch-enrichment — Yandex Foundation Models async completion (completionAsync + operations) for background batch tea enrichment
+# 12-batch-enrichment — Yandex Foundation Models async completion (completionAsync + operations) for background batch tea enrichment
 
 <!--
 The SINGLE prompt for this run. Send this exact text to every model.
