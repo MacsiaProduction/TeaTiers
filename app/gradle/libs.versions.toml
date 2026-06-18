@@ -18,6 +18,7 @@ turbine = "1.2.1"
 coil = "3.5.0"
 datastore = "1.2.1"
 appcompat = "1.7.1"
+exifinterface = "1.4.2"
 kotlinxSerialization = "1.11.0"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
@@ -62,6 +63,8 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # Per-app language switch (M1, #28). AppCompatDelegate.setApplicationLocales backports per-app
 # locales below API 33 and integrates with the system locale picker on 33+.
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+# Reads the JPEG EXIF Orientation tag so camera scans aren't OCR'd sideways (the sidecar runs angle-cls off).
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 # JSON for the export/import backup bundle (M1, #26). The compiler plugin (kotlin-serialization
 # below, pinned to the Kotlin version) generates the serializers for the @Serializable DTOs.
