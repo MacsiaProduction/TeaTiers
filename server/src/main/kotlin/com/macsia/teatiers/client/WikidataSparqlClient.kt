@@ -75,13 +75,23 @@ class WikidataSparqlClient(
         var lastError: Exception? = null
         repeat(MAX_ATTEMPTS) { attempt ->
             try {
+                // Pass the SPARQL as a URI *variable* (`{q}`), not a literal queryParam value: in
+                // RestClient's default TEMPLATE_AND_VALUES encoding mode only variables are
+                // percent-encoded, so a literal SPARQL string leaves its `?`, `{`, `}` and spaces
+                // raw -> URISyntaxException -> every resolve miss 500s (context/decisions.md #115).
                 return restClient.get()
-                    .uri { it.queryParam("query", sparql).queryParam("format", "json").build() }
+                    .uri("?query={q}&format=json", sparql)
                     .retrieve()
                     .body(SparqlResponse::class.java)
             } catch (ex: RestClientException) {
+                // Transient transport/HTTP error -> retry, then degrade.
                 lastError = ex
                 if (attempt < MAX_ATTEMPTS - 1) Thread.sleep(RETRY_BACKOFF_MS)
+            } catch (ex: RuntimeException) {
+                // Any other client-side failure (e.g. a malformed request) is not transient: a tea
+                // lookup must never fail the caller's /resolve, so fail closed -> "unresolved".
+                log.warn("Wikidata lookup errored (non-transient): {}", ex.toString())
+                return null
             }
         }
         // A Wikidata outage degrades resolve to "unresolved" rather than failing the request.
