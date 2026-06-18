@@ -81,6 +81,9 @@ teatiers:
     max-text-length: 4000
     connect-timeout-ms: 3000
     read-timeout-ms: 20000
+    # Own per-client window, separate from resolve.rate-per-minute; lower because a scan runs
+    # sidecar inference (heavier than a Wikidata/cache hit).
+    rate-per-minute: 10
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:

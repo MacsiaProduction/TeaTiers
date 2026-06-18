@@ -1870,3 +1870,22 @@ deviated.
        with osv-scanner 2.3.8: both modules **No issues found** (server 101 pkgs, app 196 pkgs), so the gate
        is green on introduction. Plan §7.1 gate row + M5 narrative + §8 CI line updated. The sidecar's
        Python deps get folded into the scan when slice 1b lands.
+
+103. **OCR rate-limit fixed: own window + validate-before-acquire (#100 step 3, review P2).** `/teas/ocr`
+     was sharing `/resolve`'s rate-limit window and acquiring a token **before** validating the upload, so
+     (a) OCR traffic depleted the `/resolve` budget and vice versa, and (b) an empty/oversized image still
+     burned a token. Fixes:
+     - **Validate-before-acquire.** `ocr()` now runs the cheap request-shape checks (`isEmpty` → 400,
+       `size > maxImageBytes` → 413) **before** `tryAcquire`, so a malformed upload can't spend the
+       caller's budget.
+     - **Own window.** Generalized `ResolveRateLimiter` → a reusable `FixedWindowRateLimiter(ratePerMinute)`
+       (dropped `@Component`); a new `RateLimiterConfig` provides two beans — `resolveRateLimiter`
+       (`ResolveProperties.ratePerMinute`=20) and `ocrRateLimiter` (new `OcrProperties.ratePerMinute`=10,
+       lower because a scan triggers sidecar inference, heavier than a Wikidata/cache hit). `TeaController`
+       selects between them with `@Qualifier`, so each endpoint keeps an independent window. Renamed the
+       now-shared `ResolveRateLimitException` → `RateLimitException` (still maps to 429 "Rate limit
+       exceeded"). New tests cover independent budgets, OCR's own window, 429 on OCR-window exhaustion, and
+       validate-before-acquire (`verify(exactly = 0)` the token isn't spent on a 400/413). Server unit
+       suite green; the full-context Testcontainers ITs (which exercise the real `RateLimiterConfig`
+       wiring) run in CI. **Deferred** (separate P2, dormant tier): the Bucket4j/Caffeine/Resilience4j
+       migration + the LLM budget-undercount/4xx-retry fix.

@@ -11,14 +11,18 @@ import com.macsia.teatiers.dto.TeaImageDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import com.macsia.teatiers.service.FixedWindowRateLimiter
 import com.macsia.teatiers.service.OcrService
-import com.macsia.teatiers.service.ResolveRateLimiter
 import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlin.test.Test
+import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -49,7 +53,12 @@ class TeaControllerTest {
     lateinit var resolveService: ResolveService
 
     @Autowired
-    lateinit var rateLimiter: ResolveRateLimiter
+    @Qualifier("resolveRateLimiter")
+    lateinit var resolveRateLimiter: FixedWindowRateLimiter
+
+    @Autowired
+    @Qualifier("ocrRateLimiter")
+    lateinit var ocrRateLimiter: FixedWindowRateLimiter
 
     @Autowired
     lateinit var ocrService: OcrService
@@ -66,10 +75,21 @@ class TeaControllerTest {
         fun resolveService(): ResolveService = mockk()
 
         @Bean
-        fun resolveRateLimiter(): ResolveRateLimiter = mockk()
+        fun resolveRateLimiter(): FixedWindowRateLimiter = mockk()
+
+        @Bean
+        fun ocrRateLimiter(): FixedWindowRateLimiter = mockk()
 
         @Bean
         fun ocrService(): OcrService = mockk()
+    }
+
+    // The mock beans are Spring singletons, so MockK call history would otherwise accumulate across
+    // test methods — reset it per test so the `verify(exactly = 0)` token-spend assertions are scoped
+    // to the call under test.
+    @BeforeEach
+    fun resetMocks() {
+        clearMocks(service, resolveService, resolveRateLimiter, ocrRateLimiter, ocrService)
     }
 
     @Test
@@ -163,7 +183,7 @@ class TeaControllerTest {
 
     @Test
     fun `resolve returns the enriched tea`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+        every { resolveRateLimiter.tryAcquire(any()) } returns true
         every { resolveService.resolve("Longjing", "en", null) } returns ResolveResponseDto(
             status = ResolveStatus.ENRICHED,
             tea = TeaDetailDto(
@@ -189,7 +209,7 @@ class TeaControllerTest {
 
     @Test
     fun `resolve rejects a blank name with 400 problem json`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+        every { resolveRateLimiter.tryAcquire(any()) } returns true
 
         mockMvc.perform(
             post("/api/v1/teas/resolve")
@@ -203,7 +223,7 @@ class TeaControllerTest {
 
     @Test
     fun `resolve returns 429 problem json when rate limited`() {
-        every { rateLimiter.tryAcquire(any()) } returns false
+        every { resolveRateLimiter.tryAcquire(any()) } returns false
 
         mockMvc.perform(
             post("/api/v1/teas/resolve")
@@ -217,7 +237,7 @@ class TeaControllerTest {
 
     @Test
     fun `ocr returns the recognized text`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
         every { ocrService.recognize(any(), any()) } returns "Green tea blend"
 
         mockMvc.perform(
@@ -229,7 +249,7 @@ class TeaControllerTest {
 
     @Test
     fun `ocr returns 503 problem json when the tier is off`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
         every { ocrService.recognize(any(), any()) } throws OcrUnavailableException()
 
         mockMvc.perform(
@@ -241,22 +261,53 @@ class TeaControllerTest {
     }
 
     @Test
-    fun `ocr rejects an oversized image with 413`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+    fun `ocr uses its own window, not the resolve one`() {
+        // OCR consults only its own limiter — the /resolve window is never touched, so the two
+        // endpoints can't deplete each other's budget (decision #103).
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
+        every { ocrService.recognize(any(), any()) } returns "Oolong"
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.text").value("Oolong"))
+        verify(exactly = 0) { resolveRateLimiter.tryAcquire(any()) }
+    }
+
+    @Test
+    fun `ocr returns 429 problem json when its own window is exhausted`() {
+        every { ocrRateLimiter.tryAcquire(any()) } returns false
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
+        )
+            .andExpect(status().isTooManyRequests())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("Rate limit exceeded"))
+    }
+
+    @Test
+    fun `ocr rejects an oversized image with 413 before spending a token`() {
+        // The limiter would deny, but request-shape validation runs first, so an oversized upload
+        // gets 413 and never burns a rate-limit token (review P2: validate-before-acquire).
+        every { ocrRateLimiter.tryAcquire(any()) } returns false
 
         mockMvc.perform(
             multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", ByteArray(20))),
         )
             .andExpect(status().isPayloadTooLarge())
+        verify(exactly = 0) { ocrRateLimiter.tryAcquire(any()) }
     }
 
     @Test
-    fun `ocr rejects an empty file with 400`() {
-        every { rateLimiter.tryAcquire(any()) } returns true
+    fun `ocr rejects an empty file with 400 before spending a token`() {
+        every { ocrRateLimiter.tryAcquire(any()) } returns false
 
         mockMvc.perform(
             multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", ByteArray(0))),
         )
             .andExpect(status().isBadRequest())
+        verify(exactly = 0) { ocrRateLimiter.tryAcquire(any()) }
     }
 }
