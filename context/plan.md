@@ -485,8 +485,17 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   a restore on a new device loses photos. Android Auto Backup is unavailable on no-GMS
   RuStore devices, so don't rely on it.
 - **Observability:** backend logs via slf4j (never PII / geopoints / notes). No GMS → no
-  Crashlytics; app crash reporting, if wanted, uses a GMS-free option (ACRA or self-hosted
-  Sentry) — optional for MVP.
+  Crashlytics. **Crash/error telemetry = KEEP for the public MVP (research run 15, decision #111):**
+  **ACRA (`ch.acra:acra-http`, GMS-free, Apache-2.0) → a first-party `/api/v1/client-diagnostics`
+  endpoint** on the existing backend — zero new service/RAM (vs GlitchTip's Django+Celery stack, which
+  doesn't fit the ~3.4 GB-committed 4 GB VM; it's the documented upgrade path, not MVP). Strict
+  **allowlist** (app/OS/device/version/stacktrace + numeric counts only — never names/notes/photos/
+  coords), **opt-in** (off by default + new disclosure copy), don't persist client IP, 30–90d
+  retention, CI GMS-gate on `releaseRuntimeClasspath`. **The point is the silent Room data-wipe:** a
+  destructive migration doesn't crash, so add an **out-of-Room before/after row-count sentinel**
+  (DataStore) + the `onDestructiveMigration` callback → emit a `room_migration_signal`. Pairs with the
+  Room public-schema cutover (#70.1); build alongside it before the first public APK. Sentry self-host
+  is OUT (7/14 GB floor) and Sentry SaaS is OFAC-blocked from Russia.
 - **Accessibility & states (#28):** dark mode, font scaling, TalkBack labels (esp. the
   flavor chart); design first-run/empty/error/offline states, not just the happy path.
 - **Deploy (decision #18, run 05; tool = OpenTofu per #55):** **Yandex Cloud via OpenTofu** (`infra/`) — one

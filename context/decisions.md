@@ -2028,3 +2028,28 @@ deviated.
      net) and the public internet (`1.1.1.1:443`) is unreachable (`OSError`: the internal `ocr` net has no
      gateway). The timestamped backup compose is kept for rollback. F2 (EXIF) + F6 (dedup) are app-side and
      reach users with the next APK build. The OCR backend tier is now live AND hardened end-to-end.
+
+111. **Research run 15 (crash telemetry) judged → telemetry plan decided (2026-06-18).** Rated the 5
+     gathered answers (`research/15-crash-telemetry/RATING.md`); **winner = gpt** (its first leaderboard win),
+     opus a close #2; gemini/deepseek/alice trailed on real errors (gemini fabricated a GMS-free "reflection
+     probe" + stale pins; deepseek got Sentry's license wrong — it's **FSL→Apache-2.0 after 2y**, not BSL/3y —
+     + a Celery-vs-rq worker bug; alice was honest-but-incomplete with a hallucinated `epitaph` dep).
+     LEADERBOARD updated. **Applied to planning (plan §8 Observability):**
+     - **KEEP crash/error telemetry for the public MVP.** A destructive Room migration silently wipes local
+       data without crashing, and local-first means no backend session would ever reveal it — flying blind is
+       the unacceptable risk.
+     - **Adopt ACRA (`ch.acra:acra-http`, GMS-free, Apache-2.0) → a first-party `/api/v1/client-diagnostics`
+       endpoint** on the existing backend (gpt's pick — best fit for TeaTiers' real constraints: GMS-free,
+       self-hosted, data-minimized, **zero new service/RAM**). **GlitchTip + `io.sentry:sentry-android`**
+       (MIT, GMS-free, self-hosted) is the documented **upgrade path**, NOT MVP — its Django+Celery+Postgres
+       stack doesn't fit the ~3.4 GB-committed 4 GB VM (co-host OOM risk / 2nd-VM cost). **Sentry self-host is
+       OUT** (installer 7 GB errors-only / 14 GB full RAM floor); **Sentry SaaS is OFAC-blocked from Russia**.
+     - **Design (vendor-independent core):** the silent-wipe detector is an **out-of-Room before/after
+       row-count sentinel** (DataStore: last-known boards/teas/notes/photos counts; non-zero→zero after a
+       version/schema change ⇒ emit `room_migration_signal`) **plus** the `onDestructiveMigration` callback —
+       the count-sentinel (gpt) is more robust than the callback alone. Strict **allowlist** (app/OS/device/
+       version/stacktrace + numeric counts only — never names/notes/photo-URIs/coords/board-names), backend
+       token-rejecting sanitizer, **opt-in** (off by default + new privacy-disclosure copy), don't persist
+       client IP, 30–90d retention, CI **GMS-gate** on `releaseRuntimeClasspath`.
+     - **Not built now** — it's a **pre-public-APK slice, built alongside the Room cutover (#70.1)** (the
+       migration sentinel is the whole point). `proof`-style real-packaging CER (#105) is the immediate task.
