@@ -2,3 +2,4 @@
 images/
 out/
 *.onnx
+__pycache__/
