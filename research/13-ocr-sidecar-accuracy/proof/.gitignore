@@ -11,3 +11,4 @@ corpus/*.png
 corpus/*.webp
 corpus/*.bmp
 corpus/ground_truth.tsv
+corpus-synth/

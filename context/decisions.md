@@ -2053,3 +2053,20 @@ deviated.
        client IP, 30–90d retention, CI **GMS-gate** on `releaseRuntimeClasspath`.
      - **Not built now** — it's a **pre-public-APK slice, built alongside the Room cutover (#70.1)** (the
        migration sentinel is the whole point). `proof`-style real-packaging CER (#105) is the immediate task.
+
+112. **CER measurement (#105): harness built + a realistic-synthetic floor measured; real-photo number
+     still owed.** No real tea-packaging photos exist anywhere (repo, proof dir, upload folder), so the true
+     real-photo CER can't be produced yet. Built `proof/measure_photos.py` (runs the identical sidecar
+     engine config + EXIF orientation over a photo corpus → corpus CER / exact-match / ms-img / peak RSS;
+     real photos + labels gitignored) and, per the user "find or generate" call, `proof/gen_realistic.py`
+     (renders the 233 ru+en seed names onto packaging-like images: textured bg, 7 fonts, perspective tilt,
+     uneven lighting + glare, blur, noise, JPEG — exact ground truth; moderate ≈ phone-photo-at-an-angle).
+     **Measured (realistic-synthetic, 233 imgs):** **en 0.0% CER / 100% exact; ru 9.23% CER / 72.3% exact**
+     (combined 4.08% / 88%) — roughly **2× the clean floor** for ru, en still perfect. Same systematic ru
+     failures as the clean proof (Cyrillic↔Latin homoglyphs, `Ассам→Accam`) **plus** a new realistic one:
+     short ru words under glare/warp sometimes fail detection entirely (`Синча→""`). Peak RSS **739 MB** on
+     the larger renders (app uploads downscale to ≤1600 px, so smaller in practice) — still < the 1 GB cap.
+     **Verdict:** still SYNTHETIC — a stronger floor, not real-world; the review-before-`sourceText` flow
+     tolerates it (user fixes a homoglyph / re-scans an empty), so usability note not blocker. **The
+     real-photo gold number remains owed** — the harness is ready the moment a photo corpus
+     (`proof/corpus/` + `ground_truth.tsv`) exists. See `proof/FINDINGS.md` §5.
