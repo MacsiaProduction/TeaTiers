@@ -7,10 +7,36 @@
 
 {$DOMAIN} {
 	encode zstd gzip
+
+	# Security headers (review 2026-06-19). TLS is always on (Caddy auto-HTTPS), so HSTS is safe.
+	# No CSP: this host serves only JSON APIs (no HTML/JS), so a content policy adds nothing.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		# Don't advertise the edge software.
+		-Server
+	}
+
+	# Cap request bodies at the edge so an oversized upload is rejected before it reaches the app
+	# (the /teas/ocr image cap is 8 MB; 10 MB leaves multipart headroom). Defense-in-depth with the
+	# server's multipart limit and the sidecar's own byte cap.
+	request_body {
+		max_size 10MB
+	}
+
 	# X-Forwarded-For spoofing note (decision #98): the backend keys its per-client /resolve rate
 	# limit off the first XFF hop. Caddy v2 with NO `trusted_proxies` set (our case — Caddy is the
 	# edge) IGNORES client-supplied X-Forwarded-* and sets the real client IP, so the header is not
 	# spoofable. The backend is also only reachable through Caddy (8080 unpublished in prod). If a
 	# CDN is ever put in front of Caddy, add `trusted_proxies` for that CDN's ranges.
-	reverse_proxy server:8080
+	reverse_proxy server:8080 {
+		# Bound how long Caddy waits on the backend so a stuck upstream can't pin edge connections.
+		# 30 s response header timeout covers the slowest synchronous path (a Wikidata resolve does
+		# up to 2 attempts × ~11 s); LLM enrichment is dispatched in the background, not awaited.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
 }

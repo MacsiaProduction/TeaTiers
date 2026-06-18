@@ -70,7 +70,9 @@ jobs:
       - name: Init
         if: steps.gate.outputs.enabled == 'true'
         working-directory: infra
-        run: tofu init -input=false
+        # -lockfile=readonly: fail CI if .terraform.lock.hcl would change (an un-pinned/added
+        # provider or a drifted hash) instead of silently updating it (review 2026-06-19 P3).
+        run: tofu init -input=false -lockfile=readonly
 
       - name: Plan
         if: steps.gate.outputs.enabled == 'true'

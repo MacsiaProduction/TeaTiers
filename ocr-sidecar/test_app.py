@@ -65,3 +65,39 @@ def test_health_ok_without_models():
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json()["status"] in ("ok", "loading")
+
+
+def test_maybe_upscale_enlarges_a_low_res_capture():
+    # short side 100 < 500 -> scale to short=960 (RECONSIDER option C / decision #114).
+    out = app_module._maybe_upscale(Image.new("RGB", (200, 100)))
+    assert min(out.size) == 960
+    assert out.size == (1920, 960)  # aspect ratio preserved
+
+
+def test_maybe_upscale_leaves_good_shots_untouched():
+    img = Image.new("RGB", (800, 600))  # short 600 >= 500 -> unchanged (unconditional upscale regresses)
+    out = app_module._maybe_upscale(img)
+    assert out.size == (800, 600)
+
+
+def test_maybe_upscale_skips_when_result_would_exceed_pixel_budget(monkeypatch):
+    monkeypatch.setattr(app_module, "MAX_IMAGE_PIXELS", 1000)
+    img = Image.new("RGB", (100, 60))  # would upscale to 1600x960 = 1.5M px > budget -> skip
+    out = app_module._maybe_upscale(img)
+    assert out.size == (100, 60)
+
+
+def test_oversized_by_content_length_returns_413_before_reading(monkeypatch):
+    # A body whose declared Content-Length exceeds MAX + multipart slack is rejected early.
+    monkeypatch.setattr(app_module, "MAX_IMAGE_BYTES", 10)
+    r = client.post("/ocr", files={"file": ("x.png", b"x" * 70_000, "image/png")})
+    assert r.status_code == 413
+
+
+def test_inference_deadline_returns_504(monkeypatch):
+    import time as _time
+
+    monkeypatch.setattr(app_module, "INFERENCE_DEADLINE_S", 0.05)
+    monkeypatch.setattr(app_module, "_recognize", lambda data: _time.sleep(1.0) or "late")
+    r = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
+    assert r.status_code == 504

@@ -5,6 +5,7 @@ locals {
     domain            = var.domain
     acme_email        = var.acme_email
     server_image      = var.server_image
+    ocr_sidecar_image = var.ocr_sidecar_image
     postgres_db       = var.postgres_db
     postgres_user     = var.postgres_user
     postgres_password = random_password.postgres.result
