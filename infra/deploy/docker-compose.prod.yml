@@ -40,6 +40,8 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE # bind the privileged 80/443; certs/config live on the writable volumes
+    networks:
+      - edge
 
   server:
     image: ${SERVER_IMAGE}
@@ -67,6 +69,12 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL # listens on the high port 8080 as non-root; needs no capabilities
+    # The server bridges all three nets: edge (Caddy + its own outbound to Wikidata/Yandex/ACME),
+    # data (Postgres), ocr (sidecar). It's the only path between the public edge and the internal nets.
+    networks:
+      - edge
+      - data
+      - ocr
     # Ported from the dev compose so Caddy can gate on readiness (curl ships in the runtime image).
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
@@ -104,6 +112,8 @@ services:
       - FOWNER
       - SETGID
       - SETUID
+    networks:
+      - data # internal-only net (no internet); reachable only by the server
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -130,6 +140,11 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL # listens on high port 8099 as non-root; no capabilities needed
+    # ocr is an internal-only net: the sidecar (the largest RCE surface — it decodes attacker-supplied
+    # images) has NO route to Postgres (not on the data net) and NO internet egress (models are baked,
+    # it needs none). Defense-in-depth matching the threat model (review F3/F5, decision #109).
+    networks:
+      - ocr
     # python:3.12-slim has no curl — probe /health with the stdlib instead.
     healthcheck:
       test:
@@ -141,6 +156,17 @@ services:
       timeout: 3s
       retries: 5
       start_period: 40s # model load + warmup
+
+# Network segmentation (decision #109, review F3/F5): the server is the only multi-homed service.
+# `data` and `ocr` are `internal: true` — no gateway, so neither Postgres nor the image-processing
+# sidecar can reach the internet, and the sidecar can't reach Postgres. `edge` carries Caddy ingress
+# + the server's legitimate outbound (Wikidata / Yandex FM / ACME).
+networks:
+  edge:
+  data:
+    internal: true
+  ocr:
+    internal: true
 
 volumes:
   caddy_data:
