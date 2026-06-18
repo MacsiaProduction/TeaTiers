@@ -15,7 +15,11 @@ object OcrSanitizer {
     private val INLINE_SPACE = Regex("[ \\t\\u00A0]+")
 
     fun clean(raw: String, maxLength: Int): String {
-        val normalized = Normalizer.normalize(raw, Normalizer.Form.NFC)
+        // Bound the work by the OUTPUT cap, not the (sidecar-influenced) input length: whitespace
+        // collapse only shrinks the text, so a generous prefix (8× the final cap) can never drop any
+        // of the first maxLength clean chars while keeping the normalize/regex pass O(maxLength).
+        val bounded = if (raw.length > maxLength * 8) raw.substring(0, maxLength * 8) else raw
+        val normalized = Normalizer.normalize(bounded, Normalizer.Form.NFC)
         val noZeroWidth = ZERO_WIDTH.replace(normalized, "")
         val noControl = buildString(noZeroWidth.length) {
             for (ch in noZeroWidth) {

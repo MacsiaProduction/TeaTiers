@@ -23,6 +23,10 @@ class WikidataSparqlClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    init {
+        requireHttpUrl(props.endpoint, "teatiers.wikidata.endpoint")
+    }
+
     private val restClient: RestClient = RestClient.builder()
         .baseUrl(props.endpoint)
         .defaultHeader(HttpHeaders.USER_AGENT, props.userAgent)

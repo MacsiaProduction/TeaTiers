@@ -31,6 +31,12 @@ class CatalogExceptionHandler {
             title = "OCR unavailable"
         }
 
+    @ExceptionHandler(OcrBusyException::class)
+    fun handleOcrBusy(ex: OcrBusyException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.message ?: "OCR is busy").apply {
+            title = "OCR busy"
+        }
+
     @ExceptionHandler(OcrFailedException::class)
     fun handleOcrFailed(ex: OcrFailedException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.message ?: "OCR failed").apply {
