@@ -31,7 +31,9 @@ Locked answers from the user (2026-06-15):
 - **`Tea.photos: List<TeaPhoto>`** — sorted by `position` on read; default empty.
 - **Schema (Room v3, destructive migration again — same rationale as #42's bump: pre-launch,
   only sample seed is durable; the next migration after we ship to a real user must be a real
-  `Migration(2, 3)`):**
+  `Migration(2, 3)`). The public-schema cutover (drop destructive fallback, export schema +
+  baseline, real `Migration`s) is the authoritative P0 tracked in decisions #70.1 / #100 —
+  destructive fallback is acceptable ONLY while internal-only:**
   - `tea_photos(id PK TEXT, teaId TEXT NOT NULL FK→teas.id ON DELETE CASCADE, uri TEXT NOT
     NULL, position INTEGER NOT NULL, source TEXT NOT NULL, license TEXT, sourceUrl TEXT,
     createdAtEpochMs INTEGER NOT NULL)`
