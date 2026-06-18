@@ -1825,3 +1825,18 @@ deviated.
     **Carried-forward:** Room destructive-migration cutover still deferred to M5 (#70.1, the hard first-public
     blocker); seed 100→~300 (#95); `values-en` ship-or-label before release. **Run 14 (re-verify Yandex async)
     deliberately NOT run now** — run it immediately before the background-enrichment tier is built (it goes stale).
+
+101. **Fixed the P1 enrichment dead-end (#100 step 1).** `TeaEnrichmentManager.applyPatch` blind-UPDATEd the
+     UNIQUE `catalogTeaId`, so when two differently-scripted user-teas the name-matcher can't unify (e.g.
+     "Tieguanyin" / "тегуанинь") resolved to the SAME catalog row, the second write threw
+     `SQLiteConstraintException` → caught → the tea was parked at FAILED, and every "Повторить уточнение"
+     re-threw — a permanent dead-end. Fix: `applyPatch` now pre-checks `dao.findTeaIdByCatalogId(detail.id)`
+     (a query that already existed but was unused on this path); if a *different* local tea already owns the
+     link, the duplicate is settled **DONE** (spinner cleared, no retry trap) without rewriting the link,
+     leaving the original intact. The catalog row stays one-user-tea-per-row (the UNIQUE invariant holds).
+     Root-caused why tests missed it: `FakeTeaDao.patchEnrichment` was a plain map write with no UNIQUE
+     enforcement — now it throws on a non-null `catalogTeaId` already held by a different tea, mirroring Room,
+     and a new `TeaEnrichmentManagerTest` case reproduces the scenario (would fail pre-fix) + checks retry
+     doesn't re-dead-end. Note the matcher is even weaker than the report (nameEn isn't a match key) — broader
+     local-dedup hardening is left as a separate follow-up; this fix removes the permanent-FAILED trap. App
+     unit suite green.

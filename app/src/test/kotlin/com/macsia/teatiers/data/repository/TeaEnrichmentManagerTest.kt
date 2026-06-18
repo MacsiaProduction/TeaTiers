@@ -33,11 +33,16 @@ class TeaEnrichmentManagerTest {
         return manager to dao
     }
 
-    private fun teaRow(id: String, name: String = "Чай", state: EnrichmentState = EnrichmentState.NONE) =
+    private fun teaRow(
+        id: String,
+        name: String = "Чай",
+        state: EnrichmentState = EnrichmentState.NONE,
+        catalogTeaId: Long? = null,
+    ) =
         TeaEntity(
             id = id, nameRu = name, nameZh = null, pinyin = null, nameEn = null,
             type = "OTHER", origin = null, shortBlurb = null, notes = null,
-            catalogTeaId = null, enrichmentState = state.name,
+            catalogTeaId = catalogTeaId, enrichmentState = state.name,
         )
 
     private fun detail(id: Long, state: EnrichmentState? = null) = CatalogTeaDetail(
@@ -157,6 +162,32 @@ class TeaEnrichmentManagerTest {
         assertEquals(3L, row.catalogTeaId)
         assertEquals(EnrichmentState.DONE.name, row.enrichmentState)
     }
+
+    @Test
+    fun `a tea resolving to an already-linked catalog id settles DONE without stealing the link`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // t1 ("Tieguanyin") already links catalog 5. t2 ("тегуанинь") is a differently-scripted
+            // duplicate the name-matcher can't unify; it resolves server-side to the SAME catalog id 5.
+            // The blind UPDATE used to throw on the UNIQUE catalogTeaId index and dead-end t2 at FAILED.
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
+            val (manager, dao) = managerWith(
+                teaRow("t1", name = "Tieguanyin", state = EnrichmentState.DONE, catalogTeaId = 5),
+                teaRow("t2", name = "тегуанинь"),
+            )
+
+            manager.enrich("t2", "тегуанинь")
+            advanceUntilIdle()
+
+            val t2 = dao.loadTeaRow("t2")!!
+            assertEquals(EnrichmentState.DONE.name, t2.enrichmentState) // no permanent FAILED dead-end
+            assertEquals(null, t2.catalogTeaId) // did not steal the link (no UNIQUE-constraint throw)
+            assertEquals(5L, dao.loadTeaRow("t1")!!.catalogTeaId) // original link untouched
+
+            // A retry must not re-dead-end the duplicate either.
+            manager.retry("t2")
+            advanceUntilIdle()
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("t2")!!.enrichmentState)
+        }
 
     @Test
     fun `a second dispatch while one is already in flight is dropped`() = runTest(UnconfinedTestDispatcher()) {

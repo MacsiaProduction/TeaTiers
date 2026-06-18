@@ -248,6 +248,12 @@ class FakeTeaDao : TeaDao() {
     ) {
         val index = teas.indexOfFirst { it.id == teaId }
         if (index >= 0) {
+            // Model the teas.catalogTeaId UNIQUE index (Entities.kt): a non-null id already held by a
+            // DIFFERENT tea raises SQLiteConstraintException in Room. A plain map write would silently
+            // allow it, which is why the duplicate-link dead-end went unnoticed in unit tests.
+            if (catalogTeaId != null && teas.any { it.catalogTeaId == catalogTeaId && it.id != teaId }) {
+                throw IllegalStateException("UNIQUE constraint failed: teas.catalogTeaId")
+            }
             teas[index] = teas[index].copy(
                 nameRu = nameRu,
                 nameZh = nameZh,
