@@ -108,6 +108,10 @@ Adopt the winning (opus) schema; firm the exact DDL in the first Flyway migratio
   AI-estimated `unverified` otherwise, #23). DB stores enum + number → drives a radar/bar;
   an **absent row = "unknown"** for that dimension (0 means *none*, not *unknown*).
   **Dimension labels (горечь/bitterness/苦味) are localized client-side** in `strings.xml`.
+  **Prerequisite for the run-11 flavor-backfill (decision #100, do not build until that workstream starts):**
+  this table is `(tea_id, dimension, intensity)` UNIQUE`(tea_id, dimension)` with `unverified`/confidence only
+  at the `tea` level — it **cannot** hold run-11's per-dimension status/confidence/provenance/`enrichment_run`,
+  so the backfill needs a schema migration that is flagged here but intentionally unbuilt for the AI-off MVP.
 - Search: `pg_trgm` GIN on `tea_name.name` for prefix/substring across Cyrillic + CJK
   (trigrams cover CJK *substring* matching; defer `zhparser`/`pg_cjk_parser` word
   segmentation until actually needed). `unaccent` for Latin; ICU collations on PG 16.
@@ -448,7 +452,8 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   daily LLM ceiling** that fails closed ✅ (#71).
 - [ ] **LLM data-logging off** — `x-data-logging-enabled: false` header sent ✅ (#74); **verify** logging
   is actually disabled (header or folder-level) for the SA/folder before deploying a key (ToS, #32).
-- [ ] **Dependency/security check** (OWASP Dependency-Check) wired, or deferred with a date.
+- [ ] **Dependency/security check** — **OSV-Scanner in CI** (decision #96/#100, supersedes the earlier
+  "OWASP Dependency-Check" wording), or deferred with a date. Chosen but **not yet wired** (#100 P1).
 - [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
 - [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).
 - [ ] **i18n:** `values-en`/`values-zh` shipped, or the picker copy makes ru-only explicit (open #70.5).
