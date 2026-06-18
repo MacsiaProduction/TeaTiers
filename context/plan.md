@@ -456,8 +456,9 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
   "OWASP Dependency-Check" wording): `.github/workflows/osv-scanner.yml` scans a CycloneDX SBOM of each
   module's *shipped* graph on every PR + main push (#102). Both modules currently report no advisories.
   Sidecar (Python) deps get added to the scan when slice 1b lands.
-- [ ] **Container registry** choice settled (`ghcr.io` vs YCR, #68) and a VM image pull verified.
-- [ ] **Off-box DB backup** enabled, or local-only accepted in writing (open #70.3).
+- [x] **Container registry** choice settled (`ghcr.io` vs YCR, #68) — ✅ **ghcr cutover complete, YCR retired**
+  (#83); publish + VM image pull verified in the autonomous deploy run (#82).
+- [x] **Off-box DB backup** enabled — ✅ live since the deploy run (#82); restore-RTO runbook still a P2 tidy-up (#100).
 - [ ] **i18n:** `values-en`/`values-zh` shipped, or the picker copy makes ru-only explicit (open #70.5).
 - [ ] **Release hardening:** no debug logging, signing via CI secrets, cert-pinning considered (M5).
 

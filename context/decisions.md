@@ -1889,3 +1889,12 @@ deviated.
        suite green; the full-context Testcontainers ITs (which exercise the real `RateLimiterConfig`
        wiring) run in CI. **Deferred** (separate P2, dormant tier): the Bucket4j/Caffeine/Resilience4j
        migration + the LLM budget-undercount/4xx-retry fix.
+
+104. **Doc refresh — review "doc hygiene" closed (#100 step 4).** Marked the two now-stale §7.1 release-gate
+     rows done with decision pointers: **container registry** (ghcr cutover complete / YCR retired #83, publish
+     + VM pull verified #82) and **off-box DB backup** (live since #82; restore-RTO runbook still a P2 tidy-up).
+     Added a public-schema-cutover pointer (→ #70.1/#100, destructive fallback internal-only) to
+     `context/photos/plan.md`. The flavor-provenance schema prerequisite was already flagged in plan §4a
+     (lines ~111–114, "unbuilt until the backfill workstream starts") by #100, so no further change there.
+     Doc-only; no code. **Sequence status:** #100 steps 1–4 done; next is **slice 1b** (the RapidOCR sidecar
+     per the run-13/opus spec) then **slice 3** (app scan UI + rewritten privacy copy).
