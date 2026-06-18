@@ -2016,4 +2016,15 @@ deviated.
      not re-opened. **Research:** run-15 (GMS-free crash telemetry) answers gathered but **unrated** — judge
      before the public APK; run-13 real-packaging CER (#105) still owed; run-14 reserved. **Redeploy:** the
      #72/#73 image rebuilds (ghcr `:latest`) + #74 network split applied to the live VM in a controlled
-     redeploy.
+     redeploy (#110).
+
+110. **Redeployed the review hardening to the live VM (user-authorized full redeploy; verified).** Pulled the
+     rebuilt server (`:latest` w/ F4 concurrency gate, F8 sanitize cap, F10 URL validation) + sidecar (F1
+     pixel-budget guard, F8 output cap) images and applied the network-segmented compose (#74) — `docker
+     compose up -d` created the `teatiers_edge`/`teatiers_data`/`teatiers_ocr` nets and recreated all four
+     containers healthy in the gated order. **Verified live:** `/teas/facets` 200; `POST /teas/ocr` →
+     `{"text":"Тегуаньинь"}` 200 (server→sidecar over the `ocr` net works); and crucially the **isolation
+     holds** — from inside the sidecar container, `db:5432` is unreachable (DNS `gaierror`: not on the data
+     net) and the public internet (`1.1.1.1:443`) is unreachable (`OSError`: the internal `ocr` net has no
+     gateway). The timestamped backup compose is kept for rollback. F2 (EXIF) + F6 (dedup) are app-side and
+     reach users with the next APK build. The OCR backend tier is now live AND hardened end-to-end.
