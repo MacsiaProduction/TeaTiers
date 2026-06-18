@@ -76,3 +76,12 @@ en is near-perfect clean. The ru numbers are **systematic and characterizable**,
   could be a later enhancement (risky — must not corrupt genuinely-Latin text).
 - **Still owed before any user-facing accuracy claim:** CER on *real* packaging photos (curved,
   low-contrast, stylized fonts, mixed scripts). This proof only establishes a clean-text floor.
+
+## 5. Real-packaging CER harness (#105) — built, awaiting a photo corpus
+
+[`measure_photos.py`](measure_photos.py) runs the **identical** sidecar engine config (+ EXIF
+orientation, review F2) over a corpus of real photos and reports corpus CER / exact-match / ms-img /
+peak RSS vs hand labels. Drop photos + a `ground_truth.tsv` into [`corpus/`](corpus/README.md)
+(gitignored — copyrighted packaging + privacy) and run `python measure_photos.py --corpus corpus`.
+Validated end-to-end on clean renders (CER 0.0% / exact 100%, peak RSS ~176 MB). **The real number
+needs a real photo corpus** — the one input that can't be synthesized.

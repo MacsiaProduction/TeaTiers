@@ -3,3 +3,11 @@ images/
 out/
 *.onnx
 __pycache__/
+# Real packaging photos + their hand labels stay LOCAL (copyrighted packaging + privacy). The
+# corpus README + example label file ARE committed so the format is documented.
+corpus/*.jpg
+corpus/*.jpeg
+corpus/*.png
+corpus/*.webp
+corpus/*.bmp
+corpus/ground_truth.tsv
