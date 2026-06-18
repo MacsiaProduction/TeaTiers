@@ -38,6 +38,14 @@ DET_MODEL = os.path.join(MODELS_DIR, "ch_PP-OCRv5_det_mobile.onnx")
 CLS_MODEL = os.path.join(MODELS_DIR, "ch_ppocr_mobile_v2.0_cls_mobile.onnx")
 # Defense-in-depth: the server already caps uploads (8 MB), but bound it here too.
 MAX_IMAGE_BYTES = int(os.environ.get("OCR_MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
+# The byte cap does NOT bound DECODED pixels: a low-entropy PNG can be <8 MB yet decode to a huge
+# RGB array (then doubled by np.array) and OOM the 1 GB container. PIL only *warns* at its default
+# MAX_IMAGE_PIXELS and *raises* at 2× that, so a sub-179 MP bomb slips through — hence an explicit
+# header-size check before the big allocation. 30 MP is generous for real photos (the app already
+# downscales to ≤1600 px) and blocks bombs; PIL's default stays as a backstop (not lowered).
+MAX_IMAGE_PIXELS = int(os.environ.get("OCR_MAX_IMAGE_PIXELS", str(30_000_000)))
+# Cap the text the sidecar returns so the server's sanitizer can't be handed an unbounded blob.
+MAX_TEXT_CHARS = int(os.environ.get("OCR_MAX_TEXT_CHARS", str(8192)))
 
 # Concurrency cap = 1: a single worker serializes inference so peak CPU/RSS stay bounded.
 _executor = ThreadPoolExecutor(max_workers=1)
@@ -69,15 +77,31 @@ def _build_engine():
     )
 
 
+def within_pixel_budget(image_bytes: bytes) -> bool:
+    """
+    Header-only check that the DECODED pixel count is within budget — runs before the big RGB
+    allocation. Returns False for an over-budget image (→ 413). A non-decodable blob returns True
+    so the recognizer's own error path handles it (→ 500), keeping this purely a bomb guard.
+    """
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+    except Image.DecompressionBombError:
+        return False
+    except Exception:
+        return True  # not a valid image; let _recognize fail it, don't mask as "too large"
+    return width * height <= MAX_IMAGE_PIXELS
+
+
 def _recognize(image_bytes: bytes) -> str:
-    """Runs on the single-worker executor. Returns the concatenated recognized text."""
+    """Runs on the single-worker executor. Returns the concatenated recognized text (length-capped)."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     arr = np.array(img)
     result = _engine(arr)
     txts = getattr(result, "txts", None)
     if not txts:
         return ""
-    return " ".join(str(t) for t in txts)
+    return " ".join(str(t) for t in txts)[:MAX_TEXT_CHARS]
 
 
 @asynccontextmanager
@@ -111,6 +135,9 @@ async def ocr(file: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=400, detail="empty image")
     if len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail="image too large")
+    # Decompression-bomb guard: reject by decoded pixel count before the big allocation.
+    if not within_pixel_budget(data):
+        raise HTTPException(status_code=413, detail="image dimensions too large")
     started = time.time()
     try:
         text = await asyncio.get_event_loop().run_in_executor(_executor, _recognize, data)
