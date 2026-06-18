@@ -21,6 +21,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import org.junit.jupiter.api.BeforeEach
+import java.util.concurrent.Semaphore
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -63,6 +64,9 @@ class TeaControllerTest {
     @Autowired
     lateinit var ocrService: OcrService
 
+    @Autowired
+    lateinit var ocrConcurrencyGate: Semaphore
+
     // OcrProperties is constructor-bound @ConfigurationProperties — register it for binding rather
     // than hand-constructing a @Bean (which would trigger JavaBean/setter binding and fail on the vals).
     @TestConfiguration
@@ -82,6 +86,11 @@ class TeaControllerTest {
 
         @Bean
         fun ocrService(): OcrService = mockk()
+
+        // A real semaphore (not a mock) so the controller's acquire/release works; tests that need
+        // saturation drain its permits explicitly.
+        @Bean
+        fun ocrConcurrencyGate(): Semaphore = Semaphore(2)
     }
 
     // The mock beans are Spring singletons, so MockK call history would otherwise accumulate across
@@ -245,6 +254,26 @@ class TeaControllerTest {
         )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.text").value("Green tea blend"))
+    }
+
+    @Test
+    fun `ocr returns 503 busy when the global concurrency gate is saturated`() {
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
+        // Drain both permits so the controller's gate tryAcquire fails fast (review F4).
+        repeat(2) { ocrConcurrencyGate.acquire() }
+        try {
+            mockMvc.perform(
+                multipart("/api/v1/teas/ocr")
+                    .file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
+            )
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("OCR busy"))
+        } finally {
+            repeat(2) { ocrConcurrencyGate.release() }
+        }
+        // Saturation fast-fails before recognition, so the sidecar is never called.
+        verify(exactly = 0) { ocrService.recognize(any(), any()) }
     }
 
     @Test

@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import java.util.concurrent.Semaphore
 
 /** Catalog API (plan.md sections 5-6): read-only search/detail + the `/resolve` enrich-on-miss flow. */
 @RestController
@@ -33,6 +34,7 @@ class TeaController(
     private val resolveService: ResolveService,
     @Qualifier("resolveRateLimiter") private val resolveRateLimiter: FixedWindowRateLimiter,
     @Qualifier("ocrRateLimiter") private val ocrRateLimiter: FixedWindowRateLimiter,
+    private val ocrConcurrencyGate: Semaphore,
     private val ocrService: OcrService,
     private val ocrProperties: OcrProperties,
 ) {
@@ -81,7 +83,14 @@ class TeaController(
         if (file.isEmpty) throw OcrBadRequestException("Empty image")
         if (file.size > ocrProperties.maxImageBytes) throw OcrImageTooLargeException()
         if (!ocrRateLimiter.tryAcquire(clientId(servletRequest))) throw RateLimitException()
-        return OcrResponseDto(ocrService.recognize(file.bytes, file.originalFilename ?: "image"))
+        // Global concurrency gate (review F4): the sidecar serializes inference, so fast-fail 503
+        // when it's saturated rather than blocking a Tomcat worker behind it. Released in finally.
+        if (!ocrConcurrencyGate.tryAcquire()) throw OcrBusyException()
+        return try {
+            OcrResponseDto(ocrService.recognize(file.bytes, file.originalFilename ?: "image"))
+        } finally {
+            ocrConcurrencyGate.release()
+        }
     }
 
     /** Trust the first X-Forwarded-For hop set by our own reverse proxy (Caddy); fall back to the socket. */
@@ -101,6 +110,10 @@ class RateLimitException :
 /** The OCR tier is not configured (no sidecar URL) — `/teas/ocr` returns 503. */
 class OcrUnavailableException :
     RuntimeException("OCR tier is not available")
+
+/** The global OCR concurrency gate is saturated — `/teas/ocr` fast-fails 503 (transient, retryable). */
+class OcrBusyException :
+    RuntimeException("OCR is busy")
 
 /** OCR sidecar call failed (outage/timeout) — `/teas/ocr` returns 502. */
 class OcrFailedException :

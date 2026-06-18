@@ -22,6 +22,10 @@ class FoundationModelsClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    init {
+        requireHttpUrl(props.endpoint, "teatiers.llm.endpoint")
+    }
+
     val isEnabled: Boolean get() = props.enabled && props.apiKey.isNotBlank() && props.folderId.isNotBlank()
 
     private val restClient: RestClient = RestClient.builder()

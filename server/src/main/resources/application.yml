@@ -84,6 +84,9 @@ teatiers:
     # Own per-client window, separate from resolve.rate-per-minute; lower because a scan runs
     # sidecar inference (heavier than a Wikidata/cache hit).
     rate-per-minute: 10
+    # Global cap on concurrent /teas/ocr requests; over-budget calls fast-fail 503 so they can't
+    # pin Tomcat threads behind the single-worker sidecar (review F4). Keep near the sidecar workers.
+    max-concurrent: 4
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:

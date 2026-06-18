@@ -24,6 +24,10 @@ class OcrClient(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    init {
+        requireHttpUrl(props.sidecarUrl, "teatiers.ocr.sidecar-url")
+    }
+
     val isEnabled: Boolean get() = props.enabled && props.sidecarUrl.isNotBlank()
 
     private val restClient: RestClient = RestClient.builder()

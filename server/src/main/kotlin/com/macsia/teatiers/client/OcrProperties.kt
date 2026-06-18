@@ -21,6 +21,13 @@ data class OcrProperties(
      * scan triggers sidecar inference (heavier than a Wikidata/cache hit) — so the default is lower.
      */
     val ratePerMinute: Int = 10,
+    /**
+     * GLOBAL cap on concurrent /teas/ocr requests in flight (across all clients). The sidecar
+     * serializes inference (1 worker), so without this bound many distinct IPs could pin Tomcat
+     * worker threads waiting behind it and degrade the whole catalog API. Over-budget requests
+     * fast-fail 503 instead of blocking. Keep close to the sidecar's worker count + a little slack.
+     */
+    val maxConcurrent: Int = 4,
     /** Cap on returned text, mirroring the `sourceText` server cap so the review field can't overflow. */
     val maxTextLength: Int = 4_000,
     val connectTimeoutMs: Int = 3_000,
