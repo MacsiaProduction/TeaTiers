@@ -99,6 +99,7 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(platform(libs.okhttp.bom))
