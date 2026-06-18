@@ -15,8 +15,10 @@ are **never logged** (only sizes/timing/status).
 | `GET`  | `/health` | — | `{"status": "ok"\|"loading"}` |
 
 The server owns rate-limiting (`/teas/ocr` has its own window, decision #103), text sanitization,
-length-capping, and the upload size cap; this service returns raw text and bounds the body
-defensively (`OCR_MAX_IMAGE_BYTES`, default 10 MB).
+length-capping, and the upload size cap; this service returns raw text and bounds the input/output
+defensively: `OCR_MAX_IMAGE_BYTES` (10 MB), a **decoded-pixel** budget `OCR_MAX_IMAGE_PIXELS`
+(30 MP — a byte cap doesn't bound a decompression bomb) → 413, and `OCR_MAX_TEXT_CHARS` (8192) on the
+returned text. `test_app.py` covers these (run `pytest` after `pip install -r requirements-test.txt`).
 
 ## Models & provenance
 
