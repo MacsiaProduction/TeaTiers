@@ -1,12 +1,15 @@
 package com.macsia.teatiers.controller
 
+import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.FacetsDto
+import com.macsia.teatiers.dto.OcrResponseDto
 import com.macsia.teatiers.dto.PageDto
 import com.macsia.teatiers.dto.ResolveRequestDto
 import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.TeaDetailDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import com.macsia.teatiers.service.OcrService
 import com.macsia.teatiers.service.ResolveRateLimiter
 import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 
 /** Catalog API (plan.md sections 5-6): read-only search/detail + the `/resolve` enrich-on-miss flow. */
 @RestController
@@ -27,6 +31,8 @@ class TeaController(
     private val service: TeaCatalogService,
     private val resolveService: ResolveService,
     private val rateLimiter: ResolveRateLimiter,
+    private val ocrService: OcrService,
+    private val ocrProperties: OcrProperties,
 ) {
 
     @GetMapping("/search")
@@ -57,6 +63,23 @@ class TeaController(
         return resolveService.resolve(request.name, request.locale, request.sourceText)
     }
 
+    /**
+     * Recognizes text from a user-scanned packaging photo (research run 10, decision #96) and returns
+     * it for client-side review before it becomes `sourceText` (#25). Opt-in per scan: the image is
+     * processed in memory and never stored. Shares the per-client `/resolve` cost window. Returns 503
+     * until the OCR sidecar is configured (`teatiers.ocr.sidecar-url`).
+     */
+    @PostMapping("/ocr")
+    fun ocr(
+        @RequestParam("file") file: MultipartFile,
+        servletRequest: HttpServletRequest,
+    ): OcrResponseDto {
+        if (!rateLimiter.tryAcquire(clientId(servletRequest))) throw ResolveRateLimitException()
+        if (file.isEmpty) throw OcrBadRequestException("Empty image")
+        if (file.size > ocrProperties.maxImageBytes) throw OcrImageTooLargeException()
+        return OcrResponseDto(ocrService.recognize(file.bytes, file.originalFilename ?: "image"))
+    }
+
     /** Trust the first X-Forwarded-For hop set by our own reverse proxy (Caddy); fall back to the socket. */
     private fun clientId(request: HttpServletRequest): String =
         request.getHeader("X-Forwarded-For")?.substringBefore(',')?.trim()?.takeIf { it.isNotEmpty() }
@@ -69,3 +92,19 @@ class TeaNotFoundException(val teaId: Long) :
 
 class ResolveRateLimitException :
     RuntimeException("Resolve rate limit exceeded")
+
+/** The OCR tier is not configured (no sidecar URL) — `/teas/ocr` returns 503. */
+class OcrUnavailableException :
+    RuntimeException("OCR tier is not available")
+
+/** OCR sidecar call failed (outage/timeout) — `/teas/ocr` returns 502. */
+class OcrFailedException :
+    RuntimeException("OCR recognition failed")
+
+/** The uploaded image exceeds the configured size cap — `/teas/ocr` returns 413. */
+class OcrImageTooLargeException :
+    RuntimeException("OCR image too large")
+
+/** The OCR request is malformed (empty file) — `/teas/ocr` returns 400. */
+class OcrBadRequestException(message: String) :
+    RuntimeException(message)

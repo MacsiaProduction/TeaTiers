@@ -1760,3 +1760,20 @@ deviated.
     public release. The corrected (comment-only) Caddyfile was deployed via scp + `caddy reload` (graceful);
     site healthy, live search verified. Net: no functional infra change was needed — the protection already
     held; this entry records the verification + the dev-bind.
+
+99. **OCR slice 1a — backend `/teas/ocr` contract shipped (decision #96; runtime = RapidOCR, user choice).**
+    The CI-verifiable server half of the OCR feature, tier OFF until the sidecar is configured (mirrors how
+    the LLM tier shipped before its key). `POST /api/v1/teas/ocr` (multipart `file`): per-client rate-limited
+    (shares the `/resolve` window), rejects empty (400) and oversized (413, `teatiers.ocr.max-image-bytes`
+    8 MB + Spring multipart 8 MB cap) uploads, then `OcrService` → `OcrClient` (RestClient, multipart) posts
+    the image to the internal RapidOCR sidecar and `OcrSanitizer` cleans the result (NFC, strip
+    zero-width/control chars, collapse whitespace, cap to 4000 = the `sourceText` limit). Returns
+    `OcrResponseDto{text}` for client-side **review** before it becomes `sourceText` (#25); the image is held
+    only for the call and **never stored**. `teatiers.ocr.sidecar-url` is injected at deploy time
+    (`TEATIERS_OCR_SIDECAR_URL`); blank/`enabled=false` → 503. Errors are RFC-7807 (503 unavailable / 502
+    failed / 413 too-large / 400 / 429). Tests: `OcrSanitizerTest` (cap, zero-width/control strip, whitespace
+    collapse, NFC) + 4 `TeaControllerTest` cases (text / 503 / 413 / 400); full `./gradlew check` green.
+    **Next — slice 1b:** the RapidOCR PP-OCRv5 **eslav** sidecar (`ocr-sidecar/`: FastAPI + onnxruntime,
+    Dockerfile, prod-compose service) with local OCR verification; then slice 2 = deploy (+ resize the VM
+    only if RapidOCR's footprint needs it) and slice 3 = the app scan UI. Verified the RapidOCR Cyrillic
+    path beforehand (East-Slavic PP-OCRv5 rec model, det v5; dict includes Latin so one pass covers ru+en).
