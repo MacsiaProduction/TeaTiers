@@ -182,6 +182,11 @@ class TeaEnrichmentManagerTest {
             assertEquals(EnrichmentState.DONE.name, t2.enrichmentState) // no permanent FAILED dead-end
             assertEquals(null, t2.catalogTeaId) // did not steal the link (no UNIQUE-constraint throw)
             assertEquals(5L, dao.loadTeaRow("t1")!!.catalogTeaId) // original link untouched
+            // …and the duplicate still gets the catalog's enriched names/blurb (review F6) so it isn't
+            // stranded showing only the raw typed string — same catalog-wins merge as the owner path.
+            assertEquals("Лунцзин", t2.nameRu)
+            assertEquals("lóngjǐng", t2.pinyin)
+            assertEquals("Зелёный чай из Сиху.", t2.shortBlurb)
 
             // A retry must not re-dead-end the duplicate either.
             manager.retry("t2")

@@ -53,7 +53,7 @@ class FakeTeaDao : TeaDao() {
         }
 
     override suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow> =
-        teas.map { TeaMatchKeyRow(id = it.id, nameRu = it.nameRu, nameZh = it.nameZh, pinyin = it.pinyin) }
+        teas.map { TeaMatchKeyRow(id = it.id, nameRu = it.nameRu, nameZh = it.nameZh, pinyin = it.pinyin, nameEn = it.nameEn) }
 
     override suspend fun findTeaIdByCatalogId(catalogTeaId: Long): String? =
         teas.firstOrNull { it.catalogTeaId == catalogTeaId }?.id
@@ -263,6 +263,34 @@ class FakeTeaDao : TeaDao() {
                 origin = origin,
                 shortBlurb = shortBlurb,
                 catalogTeaId = catalogTeaId,
+                enrichmentState = state,
+            )
+            refresh()
+        }
+    }
+
+    override suspend fun patchEnrichmentSuggestions(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        shortBlurb: String?,
+        state: String,
+    ) {
+        // Merges the catalog suggestions but never touches catalogTeaId (so no UNIQUE-index concern).
+        val index = teas.indexOfFirst { it.id == teaId }
+        if (index >= 0) {
+            teas[index] = teas[index].copy(
+                nameRu = nameRu,
+                nameZh = nameZh,
+                pinyin = pinyin,
+                nameEn = nameEn,
+                type = type,
+                origin = origin,
+                shortBlurb = shortBlurb,
                 enrichmentState = state,
             )
             refresh()

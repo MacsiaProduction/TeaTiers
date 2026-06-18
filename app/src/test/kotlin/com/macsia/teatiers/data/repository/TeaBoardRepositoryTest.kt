@@ -126,6 +126,34 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `addTea auto-links to an existing user-tea by English name match`() = runTest(UnconfinedTestDispatcher()) {
+        // An existing tea was catalog-enriched with nameEn "Tieguanyin"; the user later types that
+        // English spelling (into the required nameRu) for a new add. It must dedup against the row's
+        // nameEn rather than become a second card (review F6 — nameEn added to the local matcher).
+        val board1 = Board(
+            id = "b",
+            name = "Доска",
+            tiers = listOf(Tier("s", "S", 0)),
+            placements = mapOf(
+                "s" to listOf(place("b", Tea(id = "tgy", nameRu = "Тегуаньинь", nameEn = "Tieguanyin", type = TeaType.OOLONG))),
+            ),
+            unranked = emptyList(),
+        )
+        val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
+        val repository = repositoryWithSeed(listOf(board1, board2))
+        advanceUntilIdle()
+
+        val result = repository.addTea(
+            "b2",
+            Tea(id = "throwaway", nameRu = "  tieguanyin  ", type = TeaType.OOLONG),
+            tierId = "b2-s",
+        )!!
+
+        assertFalse(result.created)
+        assertEquals("tgy", result.teaId)
+    }
+
+    @Test
     fun `addTea links by catalogTeaId even when the typed names differ`() = runTest(UnconfinedTestDispatcher()) {
         val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
         val repository = repositoryWithSeed(listOf(seededBoard, board2))

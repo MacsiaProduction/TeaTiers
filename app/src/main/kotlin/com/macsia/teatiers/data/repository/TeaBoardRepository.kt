@@ -373,10 +373,16 @@ private fun Tea.matchKey(): MatchKey? {
 }
 
 private fun TeaMatchKeyRow.matches(candidate: MatchKey): Boolean = when (candidate) {
-    is MatchKey.Ru -> nameRu.trim().lowercase() == candidate.value
+    // A Latin-script candidate (typed into the required nameRu, or a pinyin) also matches an existing
+    // row's enriched English name, so "Tieguanyin" dedups against a row catalog-enriched with that
+    // nameEn instead of becoming a second card (review F6). Still exact full-string, so low false-match.
+    is MatchKey.Ru -> nameRu.trim().lowercase() == candidate.value || matchesEn(candidate.value)
     is MatchKey.Zh -> nameZh?.trim() == candidate.value
-    is MatchKey.Py -> pinyin?.trim()?.lowercase() == candidate.value
+    is MatchKey.Py -> pinyin?.trim()?.lowercase() == candidate.value || matchesEn(candidate.value)
 }
+
+private fun TeaMatchKeyRow.matchesEn(value: String): Boolean =
+    nameEn?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } == value
 
 /**
  * Pure reorder math for [TeaBoardRepository.moveTea], split out so it is unit-testable without
