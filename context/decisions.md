@@ -2086,3 +2086,31 @@ deviated.
      FINDINGS §5 + the harness are committed.
      *(Process note: per the user, pure-docs/research changes — like this entry, FINDINGS, RATING — now
      commit straight to `main` without a PR; only product/build/CI code goes through branch→PR→CI.)*
+
+114. **OCR approach reconsidered post-measurement → KEEP, re-prioritized (2026-06-19).** A multi-agent
+     assess→adversarial-verify workflow + local empirical tests (`proof/reconsider_test.py`) re-weighed the
+     whole OCR approach against the measured data. **Conclusion: the core architecture is right — keep the
+     self-hosted eslav-mobile server-side sidecar** (free, private/no-egress/never-logged, GMS-free, fits
+     4 GB, AI-off MVP); no re-architecture. **Decisive empirical finding:** the two rec-level fixes give
+     ZERO real-photo gain — homoglyph-fold (ru 9.2→8.1% CER synth but real-photo capture unchanged 3/4) and
+     the `cyrillic` rec model (≈eslav) — because the one real miss is **detection, not recognition**;
+     **conditional low-res upscale** (short side <500 px → 960, bicubic, before OCR) recovers it
+     (real-photo capture **3/4 → 4/4**, no regression; confirmed twice). Verdicts (full write-up:
+     `research/13-ocr-sidecar-accuracy/RECONSIDER.md`):
+     - **DO NOW:** (C) conditional low-res upscale in the sidecar [the one verified accuracy win — small
+       `app.py` change → via PR; must be conditional + bicubic + pixel-capped, unconditional regresses
+       ru 9.2→17%]; (F) keep-with-polish — ship as-is + client capture-quality UX + a "couldn't read it,
+       re-scan" path + instrument real capture/edit rates.
+     - **PILOT:** (A) Yandex Vision OCR — dedicated en-ru model + stronger detector attack BOTH failure
+       modes at ~$1.08/1000 (verified), same trust boundary (image already on our Yandex-Cloud backend;
+       server-side ⇒ GMS-free; 152-FZ UZ-1), but NO measured win on our corpus + the `x-data-logging-enabled:
+       false` no-retention header isn't documented for the OCR endpoint → measure head-to-head via
+       `measure_photos.py` first; keep eslav default, Vision as optional/low-confidence fallback.
+     - **LATER:** (D) handle homoglyphs at the **resolver** (pg_trgm, canonical-Cyrillic catalog), not in
+       OcrSanitizer (the OCR-side fold is redundant given review + fuzzy match).
+     - **SKIP:** (B) server-grade models [verified: NO PP-OCRv5 Cyrillic *server* rec exists — all language
+       recs are mobile-only; server det is 84 MB/~3× latency and won't fix the charset homoglyph]; (E)
+       Tesseract/EasyOCR [worse on detection / ~1.8 GB > cap], on-device swap [same eslav weights = identical
+       accuracy, only an already-mitigated privacy upside], rec-model swap [`cyrillic`≈`eslav`].
+     Next concrete action: implement the conditional upscale (C) in the sidecar. Research tooling + docs
+     committed straight to main; the sidecar change goes via PR.
