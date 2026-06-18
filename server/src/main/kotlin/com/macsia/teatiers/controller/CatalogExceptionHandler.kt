@@ -24,4 +24,28 @@ class CatalogExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.message ?: "Too many requests").apply {
             title = "Rate limit exceeded"
         }
+
+    @ExceptionHandler(OcrUnavailableException::class)
+    fun handleOcrUnavailable(ex: OcrUnavailableException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.message ?: "OCR unavailable").apply {
+            title = "OCR unavailable"
+        }
+
+    @ExceptionHandler(OcrFailedException::class)
+    fun handleOcrFailed(ex: OcrFailedException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.message ?: "OCR failed").apply {
+            title = "OCR failed"
+        }
+
+    @ExceptionHandler(OcrImageTooLargeException::class)
+    fun handleOcrTooLarge(ex: OcrImageTooLargeException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, ex.message ?: "Image too large").apply {
+            title = "Image too large"
+        }
+
+    @ExceptionHandler(OcrBadRequestException::class)
+    fun handleOcrBadRequest(ex: OcrBadRequestException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.message ?: "Bad request").apply {
+            title = "Bad request"
+        }
 }

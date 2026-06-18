@@ -28,6 +28,12 @@ spring:
     problemdetails:
       enabled: true
 
+  # Framework-level bound on /teas/ocr image uploads (the controller also checks teatiers.ocr.max-image-bytes).
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
+
 server:
   port: 8080
 
@@ -65,6 +71,16 @@ teatiers:
     # Global daily cap on enrichment LLM calls across all callers (cost protection). Once hit, a
     # Wikidata miss fails closed to UNRESOLVED until UTC midnight. <= 0 disables the ceiling.
     daily-call-cap: 200
+  ocr:
+    # OCR tier (research run 10, decision #96): proxy a scanned packaging photo to a local RapidOCR
+    # sidecar (ru+en) and return text for review (#25). sidecar-url is injected at deploy time; blank
+    # OR enabled=false => /teas/ocr returns 503. Image is processed in memory, never stored.
+    enabled: true
+    sidecar-url: ${TEATIERS_OCR_SIDECAR_URL:}
+    max-image-bytes: 8388608
+    max-text-length: 4000
+    connect-timeout-ms: 3000
+    read-timeout-ms: 20000
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:

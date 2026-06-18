@@ -1,5 +1,6 @@
 package com.macsia.teatiers.controller
 
+import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.FacetsDto
 import com.macsia.teatiers.dto.PageDto
@@ -10,6 +11,7 @@ import com.macsia.teatiers.dto.TeaImageDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import com.macsia.teatiers.service.OcrService
 import com.macsia.teatiers.service.ResolveRateLimiter
 import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
@@ -17,18 +19,24 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.http.MediaType
+import org.springframework.test.context.TestPropertySource
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 @WebMvcTest(TeaController::class)
+// Small OCR image cap so a tiny multipart can exercise the 413 path (constructor-bound props).
+@TestPropertySource(properties = ["teatiers.ocr.max-image-bytes=10"])
 class TeaControllerTest {
 
     @Autowired
@@ -43,7 +51,13 @@ class TeaControllerTest {
     @Autowired
     lateinit var rateLimiter: ResolveRateLimiter
 
+    @Autowired
+    lateinit var ocrService: OcrService
+
+    // OcrProperties is constructor-bound @ConfigurationProperties — register it for binding rather
+    // than hand-constructing a @Bean (which would trigger JavaBean/setter binding and fail on the vals).
     @TestConfiguration
+    @EnableConfigurationProperties(OcrProperties::class)
     class MockConfig {
         @Bean
         fun teaCatalogService(): TeaCatalogService = mockk()
@@ -53,6 +67,9 @@ class TeaControllerTest {
 
         @Bean
         fun resolveRateLimiter(): ResolveRateLimiter = mockk()
+
+        @Bean
+        fun ocrService(): OcrService = mockk()
     }
 
     @Test
@@ -196,5 +213,50 @@ class TeaControllerTest {
             .andExpect(status().isTooManyRequests())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("Rate limit exceeded"))
+    }
+
+    @Test
+    fun `ocr returns the recognized text`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+        every { ocrService.recognize(any(), any()) } returns "Green tea blend"
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.text").value("Green tea blend"))
+    }
+
+    @Test
+    fun `ocr returns 503 problem json when the tier is off`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+        every { ocrService.recognize(any(), any()) } throws OcrUnavailableException()
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1))),
+        )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("OCR unavailable"))
+    }
+
+    @Test
+    fun `ocr rejects an oversized image with 413`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", ByteArray(20))),
+        )
+            .andExpect(status().isPayloadTooLarge())
+    }
+
+    @Test
+    fun `ocr rejects an empty file with 400`() {
+        every { rateLimiter.tryAcquire(any()) } returns true
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", ByteArray(0))),
+        )
+            .andExpect(status().isBadRequest())
     }
 }
