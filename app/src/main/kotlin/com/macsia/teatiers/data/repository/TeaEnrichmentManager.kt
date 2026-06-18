@@ -130,6 +130,16 @@ class TeaEnrichmentManager @Inject constructor(
     /** Merges the resolved [detail] into the local row (catalog wins only where the user is blank). */
     private suspend fun applyPatch(teaId: String, detail: CatalogTeaDetail) {
         val current = dao.loadTeaRow(teaId) ?: return
+        // catalogTeaId is UNIQUE (one user-tea per catalog row, by design). The local name-matcher
+        // can't unify differently-scripted duplicates (e.g. "Tieguanyin" / "тегуанинь"), so two
+        // user-teas can resolve to the SAME catalog id. If another tea already owns this link, writing
+        // it here would throw on the UNIQUE index and dead-end this row at FAILED (and every retry would
+        // re-throw). Settle this duplicate DONE instead, leaving the existing link untouched.
+        val linkOwner = dao.findTeaIdByCatalogId(detail.id)
+        if (linkOwner != null && linkOwner != teaId) {
+            dao.updateEnrichmentState(teaId, EnrichmentState.DONE.name)
+            return
+        }
         dao.patchEnrichment(
             teaId = teaId,
             nameRu = detail.nameRu.orBlankFallback(current.nameRu),
