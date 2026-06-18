@@ -1777,3 +1777,51 @@ deviated.
     Dockerfile, prod-compose service) with local OCR verification; then slice 2 = deploy (+ resize the VM
     only if RapidOCR's footprint needs it) and slice 3 = the app scan UI. Verified the RapidOCR Cyrillic
     path beforehand (East-Slavic PP-OCRv5 rec model, det v5; dict includes Latin so one pass covers ru+en).
+
+100. **Post-OCR review dispositioned + run-13 judged → plan adapted (2026-06-18).** A deep code-pass review
+    (`context/review/2026-06-18-post-ocr-architecture-review.md`) + research run 13 (OCR sidecar) were analyzed
+    by a 10-agent workflow that **rated run 13** and **verified every review finding against source**. All five
+    code findings confirmed (severities adjusted). Two product forks were put to the user and **decided**:
+    - **OCR stays server-side (confirms #99; explicitly SUPERSEDES research run-10's on-device MVP winner).**
+      Guardrails locked: scan is **opt-in per image** (never auto-uploads existing tea photos), extracted text
+      is **previewed/confirmed** before becoming `sourceText`, the global privacy copy is **rewritten before
+      the scan UI (slice 3)** ships, and the sidecar **never logs image bytes or text**.
+    - **MVP ships with the AI tier OFF (confirms #88); catalog quality comes from the curated seed, continued
+      100 → ~300.** Async flavor-backfill is deferred (needs billing sorted + the flavor-provenance schema
+      below). So runs 03/04/06/07/08/11/12 + the #65 bake-off stay dormant-but-built for a post-MVP AI turn.
+    **Run 13 verdict (winner opus; see `research/13-ocr-sidecar-accuracy/RATING.md`):** slice-1b sidecar pinned —
+    rec `eslav_PP-OCRv5_mobile_rec` + det `PP-OCRv5_mobile_det` (Apache-2.0); **self-convert official Paddle
+    weights → ONNX at build (or re-host RapidOCR's SHA-matched ONNX) and CI byte-verifies the SHA**; deps
+    `rapidocr==3.8.4` (NOT legacy `rapidocr-onnxruntime`), `onnxruntime==1.27.0`, `fastapi`/`uvicorn[standard]`
+    on digest-pinned `python:3.12-slim`, models baked in, no runtime egress; **fits the current 4 GB VM**
+    (concurrency 1, mobile models, load-once+warmup, ONNX `intra_op=2`/`inter_op=1` `ORT_SEQUENTIAL`,
+    `mem_limit≈1g`) — **resize 4→8 GB only if measured RSS > ~3.5 GB**; preprocessing = downscale + light
+    contrast (skip unwarp/orientation). Real ru+en CER must be **measured**, not promised.
+    **Verified findings → fix queue (file:line for the PRs):**
+    - **P1 enrichment dead-end** — `applyPatch` ([TeaEnrichmentManager.kt:131]) blind-UPDATEs the UNIQUE
+      `catalogTeaId` ([Entities.kt:66]); two differently-typed teas ("Tieguanyin"/"тегуанинь") resolving to the
+      same catalog id → `SQLiteConstraintException` → caught → permanent FAILED. Fix: pre-check
+      `findTeaIdByCatalogId` (already exists, unused) and settle the dupe DONE. Add a Room-instrumented test
+      (FakeTeaDao doesn't enforce UNIQUE, so the unit test missed it). (nameEn isn't even a match key — worse.)
+    - **P1 prod containers unhardened + OSV-Scanner unwired + prod dropped server/caddy healthchecks** — harden
+      `docker-compose.prod.yml` (cap_drop ALL, no-new-privileges, read_only+tmpfs, pids_limit, mem_limit on
+      db/caddy/sidecar) **before** the Python sidecar lands; wire `google/osv-scanner-action`; port the
+      `actuator/health` check into prod.
+    - **P2 OCR rate-limit** (slice 1a, #99) — give `/teas/ocr` its own window (not the shared `/resolve` one)
+      and move `isEmpty`/`size` validation BEFORE `tryAcquire`.
+    - **P2 LLM budget undercount + 4xx retry** — `LlmDailyBudget` charges once but `chatJson` retries
+      maxAttempts (×2 undercount); broad `RestClientException` catch retries 4xx. Charge per attempt (or ÷
+      maxAttempts); retry only 5xx/timeouts + jitter. (Dormant tier, so not urgent.)
+    - **P2 flavor-provenance schema is an unbuilt prerequisite** — current `tea_flavor(tea_id,dimension,intensity)`
+      UNIQUE(tea_id,dimension) can't hold run-11's per-dimension status/confidence/provenance/enrichment_run;
+      flagged in the plan now, migration built only when the backfill workstream starts.
+    **Adapted next sequence:** (1) fix the P1 enrichment dead-end (+ Room test); (2) prod-hardening + OSV +
+    healthchecks; (3) OCR rate-limit window + validate-first; (4) doc refresh + flavor-schema prereq flag;
+    (5) **slice 1b** RapidOCR sidecar per the opus spec, with a local OCR proof + measured RSS; (6) **slice 3**
+    app scan UI + the rewritten privacy copy. P2 cleanups (fold in opportunistically): LLM budget/retry, pooled
+    `RestClient` factory (replace `SimpleClientHttpRequestFactory` ×3), Bucket4j+Caffeine+Resilience4j for the
+    limiter/budget/retry cluster, photo-orphan sweep after `replaceAll`, image SHA-pin/cosign + deploy-by-digest,
+    `backup_storage` SA least-privilege, written restore-RTO runbook, crash-telemetry keep/skip (Sentry/ACRA).
+    **Carried-forward:** Room destructive-migration cutover still deferred to M5 (#70.1, the hard first-public
+    blocker); seed 100→~300 (#95); `values-en` ship-or-label before release. **Run 14 (re-verify Yandex async)
+    deliberately NOT run now** — run it immediately before the background-enrichment tier is built (it goes stale).
