@@ -23,7 +23,12 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# rapidocr depends on the FULL opencv-python (needs libGL/libX11/libxcb GUI libs) and pip installs
+# it alongside our headless pin. On a headless server we want headless only — so drop both opencv
+# variants and reinstall headless-only, which links no GUI libs (rapidocr imports cv2 either way).
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip uninstall -y opencv-python opencv-python-headless \
+ && pip install --no-cache-dir opencv-python-headless==4.13.0.92
 
 COPY --from=models /opt/ocr-models /opt/ocr-models
 COPY app.py ./
