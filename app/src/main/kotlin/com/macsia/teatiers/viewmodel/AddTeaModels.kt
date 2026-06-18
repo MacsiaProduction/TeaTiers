@@ -40,6 +40,17 @@ fun visibleExtendedDimensions(
     if (expanded) ExtendedRateDimensions
     else ExtendedRateDimensions.filter { (flavors[it] ?: 0) > 0 }
 
+/**
+ * State of the "scan packaging" flow on the add form (slice 3). Idle = no scan; Recognizing = the
+ * image is uploading/OCR'ing; Review = the recognized text is shown for the user to edit/confirm
+ * before it becomes `sourceText` (the opt-in/preview guardrail, decision #100).
+ */
+sealed interface ScanUiState {
+    data object Idle : ScanUiState
+    data object Recognizing : ScanUiState
+    data class Review(val text: String) : ScanUiState
+}
+
 /** Editable draft for one purchase location row in the add/edit form. */
 data class PurchaseDraft(
     val kind: PurchaseKind = PurchaseKind.TEXT,

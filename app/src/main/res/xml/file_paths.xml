@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FileProvider roots for sharing exported backups (#26). Only the cache "backups/" dir is
-     exposed; nothing else in app storage is reachable through the provider. -->
+<!-- FileProvider roots: exported backups (#26) + transient camera-capture scans for OCR (slice 3).
+     Only these cache subdirs are exposed; nothing else in app storage is reachable. -->
 <paths>
     <cache-path name="backups" path="backups/" />
+    <cache-path name="scans" path="scans/" />
 </paths>

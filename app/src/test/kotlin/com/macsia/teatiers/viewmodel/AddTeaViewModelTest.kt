@@ -2,10 +2,12 @@ package com.macsia.teatiers.viewmodel
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.macsia.teatiers.data.photos.ImageReader
 import com.macsia.teatiers.data.repository.AddedTea
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
+import com.macsia.teatiers.data.repository.OcrResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.Board
@@ -61,6 +63,8 @@ class AddTeaViewModelTest {
     // Background enrichment is fire-and-forget; these tests only assert it is dispatched (or not).
     private val enrichmentManager = mockk<TeaEnrichmentManager>(relaxed = true)
 
+    private val imageReader = mockk<ImageReader>()
+
     // Shared scheduler between Main and the catalog tests so `debounce` virtual time advances.
     private val mainDispatcher = UnconfinedTestDispatcher()
 
@@ -74,6 +78,8 @@ class AddTeaViewModelTest {
         // subscriber collects catalogSearch and the query is long enough.
         coEvery { catalogRepository.search(any(), any()) } returns
             CatalogSearchResult.Loaded(emptyList(), fromCache = false)
+        // Default: the image reader yields some bytes; scan tests override the repo's OCR outcome.
+        coEvery { imageReader.read(any()) } returns byteArrayOf(1, 2, 3)
     }
 
     @AfterEach
@@ -83,7 +89,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `tiers expose the bound board's tiers sorted by position`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.tiers.test {
             viewModel.bind(boardId = "b")
@@ -98,7 +104,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit persists the mapped tea and notifies on success`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао", tierId = "a") }
 
@@ -115,7 +121,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit dispatches background enrichment for a newly created tea`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Лунцзин") }
 
@@ -128,7 +134,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit forwards a pasted source description to enrichment, trimmed`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Лунцзин", sourceText = "  Высокогорный улун, мёд и орхидея  ") }
 
@@ -143,7 +149,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit passes null source text when the blurb is blank`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Лунцзин", sourceText = "   ") }
 
@@ -156,7 +162,7 @@ class AddTeaViewModelTest {
     @Test
     fun `submit does not enrich an auto-linked existing tea`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = false)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Лунцзин") }
 
@@ -169,7 +175,7 @@ class AddTeaViewModelTest {
     @Test
     fun `picking a catalog tea carries its id and skips background enrichment`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.pickCatalogTea(
             CatalogTea(
@@ -188,7 +194,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `submit is a no-op when the ru name is blank`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
 
         var saved = false
@@ -201,7 +207,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `submit is a no-op when no board is bound (add flow)`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         // Add flow with no boardId means we cannot place anywhere — submit must bail.
         viewModel.update { it.copy(nameRu = "Чай") }
 
@@ -215,7 +221,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `purchase helpers add update and remove drafts`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
 
         viewModel.addPurchase()
@@ -232,7 +238,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `purchase helpers ignore out-of-range indices`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
 
         viewModel.removePurchase(5)
@@ -254,7 +260,7 @@ class AddTeaViewModelTest {
         )
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
@@ -274,7 +280,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 3
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
@@ -288,7 +294,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 2
         coEvery { repository.updateTea(any(), any()) } just Runs
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
         viewModel.update { it.copy(nameRu = "Новый чай", notes = "обновлено") }
@@ -312,7 +318,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN, notes = "заметка")
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
         // simulate the user navigating away from edit and into the add flow on the same VM
@@ -332,7 +338,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
         coEvery { repository.deleteTea(eq("t1")) } just Runs
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -346,7 +352,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `deleteTea is a no-op when not in edit mode`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
 
         var deleted = false
@@ -362,7 +368,7 @@ class AddTeaViewModelTest {
         coEvery { repository.addTea(eq("b"), any(), any()) } returns AddedTea("tea-new", created = true)
         coEvery { repository.addPhoto(any(), any()) } returns "photo-id"
 
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.update { it.copy(nameRu = "Да Хун Пао") }
 
@@ -394,7 +400,7 @@ class AddTeaViewModelTest {
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.addPhoto(eq("t1"), any()) } returns "photo-id"
 
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -414,7 +420,7 @@ class AddTeaViewModelTest {
         coEvery { repository.removePhoto(eq("t1"), any()) } just Runs
         coEvery { repository.reorderPhotos(eq("t1"), any()) } just Runs
 
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
 
@@ -455,7 +461,7 @@ class AddTeaViewModelTest {
             val tea = catalogTea(1, ru = "Лунцзин", pinyin = "lóngjǐng", origin = "Китай")
             coEvery { catalogRepository.search(eq("лунц"), any()) } returns
                 CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
-            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
             viewModel.catalogSearch.test {
                 assertEquals(CatalogSearchUiState.Idle, awaitItem())
@@ -476,7 +482,7 @@ class AddTeaViewModelTest {
     @Test
     fun `catalog search ignores queries below the minimum length`() =
         runTest(mainDispatcher) {
-            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
             viewModel.catalogSearch.test {
                 assertEquals(CatalogSearchUiState.Idle, awaitItem())
@@ -493,7 +499,7 @@ class AddTeaViewModelTest {
         runTest(mainDispatcher) {
             coEvery { catalogRepository.search(eq("zzzz"), any()) } returns
                 CatalogSearchResult.Loaded(emptyList(), fromCache = false)
-            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
             viewModel.catalogSearch.test {
                 assertEquals(CatalogSearchUiState.Idle, awaitItem())
@@ -510,7 +516,7 @@ class AddTeaViewModelTest {
     fun `catalog search reports offline when the repository falls back with nothing`() =
         runTest(mainDispatcher) {
             coEvery { catalogRepository.search(eq("чай"), any()) } returns CatalogSearchResult.Offline
-            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
             viewModel.catalogSearch.test {
                 assertEquals(CatalogSearchUiState.Idle, awaitItem())
@@ -525,7 +531,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `pickCatalogTea prefills names type and origin and clears the search box`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.onCatalogQuery("лунц")
 
@@ -551,7 +557,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `addManuallyFromQuery carries the trimmed query into the name and arms focus`() = runTest {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.onCatalogQuery("  Дянь Хун  ")
 
@@ -566,7 +572,7 @@ class AddTeaViewModelTest {
     fun `openCatalogDetail loads and surfaces the detail`() = runTest(mainDispatcher) {
         val detail = catalogTeaDetail(1, ru = "Лунцзин")
         coEvery { catalogRepository.detail(1) } returns CatalogDetailResult.Loaded(detail)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.catalogDetail.test {
             assertEquals(CatalogDetailUiState.Hidden, awaitItem())
@@ -582,7 +588,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `useCatalogDetail prefills the form and clears the search`() = runTest(mainDispatcher) {
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
         viewModel.onCatalogQuery("лунц")
 
@@ -602,7 +608,7 @@ class AddTeaViewModelTest {
     fun `closeCatalogDetail hides the sheet after it was opened`() = runTest(mainDispatcher) {
         val detail = catalogTeaDetail(1, ru = "Лунцзин")
         coEvery { catalogRepository.detail(1) } returns CatalogDetailResult.Loaded(detail)
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.catalogDetail.test {
             assertEquals(CatalogDetailUiState.Hidden, awaitItem())
@@ -621,7 +627,7 @@ class AddTeaViewModelTest {
         val detail = catalogTeaDetail(1, ru = "Лунцзин")
         coEvery { catalogRepository.detail(1) } returnsMany
             listOf(CatalogDetailResult.Error, CatalogDetailResult.Loaded(detail))
-        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager)
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.catalogDetail.test {
             assertEquals(CatalogDetailUiState.Hidden, awaitItem())
@@ -670,4 +676,77 @@ class AddTeaViewModelTest {
             confidence = null,
         ),
     )
+
+    @Test
+    fun `scanLabel surfaces recognized text for review`() = runTest {
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай, Сиху")
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+
+        val state = viewModel.scan.value
+        assertTrue(state is ScanUiState.Review)
+        assertEquals("Зелёный чай, Сиху", (state as ScanUiState.Review).text)
+        // Not applied yet — the review must be confirmed first (the opt-in/preview guardrail).
+        assertEquals("", viewModel.form.value.sourceText)
+    }
+
+    @Test
+    fun `applyScannedText fills sourceText and closes the review`() = runTest {
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай")
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+
+        viewModel.applyScannedText("Зелёный чай")
+
+        assertEquals("Зелёный чай", viewModel.form.value.sourceText)
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+    }
+
+    @Test
+    fun `applyScannedText appends to existing sourceText`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.update { it.copy(sourceText = "С упаковки") }
+
+        viewModel.applyScannedText("  Распознанный текст  ")
+
+        assertEquals("С упаковки\nРаспознанный текст", viewModel.form.value.sourceText)
+    }
+
+    @Test
+    fun `a blank recognition stays idle and does not touch sourceText`() = runTest {
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("   ")
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+        assertEquals("", viewModel.form.value.sourceText)
+    }
+
+    @Test
+    fun `an offline scan clears the spinner without a review`() = runTest {
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Offline
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+    }
+
+    @Test
+    fun `an unreadable image clears the spinner and never calls the sidecar`() = runTest {
+        coEvery { imageReader.read(any()) } returns null
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+        coVerify(exactly = 0) { catalogRepository.ocr(any()) }
+    }
 }

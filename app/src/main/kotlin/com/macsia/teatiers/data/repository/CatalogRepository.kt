@@ -10,6 +10,9 @@ import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
@@ -55,6 +58,27 @@ sealed interface ResolveResult {
     data object Error : ResolveResult
 }
 
+/** Outcome of `POST /teas/ocr` (slice 1b) — recognizing text from a scanned packaging image. */
+sealed interface OcrResult {
+    /** Recognition ran. [text] may be blank when the sidecar found nothing legible. */
+    data class Recognized(val text: String) : OcrResult
+
+    /** Network unreachable. */
+    data object Offline : OcrResult
+
+    /** The image exceeded the server's size cap (HTTP 413). */
+    data object TooLarge : OcrResult
+
+    /** The OCR tier is off / the sidecar is down (HTTP 503/502). */
+    data object Unavailable : OcrResult
+
+    /** The per-client scan budget is spent (HTTP 429). */
+    data object RateLimited : OcrResult
+
+    /** Any other server/payload error. */
+    data object Error : OcrResult
+}
+
 interface CatalogRepository {
     /** Network-first search; on failure falls back to the offline cache (plan §4b/§6 step 1). */
     suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): CatalogSearchResult
@@ -70,6 +94,13 @@ interface CatalogRepository {
      * enrich on a miss. [sourceText] is an optional pasted vendor blurb that grounds the profile (#25).
      */
     suspend fun resolve(name: String, locale: String? = null, sourceText: String? = null): ResolveResult
+
+    /**
+     * Recognizes text in a scanned packaging image via the OCR sidecar (slice 1b). [imageBytes] is the
+     * already-downscaled JPEG; the recognized text is returned for the user to review before it
+     * becomes a resolve `sourceText`. Opt-in per scan; the image is never stored.
+     */
+    suspend fun ocr(imageBytes: ByteArray): OcrResult
 
     companion object {
         const val DEFAULT_LIMIT = 20
@@ -132,6 +163,27 @@ class DefaultCatalogRepository @Inject constructor(
                 ResolveResult.Error
             }
         }
+
+    override suspend fun ocr(imageBytes: ByteArray): OcrResult = withContext(Dispatchers.IO) {
+        if (imageBytes.isEmpty()) return@withContext OcrResult.Error
+        try {
+            val part = MultipartBody.Part.createFormData(
+                "file",
+                "scan.jpg",
+                imageBytes.toRequestBody("image/jpeg".toMediaType()),
+            )
+            OcrResult.Recognized(api.ocr(part).text.orEmpty())
+        } catch (_: IOException) {
+            OcrResult.Offline
+        } catch (e: HttpException) {
+            when (e.code()) {
+                413 -> OcrResult.TooLarge
+                429 -> OcrResult.RateLimited
+                502, 503 -> OcrResult.Unavailable
+                else -> OcrResult.Error
+            }
+        }
+    }
 
     private suspend fun cachedOr(
         query: String,

@@ -1949,3 +1949,26 @@ deviated.
      - **Deploy:** `infra/README` documents making the new ghcr package public + adding `OCR_SIDECAR_IMAGE`
        to the VM `.env`. Backend OCR is now deployable end-to-end; **no client calls it until slice 3**
        (app scan UI + rewritten privacy copy) — the next step. Real-packaging CER (#105) still owed.
+
+107. **Slice 3 — app "scan packaging" UI + rewritten privacy copy (#100 step 6; the OCR sequence's last
+     piece).** Add mode now has a **Сканировать упаковку** button (camera **or** gallery, both
+     permission-free: gallery via `PickVisualMedia`, camera via `TakePicture` into a FileProvider URI under
+     `cacheDir/scans/`). The flow honours the decision-#100 guardrails: **opt-in per image** (a regular tea
+     photo is never auto-uploaded), the recognized text is shown in an **editable review dialog** and only
+     becomes `sourceText` on **confirm** (appended, capped at `SourceTextMaxLength`), and the image is never
+     stored (old captures are cleared from the cache before each shot). Data path: `CatalogApi.ocr`
+     (`@Multipart POST teas/ocr`) → `DefaultCatalogRepository.ocr` returning a typed `OcrResult`
+     (Recognized/Offline/TooLarge/Unavailable/RateLimited/Error from the HTTP code). A new injectable
+     `ImageReader` (`AndroidImageReader`) reads + **downscales** the picked image (≤1600 px, JPEG 85) so a
+     full-res phone photo stays well under the server cap — and keeps `AddTeaViewModel.scanLabel` JVM-testable
+     (the VM has no Bitmap/Context). The button is text-only (the project ships `material-icons-core`, not the
+     extended set). **Privacy copy:** the Settings/About disclosure (the app's only privacy surface — there's
+     no onboarding screen) was rewritten to state the scan sends the chosen photo for recognition only, it's
+     deleted immediately, scanning is per-request, and ordinary photos never leave the device. ru ships in
+     `values/strings.xml`; the **en draft is in the PR for review** (a partial `values-en` would degrade the
+     ru-first MVP — full en is the separate ship-or-label item #70.5). Tests: repo `ocr()` (multipart shape +
+     all status→outcome mappings + offline/empty) and VM scan (recognized→review, confirm→sourceText, append,
+     blank/offline→idle, unreadable→idle + sidecar not called). `./gradlew check assembleDebug` green locally.
+     **This closes the entire #100 adapted sequence (steps 1–6) and the OCR workstream (slices 1a/1b/3).**
+     Remaining OCR follow-up: measure real-packaging CER (#105) once the sidecar is deployed + a photo corpus
+     exists.

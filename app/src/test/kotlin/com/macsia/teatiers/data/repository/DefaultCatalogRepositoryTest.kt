@@ -201,6 +201,54 @@ class DefaultCatalogRepositoryTest {
         assertEquals(0, server.requestCount)
     }
 
+    @Test
+    fun `ocr returns the recognized text on a hit`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"text":"Зелёный чай"}"""))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.ocr(byteArrayOf(1, 2, 3))
+
+        assertTrue(result is OcrResult.Recognized)
+        assertEquals("Зелёный чай", (result as OcrResult.Recognized).text)
+        // The request must be multipart with a `file` part.
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertTrue(recorded.path!!.endsWith("/teas/ocr"))
+        assertTrue(recorded.getHeader("Content-Type")!!.startsWith("multipart/form-data"))
+    }
+
+    @Test
+    fun `ocr maps a missing text field to blank recognized`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.ocr(byteArrayOf(1))
+
+        assertEquals(OcrResult.Recognized(""), result)
+    }
+
+    @Test
+    fun `ocr maps status codes to typed outcomes`() = runTest {
+        val repo = DefaultCatalogRepository(api, dao)
+        server.enqueue(MockResponse().setResponseCode(413))
+        assertEquals(OcrResult.TooLarge, repo.ocr(byteArrayOf(1)))
+        server.enqueue(MockResponse().setResponseCode(429))
+        assertEquals(OcrResult.RateLimited, repo.ocr(byteArrayOf(1)))
+        server.enqueue(MockResponse().setResponseCode(503))
+        assertEquals(OcrResult.Unavailable, repo.ocr(byteArrayOf(1)))
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertEquals(OcrResult.Error, repo.ocr(byteArrayOf(1)))
+    }
+
+    @Test
+    fun `ocr maps a network failure to Offline and an empty image to Error`() = runTest {
+        val repo = DefaultCatalogRepository(api, dao)
+        assertEquals(OcrResult.Error, repo.ocr(ByteArray(0))) // short-circuits, no request
+        assertEquals(0, server.requestCount)
+        server.shutdown()
+        assertEquals(OcrResult.Offline, repo.ocr(byteArrayOf(1)))
+    }
+
     private fun sampleTea(): CatalogTea = CatalogTea(
         id = 1,
         type = TeaType.GREEN,

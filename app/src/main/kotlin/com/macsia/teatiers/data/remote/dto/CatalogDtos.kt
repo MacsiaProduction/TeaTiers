@@ -113,3 +113,12 @@ data class ResolveResponseDto(
     val status: String,
     val tea: TeaDetailDto? = null,
 )
+
+/**
+ * `POST /teas/ocr` response (slice 1b): the raw text recognized from a scanned packaging photo.
+ * Null/blank means the sidecar found nothing legible. Mirrors the server `OcrResponseDto`.
+ */
+@Serializable
+data class OcrResponseDto(
+    val text: String? = null,
+)
