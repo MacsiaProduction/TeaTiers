@@ -1972,3 +1972,20 @@ deviated.
      **This closes the entire #100 adapted sequence (steps 1–6) and the OCR workstream (slices 1a/1b/3).**
      Remaining OCR follow-up: measure real-packaging CER (#105) once the sidecar is deployed + a photo corpus
      exists.
+
+108. **Deployed the OCR sidecar + #65 prod-hardening to the live VM (user-authorized; OCR tier now live).**
+     The updated `infra/deploy/docker-compose.prod.yml` replaced `/opt/teatiers/docker-compose.yml` (timestamped
+     backup kept for rollback) and `OCR_SIDECAR_IMAGE` was added to the VM `.env`. The ghcr package was already
+     public (the VM pulled it anonymously — no visibility step needed; the `gh` token lacks `packages` scope
+     regardless). `docker compose up -d` recreated all four services and they came up **healthy in the gated
+     order** (db → server → caddy) — **validating the #65 hardening in prod**: Postgres boots fine with
+     `cap_drop ALL` + the 5 added caps (CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID), the server runs read-only,
+     Caddy binds 80/443 with only `NET_BIND_SERVICE`. Volume keys (`teatiers_pgdata`, `caddy_*`) matched the
+     deployed compose, so no data-loss risk (verified before deploying).
+     **Gotcha:** `docker compose up -d` does **not** re-pull a mutable `:latest` tag, so the server first
+     recreated from a stale cached image predating `/teas/ocr` → POST returned **405** (the path fell through to
+     `GET /teas/{id}`). Fixed with `docker compose pull server && up -d server` (infra/README already prescribes
+     pull-first — follow it). **Verified live:** `/teas/facets` 200; `POST /api/v1/teas/ocr` returns
+     `{"text":"Тегуаньинь"}` / `{"text":"Da Hong Pao"}` (200) end-to-end through Caddy→server→sidecar. The
+     backend OCR tier is live; users reach it once the slice-3 app build (#70) ships. Real-packaging CER (#105)
+     still owed.
