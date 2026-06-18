@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.cyclonedx.bom)
 }
 
 android {
@@ -125,4 +126,17 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+}
+
+// SBOM for the OSV-Scanner CI gate (decision #102). Scope to what the release APK actually ships
+// (releaseRuntimeClasspath) and drop the Gradle/AGP build-tooling graph — otherwise the SBOM is
+// flooded with build-only deps (netty, bouncycastle, httpclient, …) that never reach a user's
+// device, drowning the advisory gate in unactionable findings. The aggregate `cyclonedxBom` task
+// derives from this direct task; CI scans its JSON at the pinned path.
+tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
+    includeConfigs.set(listOf("releaseRuntimeClasspath"))
+    includeBuildEnvironment.set(false)
+}
+tasks.named<org.cyclonedx.gradle.CyclonedxAggregateTask>("cyclonedxBom") {
+    jsonOutput.set(layout.buildDirectory.file("reports/cyclonedx/bom.json"))
 }

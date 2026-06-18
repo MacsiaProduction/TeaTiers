@@ -21,6 +21,9 @@ appcompat = "1.7.1"
 kotlinxSerialization = "1.11.0"
 retrofit = "3.0.0"
 okhttp = "5.4.0"
+# CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
+# directly, so we emit an SBOM of the resolved graph and scan that.
+cyclonedx = "3.2.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
@@ -97,3 +100,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+cyclonedx-bom = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }

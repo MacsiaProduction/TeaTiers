@@ -1,0 +1,59 @@
+name: OSV-Scanner
+
+# Dependency advisory gate (decision #96, wired in #102). OSV-Scanner can't read build.gradle.kts
+# directly, so each Gradle module emits a CycloneDX SBOM of its *shipped* graph (server:
+# runtimeClasspath, app: releaseRuntimeClasspath — build/test tooling deliberately excluded, see
+# the cyclonedxBom config in each build.gradle.kts) and OSV scans that against the OSV database.
+# A known-vulnerable dependency fails the build. Mirrors ci.yml's per-module JDKs (server 21,
+# app 17). The Python OCR sidecar's deps get their own scan when slice 1b lands.
+on:
+  push:
+    branches: [main, trunk]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: osv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server SBOM + OSV (JDK 21)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Generate CycloneDX SBOM
+        working-directory: server
+        run: ./gradlew --no-daemon cyclonedxBom
+      - name: Scan SBOM against the OSV database
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        with:
+          scan-args: |-
+            -L=server/build/reports/cyclonedx/bom.json
+
+  app:
+    name: app SBOM + OSV (JDK 17)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+      - name: Generate CycloneDX SBOM
+        working-directory: app
+        run: ./gradlew --no-daemon cyclonedxBom
+      - name: Scan SBOM against the OSV database
+        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        with:
+          scan-args: |-
+            -L=app/build/reports/cyclonedx/bom.json

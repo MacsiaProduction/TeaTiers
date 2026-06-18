@@ -5,6 +5,9 @@ kotlin = "2.4.0"
 springBoot = "4.1.0"
 springDependencyManagement = "1.1.7"
 mockk = "1.14.11"
+# CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
+# directly, so we emit an SBOM of the resolved graph and scan that.
+cyclonedx = "3.2.4"
 
 [libraries]
 spring-boot-starter-web = { group = "org.springframework.boot", name = "spring-boot-starter-web" }
@@ -35,3 +38,4 @@ kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotl
 kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+cyclonedx-bom = { id = "org.cyclonedx.bom", version.ref = "cyclonedx" }
