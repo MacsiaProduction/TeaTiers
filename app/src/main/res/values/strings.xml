@@ -72,7 +72,7 @@
     <string name="settings_about_section">О приложении</string>
     <!-- %1$s — versionName (e.g. 0.1.0). -->
     <string name="settings_about_version">Версия %1$s</string>
-    <string name="settings_about_privacy">Доски, чаи, оценки, заметки, фото и места покупки (включая геоточки) хранятся только на этом устройстве и не выгружаются. При поиске и уточнении названия в сервис каталога TeaTiers отправляются введённое название чая и — если вы его добавили — описание с упаковки; они используются только для уточнения и не сохраняются в общем каталоге.</string>
+    <string name="settings_about_privacy">Доски, чаи, оценки, заметки, фото и места покупки (включая геоточки) хранятся только на этом устройстве и не выгружаются. При поиске и уточнении названия в сервис каталога TeaTiers отправляются введённое название чая и — если вы его добавили — описание с упаковки; они используются только для уточнения и не сохраняются в общем каталоге. Если вы нажимаете «Сканировать упаковку», выбранное вами фото отправляется на наш сервер только для распознавания текста и сразу удаляется — оно нигде не сохраняется. Сканирование выполняется лишь по вашему запросу для каждого снимка; ваши обычные фото чая никогда не отправляются автоматически.</string>
     <string name="settings_about_credits">Названия чаёв и описания — из открытых баз чая; источники указаны в проекте.</string>
     <string name="settings_attributions_entry">Источники данных и лицензии</string>
     <string name="settings_attributions_entry_hint">Открытые базы чая, изображения и их лицензии.</string>
@@ -195,6 +195,21 @@
     <string name="field_notes">Заметки</string>
     <string name="field_source_text">Описание с упаковки (необязательно)</string>
     <string name="field_source_text_hint">Вставьте текст с упаковки — он поможет точнее определить вкус и стиль. Отправляется в сервис каталога для уточнения, не сохраняется в общем каталоге.</string>
+    <!-- OCR scan-the-label flow (slice 3). Opt-in per scan; the photo is sent for recognition and never stored. -->
+    <string name="ocr_scan_label">Сканировать упаковку</string>
+    <string name="ocr_scan_source_title">Сканировать упаковку</string>
+    <string name="ocr_scan_source_camera">Сделать фото</string>
+    <string name="ocr_scan_source_gallery">Выбрать из галереи</string>
+    <string name="ocr_recognizing">Распознаём текст…</string>
+    <string name="ocr_review_title">Проверьте распознанный текст</string>
+    <string name="ocr_review_hint">Отредактируйте текст перед добавлением в описание упаковки. Фото не сохраняется.</string>
+    <string name="ocr_use">Использовать</string>
+    <string name="ocr_no_text">Не удалось разобрать текст на фото. Попробуйте снимок поближе и при хорошем свете.</string>
+    <string name="ocr_error">Не удалось распознать текст. Попробуйте ещё раз.</string>
+    <string name="ocr_offline">Нет сети — распознавание недоступно. Попробуйте позже.</string>
+    <string name="ocr_image_too_large">Изображение слишком большое. Выберите фото меньшего размера.</string>
+    <string name="ocr_unavailable">Распознавание временно недоступно. Попробуйте позже.</string>
+    <string name="ocr_rate_limited">Слишком много запросов. Подождите немного и попробуйте снова.</string>
     <string name="field_purchase">Место покупки</string>
     <string name="field_purchase_label">Название места</string>
     <string name="field_purchase_text">Описание</string>

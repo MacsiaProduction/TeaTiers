@@ -1,14 +1,18 @@
 package com.macsia.teatiers.data.remote
 
 import com.macsia.teatiers.data.remote.dto.FacetsDto
+import com.macsia.teatiers.data.remote.dto.OcrResponseDto
 import com.macsia.teatiers.data.remote.dto.PageDto
 import com.macsia.teatiers.data.remote.dto.ResolveRequestDto
 import com.macsia.teatiers.data.remote.dto.ResolveResponseDto
 import com.macsia.teatiers.data.remote.dto.TeaDetailDto
 import com.macsia.teatiers.data.remote.dto.TeaSummaryDto
+import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -42,4 +46,13 @@ interface CatalogApi {
      */
     @POST("teas/resolve")
     suspend fun resolve(@Body request: ResolveRequestDto): ResolveResponseDto
+
+    /**
+     * Scan-on-add (slice 1b): proxies a user-scanned packaging image to the OCR sidecar and returns
+     * the recognized text for the user to review before it becomes a resolve `sourceText` (#25/#106).
+     * Opt-in per scan; the image is processed in memory server-side and never stored.
+     */
+    @Multipart
+    @POST("teas/ocr")
+    suspend fun ocr(@Part file: MultipartBody.Part): OcrResponseDto
 }

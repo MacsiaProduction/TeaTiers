@@ -1,5 +1,9 @@
 package com.macsia.teatiers.ui.board
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -52,11 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
@@ -70,8 +76,10 @@ import com.macsia.teatiers.viewmodel.ExtendedRateDimensions
 import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
+import com.macsia.teatiers.viewmodel.ScanUiState
 import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
+import java.io.File
 import kotlin.math.roundToInt
 
 private val ScreenInset = 16.dp
@@ -104,6 +112,19 @@ fun AddTeaScreen(
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
     // to the nameRu field so the user knows where to look. Snackbar covers the "why".
     val nameRuFocusRequester = remember { FocusRequester() }
+
+    // Opt-in packaging scan (slice 3). Gallery uses the permission-free PickVisualMedia; camera uses
+    // TakePicture into a FileProvider URI (also permission-free — the camera app owns the capture).
+    val context = LocalContext.current
+    val scanState by viewModel.scan.collectAsStateWithLifecycle()
+    var showScanChooser by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> uri?.let(viewModel::scanLabel) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { success -> if (success) pendingCameraUri?.let(viewModel::scanLabel) }
 
     Scaffold(
         modifier = modifier,
@@ -326,6 +347,20 @@ fun AddTeaScreen(
             // sent once with background enrichment to sharpen the flavor profile. Hard-capped to the
             // server limit; the hint states it is sent for enrichment and not stored in the catalog.
             if (!isEdit) {
+                val recognizing = scanState is ScanUiState.Recognizing
+                OutlinedButton(
+                    onClick = { showScanChooser = true },
+                    enabled = !recognizing,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (recognizing) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.ocr_recognizing))
+                    } else {
+                        Text(stringResource(R.string.ocr_scan_label))
+                    }
+                }
                 OutlinedTextField(
                     value = form.sourceText,
                     onValueChange = { v ->
@@ -379,12 +414,82 @@ fun AddTeaScreen(
         )
     }
 
+    if (showScanChooser) {
+        AlertDialog(
+            onDismissRequest = { showScanChooser = false },
+            title = { Text(stringResource(R.string.ocr_scan_source_title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showScanChooser = false
+                    val uri = scanCaptureUri(context)
+                    pendingCameraUri = uri
+                    cameraLauncher.launch(uri)
+                }) { Text(stringResource(R.string.ocr_scan_source_camera)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showScanChooser = false
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                }) { Text(stringResource(R.string.ocr_scan_source_gallery)) }
+            },
+        )
+    }
+
+    (scanState as? ScanUiState.Review)?.let { review ->
+        var edited by remember(review.text) { mutableStateOf(review.text) }
+        AlertDialog(
+            onDismissRequest = viewModel::cancelScan,
+            title = { Text(stringResource(R.string.ocr_review_title)) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.ocr_review_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = edited,
+                        onValueChange = { edited = it.take(SourceTextMaxLength) },
+                        minLines = 4,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.applyScannedText(edited) }) {
+                    Text(stringResource(R.string.ocr_use))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelScan) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     CatalogDetailSheet(
         state = catalogDetail,
         onDismiss = viewModel::closeCatalogDetail,
         onUse = viewModel::useCatalogDetail,
         onRetry = viewModel::retryCatalogDetail,
     )
+}
+
+/**
+ * A FileProvider URI for a transient camera-capture target under `cacheDir/scans/` (exposed in
+ * `file_paths.xml`). Old scans are cleared first so full-res captures don't accumulate in the cache.
+ */
+private fun scanCaptureUri(context: android.content.Context): Uri {
+    val dir = File(context.cacheDir, "scans").apply {
+        mkdirs()
+        listFiles()?.forEach { it.delete() }
+    }
+    val file = File(dir, "scan-${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 
 @Composable

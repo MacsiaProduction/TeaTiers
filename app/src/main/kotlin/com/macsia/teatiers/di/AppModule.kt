@@ -12,7 +12,9 @@ import coil3.request.crossfade
 import com.macsia.teatiers.data.db.CatalogDao
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
+import com.macsia.teatiers.data.photos.AndroidImageReader
 import com.macsia.teatiers.data.photos.AndroidPhotoStore
+import com.macsia.teatiers.data.photos.ImageReader
 import com.macsia.teatiers.data.photos.PhotoStore
 import dagger.Binds
 import dagger.Module
@@ -94,4 +96,8 @@ abstract class PhotoStoreModule {
     @Binds
     @Singleton
     abstract fun bindPhotoStore(impl: AndroidPhotoStore): PhotoStore
+
+    @Binds
+    @Singleton
+    abstract fun bindImageReader(impl: AndroidImageReader): ImageReader
 }

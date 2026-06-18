@@ -4,9 +4,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
+import com.macsia.teatiers.data.photos.ImageReader
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
+import com.macsia.teatiers.data.repository.OcrResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.CatalogTea
@@ -47,6 +49,7 @@ class AddTeaViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
     private val catalogRepository: CatalogRepository,
     private val enrichmentManager: TeaEnrichmentManager,
+    private val imageReader: ImageReader,
 ) : ViewModel() {
 
     private val eventHost = UiEventHost()
@@ -64,6 +67,10 @@ class AddTeaViewModel @Inject constructor(
 
     private val _form = MutableStateFlow(AddTeaForm())
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
+
+    /** "Scan packaging" flow (slice 3): Idle → Recognizing → Review(text) → applied to sourceText. */
+    private val _scan = MutableStateFlow<ScanUiState>(ScanUiState.Idle)
+    val scan: StateFlow<ScanUiState> = _scan.asStateFlow()
 
     /**
      * Catalog search box (add mode only). Typing here queries the shared catalog; picking a result
@@ -188,6 +195,64 @@ class AddTeaViewModel @Inject constructor(
 
     fun update(transform: (AddTeaForm) -> AddTeaForm) {
         _form.update(transform)
+    }
+
+    /**
+     * Opt-in packaging scan (slice 3, decision #100): reads + downscales the picked/captured image,
+     * sends it to the OCR sidecar, and — on success — surfaces the recognized text for the user to
+     * review/edit ([ScanUiState.Review]) before it becomes `sourceText`. Failures clear the spinner
+     * and explain via a snackbar; the image is never persisted locally.
+     */
+    fun scanLabel(uri: Uri) {
+        if (_scan.value == ScanUiState.Recognizing) return // a scan is already in flight
+        viewModelScope.launch {
+            _scan.value = ScanUiState.Recognizing
+            val bytes = imageReader.read(uri)
+            if (bytes == null) {
+                eventHost.emit(UiEvent.ShowSnackbar(R.string.ocr_error))
+                _scan.value = ScanUiState.Idle
+                return@launch
+            }
+            when (val result = catalogRepository.ocr(bytes)) {
+                is OcrResult.Recognized ->
+                    if (result.text.isBlank()) {
+                        eventHost.emit(UiEvent.ShowSnackbar(R.string.ocr_no_text))
+                        _scan.value = ScanUiState.Idle
+                    } else {
+                        _scan.value = ScanUiState.Review(result.text)
+                    }
+                OcrResult.Offline -> failScan(R.string.ocr_offline)
+                OcrResult.TooLarge -> failScan(R.string.ocr_image_too_large)
+                OcrResult.Unavailable -> failScan(R.string.ocr_unavailable)
+                OcrResult.RateLimited -> failScan(R.string.ocr_rate_limited)
+                OcrResult.Error -> failScan(R.string.ocr_error)
+            }
+        }
+    }
+
+    private fun failScan(messageRes: Int) {
+        eventHost.emit(UiEvent.ShowSnackbar(messageRes))
+        _scan.value = ScanUiState.Idle
+    }
+
+    /**
+     * Confirms the reviewed scan text into the `sourceText` field (appending to anything already
+     * there, capped at [SourceTextMaxLength]), then closes the review.
+     */
+    fun applyScannedText(text: String) {
+        val cleaned = text.trim()
+        if (cleaned.isNotEmpty()) {
+            _form.update { form ->
+                val merged = if (form.sourceText.isBlank()) cleaned else "${form.sourceText.trimEnd()}\n$cleaned"
+                form.copy(sourceText = merged.take(SourceTextMaxLength))
+            }
+        }
+        _scan.value = ScanUiState.Idle
+    }
+
+    /** Dismisses the scan review without applying the recognized text. */
+    fun cancelScan() {
+        _scan.value = ScanUiState.Idle
     }
 
     fun setFlavor(dimension: FlavorDimension, intensity: Int) {
