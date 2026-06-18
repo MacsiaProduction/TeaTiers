@@ -22,6 +22,10 @@ class RateLimiterConfig {
     fun ocrRateLimiter(props: OcrProperties): FixedWindowRateLimiter =
         FixedWindowRateLimiter(props.ratePerMinute)
 
+    @Bean
+    fun searchRateLimiter(props: SearchProperties): FixedWindowRateLimiter =
+        FixedWindowRateLimiter(props.ratePerMinute)
+
     /**
      * GLOBAL concurrency gate for /teas/ocr (review F4): the sidecar serializes inference, so this
      * bounds how many requests can be in flight against it before the controller fast-fails 503 —

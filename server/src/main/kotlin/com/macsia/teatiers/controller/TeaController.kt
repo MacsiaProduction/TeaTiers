@@ -15,6 +15,7 @@ import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Size
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -34,20 +35,31 @@ class TeaController(
     private val resolveService: ResolveService,
     @Qualifier("resolveRateLimiter") private val resolveRateLimiter: FixedWindowRateLimiter,
     @Qualifier("ocrRateLimiter") private val ocrRateLimiter: FixedWindowRateLimiter,
+    @Qualifier("searchRateLimiter") private val searchRateLimiter: FixedWindowRateLimiter,
     private val ocrConcurrencyGate: Semaphore,
     private val ocrService: OcrService,
     private val ocrProperties: OcrProperties,
 ) {
 
+    /**
+     * Catalog search/browse. Free-text params are length-capped (review P2 — bound an
+     * unauthenticated public endpoint's inputs) and the endpoint is per-client rate-limited
+     * (generously — an anti-abuse floor, not a UX limit). `limit` is additionally coerced to
+     * [TeaCatalogService.MAX_LIMIT] in the service.
+     */
     @GetMapping("/search")
     fun search(
-        @RequestParam(required = false) q: String?,
-        @RequestParam(required = false) locale: String?,
+        @RequestParam(required = false) @Size(max = MAX_QUERY_LEN) q: String?,
+        @RequestParam(required = false) @Size(max = MAX_PARAM_LEN) locale: String?,
         @RequestParam(required = false) type: TeaType?,
-        @RequestParam(required = false) origin: String?,
+        @RequestParam(required = false) @Size(max = MAX_PARAM_LEN) origin: String?,
         @RequestParam(required = false) cursor: Long?,
         @RequestParam(defaultValue = "${TeaCatalogService.DEFAULT_LIMIT}") limit: Int,
-    ): PageDto<TeaSummaryDto> = service.search(q, locale, type, origin, cursor, limit)
+        servletRequest: HttpServletRequest,
+    ): PageDto<TeaSummaryDto> {
+        if (!searchRateLimiter.tryAcquire(clientId(servletRequest))) throw RateLimitException()
+        return service.search(q, locale, type, origin, cursor, limit)
+    }
 
     @GetMapping("/facets")
     fun facets(): FacetsDto = service.facets()
@@ -98,6 +110,13 @@ class TeaController(
         request.getHeader("X-Forwarded-For")?.substringBefore(',')?.trim()?.takeIf { it.isNotEmpty() }
             ?: request.remoteAddr
             ?: "unknown"
+
+    private companion object {
+        // Generous bounds on the public search params: a real query/locale/origin is far shorter, so
+        // these only reject pathological inputs (long strings hitting pg_trgm / the DB).
+        const val MAX_QUERY_LEN = 100
+        const val MAX_PARAM_LEN = 64
+    }
 }
 
 class TeaNotFoundException(val teaId: Long) :
