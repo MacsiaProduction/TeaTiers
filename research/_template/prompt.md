@@ -1,15 +1,6 @@
 # <NN>-<slug> — <one-line topic>
 
-<!--
-The SINGLE prompt for this run. Send this exact text to every model.
-Do NOT tailor it per model. If a tool's input limit forces a change, note it
-under "Adaptations" at the bottom.
-Save each model's verbatim answer next to this file as <model>.md
-(opus.md, gpt.md, gemini.md, kimi.md, …). Then fill RATING.md and bump
-../LEADERBOARD.md. See ../README.md for the full spec.
--->
-
-text only report with max effort, max coverage and details.
+english text only report with max effort, max coverage and details.
 
 ## Context
 
@@ -40,11 +31,3 @@ Trim or extend this block to fit the question.
 
 <the exact deliverable — e.g. a comparison table + a recommended pick + 3–5
 high-quality reference links.>
-
----
-
-Models run: <opus, gpt, gemini, kimi>   ·   Date: <YYYY-MM-DD>
-
-## Adaptations (if any)
-
-- <model>: <what you changed for this tool, and why>

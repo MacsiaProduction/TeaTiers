@@ -8,17 +8,18 @@ prompts aren't comparable); these are counts only. See `README.md` → *Leaderbo
 
 | Model  | Wins | Runs judged | Notable strengths |
 |--------|:----:|:-----------:|-------------------|
-| opus   | 11   |     12      | Legal/ToS/license precision (incl. Gemini Grounded-Results store-ban), exact API+pricing specifics, Yandex-API dialect quirks, honest caveats, flags bad QIDs & version conflicts; resolves provenance with CI-verifiable SHA evidence (run 13); precise self-host RAM floors + OFAC/152-FZ (run 15) |
-| alice  |  2   |      8      | Best on the Yandex-native topics (Terraform, Alice LLM, Gemini-EEA-paid-only clause): RU-specific gotchas, official docs, honest "unverified" caveats; strong + honest on OCR (run 13) but skips the asked-for pinned SHAs; honest-but-incomplete + a hallucinated dep on run 15 |
-| gemini |  0   |     14      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting and Wikidata QIDs; occasionally over-confident on unverified specifics, misses ToS/privacy traps (run 10), fabricates SHAs/CER + ships non-running snippets (run 13), fabricated a GMS-free "reflection probe" + stale pins (run 15) |
-| gpt    |  1   |      8      | **Won run 15** — best-fit telemetry pick for the constrained VM (ACRA + first-party endpoint, not a heavy dashboard) + the standout out-of-Room count-sentinel data-loss detector, strict allowlist, current pins + correct licenses. Earlier runs concise-but-shallow with factual errors (GigaChat free tier; Gemini-EEA backwards; booby-trapped grounding path in 08) |
-| deepseek | 0 |     10      | Useful ideas (COI image, app-fetches-Lockbox, on-device PaddleOCR for ru OCR) but recurring stale/uncertain specifics (model ids, library pins — run 13: legacy rapidocr; run 15: wrong Sentry license + Celery-vs-rq + stale pins) |
+| opus   | 11   |     13      | Legal/ToS/license precision (incl. Gemini Grounded-Results store-ban), exact API+pricing specifics, Yandex-API dialect quirks, honest caveats, flags bad QIDs & version conflicts; resolves provenance with CI-verifiable SHA evidence (run 13); precise self-host RAM floors + OFAC/152-FZ (run 15); net-new RU-first lead nobody else found — Rospatent/eAmbrosia GI registers (run 16, close #2) |
+| alice  |  2   |      9      | Best on the Yandex-native topics (Terraform, Alice LLM, Gemini-EEA-paid-only clause): RU-specific gotchas, official docs, honest "unverified" caveats; strong + honest on OCR (run 13) but skips the asked-for pinned SHAs; honest-but-incomplete + a hallucinated dep on run 15; honest "no magic dataset" core but sloppy + an off-constraint OpenAI suggestion (run 16) |
+| gemini |  0   |     15      | Sharp framing + concrete engineering; surfaced native-Yandex DeepSeek/Qwen3 hosting and Wikidata QIDs; occasionally over-confident on unverified specifics, misses ToS/privacy traps (run 10), fabricates SHAs/CER + ships non-running snippets (run 13), fabricated a GMS-free "reflection probe" + stale pins (run 15), invented "Chinese Standard Exception" license + leaned on LLM-curation without flagging the AI-OFF relaxation (run 16; best product insight: Beanconqueror reframe) |
+| gpt    |  2   |      9      | **Won runs 15 & 16** — best-fit picks for the *actual* constraints: telemetry (ACRA + first-party endpoint, count-sentinel) and catalog-breadth (reframe-as-reference-seed + no-PII seed-from-misses, every license correct, zero fabrications, honest it couldn't live-query Wikidata). Earlier runs concise-but-shallow with factual errors (GigaChat free tier; Gemini-EEA backwards; booby-trapped grounding path in 08) |
+| deepseek | 0 |     11      | Useful ideas (COI image, app-fetches-Lockbox, on-device PaddleOCR for ru OCR) but recurring stale/uncertain specifics + fabrications (model ids, library pins — run 13: legacy rapidocr; run 15: wrong Sentry license + Celery-vs-rq + stale pins; run 16: "BioTea" biomedical corpus misIDed as tea data + internal count contradiction) |
 | deepagent | 0 |     1      | Weakest on run 13: fabricated/Chinese model names passed off as Cyrillic, CUDA config in a CPU-only answer, sidecar exposes the backend's path |
 | kimi   |  0   |      0      |                   |
 | grok   |  0   |      0      |                   |
 | fable  |  0   |      0      |                   |
 
 <!-- Log (newest first): -->
+<!-- 16-catalog-breadth → winner: gpt (2026-06-19)  models judged: gpt, opus, gemini, deepseek, alice -->
 <!-- 15-crash-telemetry → winner: gpt (2026-06-18)  models judged: gpt, opus, gemini, deepseek, alice -->
 <!-- 13-ocr-sidecar-accuracy → winner: opus (2026-06-18)  models judged: opus, alice, gemini, deepseek, deepagent -->
 <!-- 12-batch-enrichment → winner: opus (2026-06-17)  models judged: opus, gemini, deepseek -->
