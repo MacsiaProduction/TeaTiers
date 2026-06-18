@@ -1898,3 +1898,25 @@ deviated.
      (lines ~111–114, "unbuilt until the backfill workstream starts") by #100, so no further change there.
      Doc-only; no code. **Sequence status:** #100 steps 1–4 done; next is **slice 1b** (the RapidOCR sidecar
      per the run-13/opus spec) then **slice 3** (app scan UI + rewritten privacy copy).
+
+105. **Slice-1b "measure first" proof — greenlit, no VM resize (user-chosen path).** Before wiring the
+     sidecar, built a local OCR proof (`research/13-ocr-sidecar-accuracy/proof/`, py3.12 venv, run-13 pins
+     exactly: `rapidocr==3.8.4`/`onnxruntime==1.27.0`, eslav PP-OCRv5 mobile rec + `ch_PP-OCRv5_det_mobile`,
+     cls off, intra2/inter1, no mem-arena, det limit 960) over a 233-name ru+en corpus drawn from the live
+     100-tea seed (clean + degraded renders, 466 OCR calls). Results (see `proof/FINDINGS.md`):
+     - **Provenance gate PASS** — both fetched ONNX byte-match the SHA256 pinned in RapidOCR's
+       `default_models.yaml` (eslav rec `08705d67…aab` 7.91 MB; det `4d97c44a…8ae` 4.82 MB), confirming
+       opus's run-13 claim. **This is the exact byte-verify gate slice-1b CI must enforce on the baked model.**
+     - **Footprint: peak RSS 248 MB** (import 30 → init 135 → warmup 158 → batch-peak 248), far under
+       run-13's 3.5 GB resize trigger. **Decision: keep the 4 GB / 2 vCPU VM**; size the sidecar compose
+       entry at `mem_limit≈1g` with headroom. ~28 img/s, ~35 ms/img on the dev box.
+     - **Accuracy (synthetic floor, NOT real packaging):** clean en CER 0.07% / ru 4.5% (en exact 99%,
+       ru exact 80%); degraded en 4.5% / ru 22%. ru errors are **systematic**: Cyrillic↔Latin homoglyph
+       substitution (`Ассам→Accam`, `Лунцзин→Лунц3ин`), a `Г→Ф` confusion, case + box-split, and the
+       degraded-ru figure is inflated by two-word box-order swaps (not char errors).
+     **Implications:** build slice 1b on the current VM with the measured config; CI byte-verifies the two
+     SHAs; homoglyph confusion is a documented limitation (the flow is OCR → *user reviews/edits* →
+     `sourceText`, so a human catches it; a cautious server-side Cyrillic-homoglyph normalization is a
+     possible later enhancement). **Still owed before any accuracy claim:** CER on real packaging photos —
+     this proof only establishes a clean-text floor. The harness + findings are committed; rendered images,
+     fetched models, and `out/` are gitignored.

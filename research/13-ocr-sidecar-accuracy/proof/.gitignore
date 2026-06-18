@@ -1,0 +1,5 @@
+# Local proof artifacts — not committed (models are fetched, images rendered, report regenerated).
+images/
+out/
+*.onnx
+__pycache__/
