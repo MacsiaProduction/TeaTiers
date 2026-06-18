@@ -1,0 +1,66 @@
+name: OCR sidecar
+
+# Builds the OCR sidecar image (slice 1b; research 13 / decision #105), smoke-tests that it boots
+# and loads the models, and on main pushes it to ghcr.io/<owner>/teatiers-ocr-sidecar. The build
+# runs fetch_models.sh, which SHA256-verifies the pinned ONNX — so a bad/changed model fails CI
+# (the provenance gate). Mirrors publish-image.yml (the server image).
+#
+# Post-merge one-time setup (so the VM can pull anonymously): make the ghcr package public, then add
+#   OCR_SIDECAR_IMAGE=ghcr.io/<owner>/teatiers-ocr-sidecar:latest
+# to the VM's /opt/teatiers/.env and `docker compose up -d ocr-sidecar`.
+on:
+  push:
+    branches: [main, trunk]
+    paths:
+      - ocr-sidecar/**
+      - .github/workflows/ocr-sidecar.yml
+  pull_request:
+    paths:
+      - ocr-sidecar/**
+      - .github/workflows/ocr-sidecar.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ocr-sidecar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build + smoke (push to ghcr on main)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build image (fetches + SHA-verifies the pinned models)
+        run: docker build -t teatiers-ocr-sidecar:ci ocr-sidecar
+
+      - name: Smoke test — boots, loads models, /health green
+        run: |
+          set -euo pipefail
+          docker run -d --name ocr -p 8099:8099 teatiers-ocr-sidecar:ci
+          ok=
+          for _ in $(seq 1 40); do
+            sleep 2
+            if curl -fsS http://localhost:8099/health 2>/dev/null | grep -q '"ok"'; then ok=1; break; fi
+          done
+          if [ "${ok:-}" != 1 ]; then echo "sidecar never became healthy"; docker logs ocr; exit 1; fi
+          echo "health OK"
+          docker rm -f ocr >/dev/null
+
+      - name: Push to ghcr.io (main only)
+        if: github.event_name == 'push'
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          owner_lc=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
+          repo="ghcr.io/${owner_lc}/teatiers-ocr-sidecar"
+          docker tag teatiers-ocr-sidecar:ci "${repo}:latest"
+          docker tag teatiers-ocr-sidecar:ci "${repo}:${GITHUB_SHA::12}"
+          docker push "${repo}:latest"
+          docker push "${repo}:${GITHUB_SHA::12}"
+          echo "Pushed ${repo}:latest + :${GITHUB_SHA::12}"

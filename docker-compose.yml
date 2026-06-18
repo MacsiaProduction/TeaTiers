@@ -41,12 +41,39 @@ services:
       POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-teatiers}
       POSTGRES_USER: ${POSTGRES_USER:-teatiers}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teatiers}
+      # OCR tier off unless you point it at the sidecar below (start with `--profile ocr`):
+      #   TEATIERS_OCR_SIDECAR_URL=http://ocr-sidecar:8099 docker compose --profile ocr up
+      TEATIERS_OCR_SIDECAR_URL: ${TEATIERS_OCR_SIDECAR_URL:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
       interval: 15s
       timeout: 3s
       retries: 5
       # First boot runs Flyway + seeding, so allow a generous grace window.
+      start_period: 40s
+    restart: unless-stopped
+
+  # OCR sidecar — opt-in (`--profile ocr`) so the default dev stack stays light. Built locally;
+  # the same image runs in prod (infra/deploy). See ocr-sidecar/README.md.
+  ocr-sidecar:
+    profiles: ["ocr"]
+    build:
+      context: ./ocr-sidecar
+      dockerfile: Dockerfile
+    image: teatiers/ocr-sidecar:dev
+    container_name: teatiers-ocr-sidecar
+    # Bind to localhost only, for direct poking; the server reaches it over the compose network.
+    ports:
+      - "127.0.0.1:8099:8099"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8099/health',timeout=2).status==200 else 1)"
+      interval: 15s
+      timeout: 3s
+      retries: 5
       start_period: 40s
     restart: unless-stopped
 
