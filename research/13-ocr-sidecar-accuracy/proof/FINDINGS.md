@@ -80,8 +80,29 @@ en is near-perfect clean. The ru numbers are **systematic and characterizable**,
 ## 5. Real-packaging CER harness (#105) — built, awaiting a photo corpus
 
 [`measure_photos.py`](measure_photos.py) runs the **identical** sidecar engine config (+ EXIF
-orientation, review F2) over a corpus of real photos and reports corpus CER / exact-match / ms-img /
-peak RSS vs hand labels. Drop photos + a `ground_truth.tsv` into [`corpus/`](corpus/README.md)
+orientation, review F2) over a corpus of photos and reports corpus CER / exact-match / ms-img /
+peak RSS vs hand labels. Drop **real** photos + a `ground_truth.tsv` into [`corpus/`](corpus/README.md)
 (gitignored — copyrighted packaging + privacy) and run `python measure_photos.py --corpus corpus`.
-Validated end-to-end on clean renders (CER 0.0% / exact 100%, peak RSS ~176 MB). **The real number
-needs a real photo corpus** — the one input that can't be synthesized.
+**The true number needs a real photo corpus** — the one input that can't be synthesized.
+
+### Realistic-synthetic floor (no real photos available yet)
+
+As an interim signal, [`gen_realistic.py`](gen_realistic.py) renders the 233 ru+en seed names onto
+**packaging-like** images — textured/colored backgrounds, 7 fonts, a perspective tilt, an
+uneven-lighting gradient + glare, light blur, sensor noise, JPEG — with the rendered string as exact
+ground truth (moderate, *not* adversarial; ≈ a decent phone photo of packaging at an angle). Measured:
+
+| corpus | CER | exact | notes |
+|--------|:---:|:-----:|-------|
+| **en** (132) | **0.0%** | **100%** | near-perfect on Latin even under tilt/glare |
+| **ru** (101) | **9.23%** | **72.3%** | ≈ 2× the clean floor (4.5%) |
+| combined (233) | 4.08% | 88.0% | en dilutes ru; the per-script split is the honest read |
+
+Peak RSS **739 MB** on these larger (≈900×550) renders (the app downscales uploads to ≤1600 px, so
+real payloads are smaller) — still under the 1 GB sidecar cap. ~140 ms/img. The ru failures are the
+**same systematic modes** as the clean floor — Cyrillic↔Latin homoglyphs (`Ассам→Accam`,
+`Лемонграсс→Lemongrass`, `Тенча→TeHчa`) — **plus** a new realistic one: short ru words under glare/warp
+sometimes **fail detection entirely** (`Синча→""`, `Ува→""`, `Тулси→""`). **Caveat:** still synthetic —
+a stronger floor, not real-world. The review-before-`sourceText` flow tolerates this (the user fixes a
+homoglyph or re-scans an empty), so it stays a usability note, not a blocker. Real-photo CER remains the
+owed gold number; the harness is ready for it.
