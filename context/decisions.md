@@ -2070,3 +2070,19 @@ deviated.
      tolerates it (user fixes a homoglyph / re-scans an empty), so usability note not blocker. **The
      real-photo gold number remains owed** — the harness is ready the moment a photo corpus
      (`proof/corpus/` + `ground_truth.tsv`) exists. See `proof/FINDINGS.md` §5.
+
+113. **Real-photo CER — first sample measured (n=4, user-provided 2026-06-18).** The user supplied 4 real
+     RU-marketplace tea-product photos (Wildberries / SberMegaMarket / Yandex Market). Real packaging is
+     **multi-block/multi-script**, so whole-string CER is meaningless (the model reads brand/weight/
+     description too → ~1630%, which the harness flags) — the product metric is **name-capture** (does the
+     key tea name get read *somewhere* for the user to pick). Enhanced `measure_photos.py` to report it
+     (rapidfuzz partial-ratio). **Result: 3/4 captured (75%), mean 89/100.** ГАБА АЛИШАНЬ ✅, Лапсанг Сушонг
+     ✅ (small print), HONG LO ✅ (multilingual); the **miss** was the lowest-res image (430 px MYASNOV
+     pouch — read `Фуцзянь` + the `КPАСНЫЙ` Р→P homoglyph but lost `Хун Ча`). Real failure modes match the
+     synthetic ones — **Cyrillic↔Latin homoglyphs persist** (`КPАСНЫЙ`, `250 гp`) and **low-res hurts**.
+     Tiny sample (more photos in `proof/corpus/` firm it up), but the verdict is consistent across
+     synthetic + real: **usable given the OCR→review→`sourceText` flow** (user fixes homoglyphs / re-scans a
+     poor shot); homoglyphs + low resolution are the watch-items. Photos are gitignored (copyright/privacy);
+     FINDINGS §5 + the harness are committed.
+     *(Process note: per the user, pure-docs/research changes — like this entry, FINDINGS, RATING — now
+     commit straight to `main` without a PR; only product/build/CI code goes through branch→PR→CI.)*

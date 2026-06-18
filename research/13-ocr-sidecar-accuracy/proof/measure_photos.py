@@ -2,8 +2,10 @@
 """
 Real-packaging CER measurement (#105) — the empirical item the synthetic proof (run_proof.py /
 FINDINGS.md) left owed. Runs the EXACT slice-1b sidecar engine config over a corpus of real tea-
-packaging *photos* and reports character error rate (CER) vs hand-labelled ground truth, plus exact
-match, throughput, and peak RSS.
+packaging *photos* and reports, vs hand-labelled ground truth: **name-capture** (did the labelled tea
+name get read somewhere in the output — the product-relevant metric for multi-block packaging),
+character error rate (CER) + exact-match (meaningful when the label is the whole image text, e.g.
+single-name renders), throughput, and peak RSS.
 
 Corpus layout (photos are NOT committed — copyrighted packaging + privacy; see corpus/README.md):
   <corpus>/                       (default: ./corpus, override with --corpus)
@@ -26,6 +28,7 @@ from pathlib import Path
 
 import psutil
 from PIL import Image, ImageOps
+from rapidfuzz import fuzz
 from rapidfuzz.distance import Levenshtein
 
 IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
@@ -109,7 +112,7 @@ def main() -> None:
     rss_warm = rss_mb()
 
     peak = rss_warm
-    dist_sum = ref_sum = exact = labelled = 0
+    dist_sum = ref_sum = exact = labelled = captured = cap_sum = 0
     per_photo: list[dict] = []
     unlabelled: list[dict] = []
     t0 = time.time()
@@ -127,9 +130,17 @@ def main() -> None:
         labelled += 1
         if norm(hyp) == norm(ref):
             exact += 1
+        # Name-capture: real packaging is multi-block, so whole-string CER (below) is only meaningful
+        # for single-name renders. The product-relevant metric is whether the labelled name is read
+        # *somewhere* in the output — rapidfuzz partial_ratio finds the best-matching window.
+        nc = fuzz.partial_ratio(norm(ref), norm(hyp))
+        cap_sum += nc
+        if nc >= 85:
+            captured += 1
         per_photo.append({
             "file": p.name, "ref": ref, "hyp": norm(hyp),
             "cer_pct": round(100 * d / rl, 1) if rl else None,
+            "name_capture": round(nc),
         })
     elapsed = time.time() - t0
 
@@ -138,6 +149,8 @@ def main() -> None:
         "photos": len(photos),
         "labelled": labelled,
         "unlabelled": len(unlabelled),
+        "name_capture_rate_pct": round(100 * captured / labelled, 1) if labelled else None,
+        "mean_name_capture": round(cap_sum / labelled, 1) if labelled else None,
         "corpus_cer_pct": round(100 * dist_sum / ref_sum, 2) if ref_sum else None,
         "exact_match_pct": round(100 * exact / labelled, 1) if labelled else None,
         "ms_per_img": round(1000 * elapsed / len(photos), 1),

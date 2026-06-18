@@ -104,5 +104,27 @@ real payloads are smaller) — still under the 1 GB sidecar cap. ~140 ms/img. Th
 `Лемонграсс→Lemongrass`, `Тенча→TeHчa`) — **plus** a new realistic one: short ru words under glare/warp
 sometimes **fail detection entirely** (`Синча→""`, `Ува→""`, `Тулси→""`). **Caveat:** still synthetic —
 a stronger floor, not real-world. The review-before-`sourceText` flow tolerates this (the user fixes a
-homoglyph or re-scans an empty), so it stays a usability note, not a blocker. Real-photo CER remains the
-owed gold number; the harness is ready for it.
+homoglyph or re-scans an empty), so it stays a usability note, not a blocker.
+
+### Real packaging (first sample, n=4, user-provided 2026-06-18)
+
+Four real RU-marketplace tea-product photos (Wildberries / SberMegaMarket / Yandex Market) measured
+via `measure_photos.py`. Real packaging is **multi-block / multi-script**, so whole-string CER is
+meaningless (the model reads the brand, weight, description, brew icons… — the harness dutifully
+reports ~1630% and flags it). The product-relevant metric is **name-capture**: did the key tea name
+get read *somewhere* in the output (the user reviews + picks it). Result: **3/4 captured (75%)**, mean
+name match 89/100.
+
+| photo | key name | captured | note |
+|-------|----------|:--------:|------|
+| azbuka-vkusa tin | ГАБА АЛИШАНЬ | ✅ 100 | det split the two lines (`ГАБА` + `АЛИШАНЬ`); rejoined fine |
+| MYASNOV pouch (430 px) | Фуцзянь Хун Ча | ⚠️ 57 | read `Фуцзянь` + `КPАСНЫЙ` (Р→P homoglyph) but **missed `Хун Ча`** — lowest-res image |
+| black-bag label | Лапсанг Сушонг | ✅ 100 | read perfectly despite small label print; `250 гp` (р→p) |
+| Tea Leaf red pouch | HONG LO | ✅ 100 | multilingual ok (`HONG LO` + `Хун Ло` + en/fr); Chinese `茶叶` skipped (eslav model) |
+
+Real-world failure modes match the synthetic ones — **Cyrillic↔Latin homoglyphs persist** (`КPАСНЫЙ`,
+`250 гp`) and **low resolution hurts** (the 430 px image lost half the name). Net: the name is captured
+on a clear shot, and the OCR→review→`sourceText` flow lets the user fix homoglyphs / re-scan a poor
+shot. **This is a tiny sample** — a larger corpus (drop more into `corpus/`) firms up the number, but
+the qualitative verdict (usable with review; homoglyphs + low-res are the watch-items) is consistent
+across synthetic + real.
