@@ -29,6 +29,7 @@ data class TeaMatchKeyRow(
     val nameRu: String,
     val nameZh: String?,
     val pinyin: String?,
+    val nameEn: String?,
 )
 
 /**
@@ -55,7 +56,7 @@ abstract class TeaDao {
     @Query("SELECT * FROM teas")
     abstract fun observeAllTeas(): Flow<List<TeaWithChildren>>
 
-    @Query("SELECT id, nameRu, nameZh, pinyin FROM teas")
+    @Query("SELECT id, nameRu, nameZh, pinyin, nameEn FROM teas")
     abstract suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow>
 
     /** The user-tea already linked to this catalog id, if any — the strongest dedup key (#42). */
@@ -183,6 +184,29 @@ abstract class TeaDao {
         origin: String?,
         shortBlurb: String?,
         catalogTeaId: Long?,
+        state: String,
+    )
+
+    /**
+     * Like [patchEnrichment] but WITHOUT touching `catalogTeaId` — used for a differently-spelled
+     * duplicate that resolved to a catalog row another user-tea already owns (the UNIQUE link can't
+     * be shared, #101). It still gets the catalog's enriched names/blurb so it isn't stranded showing
+     * only the raw typed string (review F6).
+     */
+    @Query(
+        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, nameEn = :nameEn, " +
+            "type = :type, origin = :origin, shortBlurb = :shortBlurb, enrichmentState = :state " +
+            "WHERE id = :teaId",
+    )
+    abstract suspend fun patchEnrichmentSuggestions(
+        teaId: String,
+        nameRu: String,
+        nameZh: String?,
+        pinyin: String?,
+        nameEn: String?,
+        type: String,
+        origin: String?,
+        shortBlurb: String?,
         state: String,
     )
 
