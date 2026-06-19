@@ -5,7 +5,7 @@
 # --- Stage 1: fetch + SHA256-verify the pinned ONNX models. -------------------------------------
 # Keeps curl/apt out of the runtime image and fails the build on any checksum mismatch
 # (the slice-1b provenance gate). Models are baked in -> the runtime needs no network egress.
-FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS models
+FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS models
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
@@ -14,7 +14,7 @@ COPY models.lock fetch_models.sh ./
 RUN sh fetch_models.sh /opt/ocr-models
 
 # --- Stage 2: runtime. --------------------------------------------------------------------------
-FROM python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9 AS runtime
+FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS runtime
 # libgomp1 backs onnxruntime's thread pool; pillow + opencv-headless ship their own libs.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgomp1 \
