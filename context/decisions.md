@@ -2255,3 +2255,42 @@ deviated.
      un-canonicalized manifest signing; deepseek's `fsync`-after-close + history-cert signer-pin; **all
      library version pins** (Ackpine 0.21.1/0.22.8/0.23.0 etc. are future-dated guesses — verify the real
      latest). Bundled read-only fallback seed in the APK (review #12) stays on the list for the same push.
+
+120. **In-app auto-updater SHIPPED end-to-end (2026-06-19, decision #119 built).** Four reviewed slices,
+     all merged: **#88** server `GET /api/v1/app/latest` (anonymous, no-PII, ETag/304, 204 until a release
+     is configured); **#96** the pure decision core (`decideUpdate` downgrade/min-OS/forced guards, best-effort
+     check); **#97** download (mirror-fallback OkHttp) + verify (`ApkVerifier`: sha256-pin + signer-cert-pin
+     via `apkContentsSigners` + downgrade guard, device-verified); **#98** install + UX (`AppInstaller`
+     Ackpine wrapper, `AppUpdateViewModel` state machine, Settings "Обновления" card/forced dialog + progress
+     + manual GitHub fallback + "подпись проверена" badge). **Ackpine API confirmed by compile:** the install
+     DSL is `PackageInstaller.getInstance(ctx).createSession(uri) { name=... }` (the Uri+lambda overload is the
+     ktx extension `import ru.solrudev.ackpine.installer.createSession`; `createSession(InstallParameters)` is
+     the core member) → `session.await()` → `Session.State.Succeeded`/`is Session.State.Failed`. Added
+     `REQUEST_INSTALL_PACKAGES`, a FileProvider `updates/` cache root, and 8 ViewModel unit tests. **Still
+     dormant until** the 4 keystore repo-secrets are set + a release is tagged + the endpoint is configured;
+     pre-public hardening (Yandex OS mirror + offline Ed25519 manifest sig) remains per #119.
+
+121. **Opt-in ACRA diagnostics + out-of-Room wipe sentinel SHIPPED + adversarially reviewed (2026-06-19,
+     decision #111 built).** Three slices merged: **#99** server `POST /api/v1/client-diagnostics` (Flyway
+     V6 `client_diagnostic` table + CHECK on `report_kind`, allowlist sanitizer re-enforced server-side,
+     constant-time `X-Diagnostics-Token`, fails closed 503 when unconfigured, daily `@Scheduled` 30-day purge);
+     **#100** app side — `ch.acra:acra-http:5.13.1` (GMS-free, confirmed zero Google deps on
+     `releaseRuntimeClasspath` by a new **CI GMS-gate**), a **custom ServiceLoader-registered `ReportSender`**
+     mapping a crash to the SAME allowlisted DTO (only the stack trace from ACRA; device/app fields re-read
+     from `Build`/`BuildConfig`; ACRA's built-in HttpSender left unconfigured so only ours posts), the
+     **out-of-Room `MigrationSentinel`** (SharedPreferences baseline counts + `onDestructiveMigration` flag →
+     pure `detectWipe` → `room_migration_signal`; SharedPreferences not Room so a wipe can't erase its own
+     evidence), opt-in Settings toggle (off by default) + full RU disclosure copy. Storage = **Postgres table
+     + 30d purge** (user choice); built the **full slice now** (user choice) though #111 had tied it to the
+     Room cutover — the sentinel correctly lands *before* the risky migration. **Adversarial review (Workflow,
+     3 dimensions × 2 skeptics, 16 findings → 6 confirmed, 3 by both):** privacy core confirmed SOUND (IP
+     never read/stored, `rowCounts` numeric-only by type, built-in sender inert, JSON injection-safe). Fixed:
+     (HIGH) sentinel cleared the one-shot wipe evidence even when the POST failed → now keeps the flag+baseline
+     to retry when offline; (MEDIUM) toggling OFF didn't stop ACRA live → `setEnabled` now flips
+     `ACRA.errorReporter` when initialised; **(HIGH, #101) no rate limit → disk-flood DoS** (the APK token is
+     not an auth barrier) → added a **global** `DiagnosticsDailyBudget` (UTC-day cap, default 500/day → 429),
+     global not per-IP **on purpose** to preserve "never reads the client IP". Documented residuals: stack-trace
+     exception messages are the one residual user-content vector (accepted — stack traces are the point);
+     parse-before-auth/body-cap → recommend an edge (Caddy) rate/body cap as future defense-in-depth. **Still
+     dormant until** the server sets `teatiers.diagnostics.enabled=true`+token AND a build ships
+     `DIAGNOSTICS_TOKEN` AND the user opts in — three independent gates.
