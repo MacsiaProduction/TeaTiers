@@ -2172,3 +2172,30 @@ deviated.
      on the estimated Wikidata counts. **VM stays at 4 GB** (user decision) — the miss-log is tiny and fits;
      a contribution queue / AI-on would need headroom, so the boundary is documented (no new always-on
      service on this box; resize only when AI-on or load forces it).
+
+117. **2026-06-19 review program shipped + deployed; adversarial review caught 6 pre-merge fixes.** The
+     full 2026-06-19 architecture review + run-16 verdict were worked into four merged PRs and one
+     prod redeploy:
+     - **#82** — the live Wikidata `/resolve` 500 fix (#115), deployed first.
+     - **#83** — the demand-driven **miss-log growth engine** (#116): `catalog_miss` (V5, no-PII upsert),
+       wired into `ResolveService.unresolved()`; plus the review P2s (`/teas/search` `@Size` validation +
+       generous `searchRateLimiter`, OcrClient 502 contract test).
+     - **#84** — the OCR **conditional upscale** (#114 option C, the 3/4→4/4 win) + inference deadline +
+       Content-Length early-out; Caddy edge hardening (HSTS/nosniff/Referrer-Policy/no-Server, 10 MB
+       body cap, transport timeouts); IaC `ocr_sidecar_image` drift fix; atomic `backup.sh`; CI
+       `tofu init -lockfile=readonly`.
+     - **#85** — app data-integrity: atomic `@Transaction` enrichment merge (lost-update fix),
+       `PhotoStore.reconcile` orphan sweep (import + app-open), reactive `observeTea` edit-strip,
+       nav boot-loop guard, `BackupManagerTest`; + the #116 catalog reframe copy.
+     **Process:** before merge, an **adversarial review workflow** (9 dimension reviewers × 2 independent
+     skeptics each) vetted all three feature PRs → 9 confirmed findings (all low/medium, no functional
+     bugs). 6 were fixed pre-merge: code-point-safe miss-log truncation (surrogate split), corrected a
+     misleading `@Validated` test comment, **OCR executor-recycle on timeout** (the deadline freed the
+     client but not the single worker → head-of-line 504s), `backup.sh` `.partial` prune leak, photo
+     reconcile TOCTOU grace-window + the two missing behavioral tests (observeTea rewire, app-open sweep);
+     the `applyEnrichmentPatch` atomicity gap was accepted (a Room guarantee needing an instrumented test).
+     **Deployed + verified (2026-06-19, user-authorized batched redeploy):** server + sidecar images
+     republished, recreated on the VM, Caddy gracefully reloaded. Live: a gibberish resolve →
+     `200 UNRESOLVED` and lands in `catalog_miss` (`zxqwfake teaname 9981 | 1 | 2026-06-19`); the public
+     edge now returns HSTS + `nosniff` + `Referrer-Policy` and drops the `Server` banner; OCR sidecar
+     healthy. The catalog growth engine is **live in prod**.
