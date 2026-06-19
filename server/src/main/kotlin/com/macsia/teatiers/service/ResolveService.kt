@@ -32,6 +32,7 @@ class ResolveService(
     private val enrichmentStubService: EnrichmentStubService,
     private val llmEnrichmentService: LlmEnrichmentService,
     private val llmDailyBudget: LlmDailyBudget,
+    private val missLogService: MissLogService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -55,11 +56,26 @@ class ResolveService(
             return respond(if (result.created) ResolveStatus.ENRICHED else ResolveStatus.MATCHED, result.id)
         }
 
-        if (!foundationModelsClient.isEnabled) return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
+        if (!foundationModelsClient.isEnabled) return unresolved(name)
         // Global daily cost ceiling: once exhausted, a miss fails closed to Wikidata-only (no stub,
         // no LLM call) rather than queuing unbounded paid work behind a shared IP.
-        if (!llmDailyBudget.tryAcquire()) return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
+        if (!llmDailyBudget.tryAcquire()) return unresolved(name)
         return startEnrichment(name, locale, sourceText)
+    }
+
+    /**
+     * A genuine "tea not found": the name isn't in the catalog cache or Wikidata, and the LLM tier is
+     * off or budget-capped. Log it to the demand-driven miss log (decision #116) so the operator can
+     * curate the most-wanted misses into the seed — best-effort, so a logging hiccup never fails the
+     * caller's resolve — then return UNRESOLVED.
+     */
+    private fun unresolved(name: String): ResolveResponseDto {
+        try {
+            missLogService.record(name)
+        } catch (ex: RuntimeException) {
+            log.warn("miss-log write failed for a resolve miss: {}", ex.toString())
+        }
+        return ResolveResponseDto(ResolveStatus.UNRESOLVED, null)
     }
 
     /** A known row: re-arm + retry a previously FAILED LLM stub, else report MATCHED/ENRICHING. */

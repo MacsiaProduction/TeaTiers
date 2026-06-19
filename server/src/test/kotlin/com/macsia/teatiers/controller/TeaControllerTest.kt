@@ -62,6 +62,10 @@ class TeaControllerTest {
     lateinit var ocrRateLimiter: FixedWindowRateLimiter
 
     @Autowired
+    @Qualifier("searchRateLimiter")
+    lateinit var searchRateLimiter: FixedWindowRateLimiter
+
+    @Autowired
     lateinit var ocrService: OcrService
 
     @Autowired
@@ -85,6 +89,9 @@ class TeaControllerTest {
         fun ocrRateLimiter(): FixedWindowRateLimiter = mockk()
 
         @Bean
+        fun searchRateLimiter(): FixedWindowRateLimiter = mockk()
+
+        @Bean
         fun ocrService(): OcrService = mockk()
 
         // A real semaphore (not a mock) so the controller's acquire/release works; tests that need
@@ -98,7 +105,9 @@ class TeaControllerTest {
     // to the call under test.
     @BeforeEach
     fun resetMocks() {
-        clearMocks(service, resolveService, resolveRateLimiter, ocrRateLimiter, ocrService)
+        clearMocks(service, resolveService, resolveRateLimiter, ocrRateLimiter, searchRateLimiter, ocrService)
+        // Search is now rate-limited; default every test to "allowed" (the limit case overrides).
+        every { searchRateLimiter.tryAcquire(any()) } returns true
     }
 
     @Test
@@ -287,6 +296,43 @@ class TeaControllerTest {
             .andExpect(status().isServiceUnavailable())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("OCR unavailable"))
+    }
+
+    @Test
+    fun `ocr returns 502 problem json when the sidecar fails`() {
+        // OcrService throws OcrFailedException when OcrClient.recognize returns null (sidecar outage
+        // / 5xx — OcrClient swallows it to null, see OcrClientTest). The controller surfaces 502.
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
+        every { ocrService.recognize(any(), any()) } throws OcrFailedException()
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1))),
+        )
+            .andExpect(status().isBadGateway())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("OCR failed"))
+    }
+
+    @Test
+    fun `search rejects an over-long query with 400 problem json`() {
+        // Spring 6.1+/Boot 4.x built-in method validation enforces the bare param-level @Size(max=100)
+        // on q -> HandlerMethodValidationException -> 400 problem+json. NOTE: no class-level @Validated
+        // (that routes through the AOP interceptor -> ConstraintViolationException, unhandled here ->
+        // 500), which would regress the very behavior this test guards (review P2).
+        mockMvc.perform(get("/api/v1/teas/search").param("q", "x".repeat(101)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        verify(exactly = 0) { service.search(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `search returns 429 problem json when its window is exhausted`() {
+        every { searchRateLimiter.tryAcquire(any()) } returns false
+
+        mockMvc.perform(get("/api/v1/teas/search").param("q", "long"))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+        verify(exactly = 0) { service.search(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test

@@ -45,6 +45,10 @@ teatiers:
   resolve:
     # Per-client (forwarded IP) fixed-window cap for POST /resolve; protects the Wikidata/LLM budget.
     rate-per-minute: 20
+  search:
+    # Per-client cap for GET /teas/search (review P2). Generous on purpose — an anti-abuse floor
+    # well above any debounced search-as-you-type, so a normal user never hits it.
+    rate-per-minute: 120
   wikidata:
     # First (free, CC0) enrichment tier. Override the User-Agent per deployment to satisfy the
     # Wikimedia UA policy (descriptive agent + contact). Set enabled=false to skip the network tier.

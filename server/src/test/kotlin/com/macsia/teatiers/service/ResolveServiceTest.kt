@@ -27,9 +27,10 @@ class ResolveServiceTest {
     private val llmEnrichmentService = mockk<LlmEnrichmentService>(relaxed = true)
     // Default: budget available; the exhausted case overrides it.
     private val llmDailyBudget = mockk<LlmDailyBudget> { every { tryAcquire() } returns true }
+    private val missLogService = mockk<MissLogService>(relaxed = true)
     private val service = ResolveService(
         repository, wikidataClient, upsertService, catalogService,
-        foundationModelsClient, stubService, llmEnrichmentService, llmDailyBudget,
+        foundationModelsClient, stubService, llmEnrichmentService, llmDailyBudget, missLogService,
     )
 
     private val longjing = WikidataTea("Q1069130", TeaType.GREEN, "CN", "Longjing tea", "Лунцзин", "龙井茶", null)
@@ -53,6 +54,8 @@ class ResolveServiceTest {
         assertEquals(ResolveStatus.MATCHED, response.status)
         assertEquals(5L, response.tea?.id)
         verify(exactly = 0) { wikidataClient.findTea(any(), any()) }
+        // A hit is not a miss — nothing goes to the miss log.
+        verify(exactly = 0) { missLogService.record(any()) }
     }
 
     @Test
@@ -103,6 +106,8 @@ class ResolveServiceTest {
         assertEquals(ResolveStatus.UNRESOLVED, response.status)
         assertEquals(null, response.tea)
         verify(exactly = 0) { llmEnrichmentService.enrich(any(), any(), any()) }
+        // A genuine miss is logged (trimmed name) for demand-driven curation (#116).
+        verify { missLogService.record("Totally Unknown Brew") }
     }
 
     @Test
@@ -135,6 +140,8 @@ class ResolveServiceTest {
         // Fails closed before any cost is incurred: no stub row, no LLM dispatch.
         verify(exactly = 0) { stubService.createOrGetStub(any(), any()) }
         verify(exactly = 0) { llmEnrichmentService.enrich(any(), any(), any()) }
+        // Still a real miss from the user's view → logged (#116).
+        verify { missLogService.record("Budget Capped Brew") }
     }
 
     @Test
