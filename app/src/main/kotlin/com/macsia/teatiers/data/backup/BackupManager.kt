@@ -121,6 +121,13 @@ class BackupManager @Inject constructor(
             }
             val entities = bundle.toSeedEntities(restoredPaths)
             dao.replaceAll(entities)
+            // A destructive replace-all orphans every photo file the *old* corpus referenced. Sweep
+            // them now, keeping exactly the files the freshly-imported rows point at (review
+            // 2026-06-18). Best-effort: the DB is already restored, so a sweep failure must not fail
+            // the import — the leftovers get caught by the app-open reconcile.
+            val keepPaths = entities.photos.map { it.uri }.filter { it.startsWith("/") }.toSet()
+            runCatching { photoStore.reconcile(keepPaths) }
+                .onFailure { Log.w(TAG, "Photo reconcile after import failed", it) }
             BackupResult.Imported(entities.teas.size)
         } catch (e: Exception) {
             Log.w(TAG, "Import write failed", e)

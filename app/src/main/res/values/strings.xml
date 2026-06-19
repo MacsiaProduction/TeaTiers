@@ -220,7 +220,7 @@
     <!-- Catalog search (M3): the box atop the add form; picking a result prefills the fields. -->
     <string name="catalog_search_label">Поиск в каталоге</string>
     <string name="catalog_search_hint">Найдите чай в общем каталоге — поля заполнятся сами. Название отправляется в сервис каталога.</string>
-    <string name="catalog_search_empty">В каталоге ничего не нашлось.</string>
+    <string name="catalog_search_empty">Каталог — подборка известных чаёв; этого в нём пока нет. Добавьте свой:</string>
     <string name="catalog_search_offline">Нет соединения с каталогом.</string>
     <string name="catalog_search_error">Не удалось загрузить каталог. Попробуйте позже.</string>
     <string name="catalog_search_from_cache">Офлайн-результаты из ранее загруженных.</string>

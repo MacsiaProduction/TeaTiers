@@ -14,6 +14,7 @@ import com.macsia.teatiers.data.db.TeaWithChildren
 import com.macsia.teatiers.data.db.TierEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * In-memory [TeaDao] for JVM unit tests. The inherited @Transaction methods (seed, addTea,
@@ -41,6 +42,11 @@ class FakeTeaDao : TeaDao() {
     override fun observeBoards(): Flow<List<BoardWithChildren>> = state
 
     override fun observeAllTeas(): Flow<List<TeaWithChildren>> = allTeasState
+
+    // Re-emits on every write (refresh() updates allTeasState), mirroring Room's reactive single-row
+    // query — including for a placement-less tea, which still appears in the all-teas projection.
+    override fun observeTea(teaId: String): Flow<TeaWithChildren?> =
+        allTeasState.map { rows -> rows.firstOrNull { it.tea.id == teaId } }
 
     override suspend fun loadTea(teaId: String): TeaWithChildren? =
         teas.firstOrNull { it.id == teaId }?.let { tea ->

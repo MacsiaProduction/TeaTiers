@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.repository
 
 import android.net.Uri
+import android.util.Log
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.PhotoEntity
@@ -97,6 +98,15 @@ class TeaBoardRepository @Inject constructor(
                     entities.photos,
                 )
             }
+            // App-open orphan sweep (review 2026-06-18): drop any photo file that no DB row
+            // references — e.g. left by a crash between copy-in and row-insert, or an older import
+            // before reconcile existed. It can in principle overlap a concurrent addPhoto (e.g. a
+            // process-death restore straight onto the edit screen), so reconcile itself protects an
+            // in-flight copy via a recent-file grace window (see PhotoStore.reconcile). Best-effort.
+            runCatching {
+                val known = dao.allPhotos().map { it.uri }.filter { it.startsWith("/") }.toSet()
+                photoStore.reconcile(known)
+            }.onFailure { Log.w("TeaBoardRepository", "App-open photo reconcile failed", it) }
         }
     }
 
@@ -115,6 +125,14 @@ class TeaBoardRepository @Inject constructor(
         }
         return dao.loadTea(teaId)?.toDomain()
     }
+
+    /**
+     * Reactive single-tea read for the edit screen's photo strip (review 2026-06-19). Unlike [tea]
+     * (a one-shot snapshot read off the boards cache), this is a Room Flow, so adding or removing a
+     * photo refreshes the strip even for a tea with zero board placements — which never shows up in
+     * [boards]. Emits null if the tea is deleted.
+     */
+    fun observeTea(teaId: String): Flow<Tea?> = dao.observeTea(teaId).map { it?.toDomain() }
 
     /**
      * Counts how many boards the user-tea currently sits on. Drives the "Изменения видны во

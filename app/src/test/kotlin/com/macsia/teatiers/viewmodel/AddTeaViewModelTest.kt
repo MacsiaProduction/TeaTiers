@@ -19,6 +19,7 @@ import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TeaType
 import com.macsia.teatiers.domain.model.Tier
 import io.mockk.Runs
@@ -432,6 +433,29 @@ class AddTeaViewModelTest {
         coVerify(exactly = 1) { repository.removePhoto("t1", "photo-1") }
         coVerify(exactly = 1) { repository.reorderPhotos("t1", capture(orderedSlot)) }
         assertEquals(listOf("a", "b", "c"), orderedSlot.captured)
+    }
+
+    @Test
+    fun `edit-mode photo strip reflects the reactive tea flow, even for a tea with zero placements`() = runTest {
+        // The tea is on NO board, so it never appears in repository.boards — the old boards-driven
+        // projection could not refresh its strip. The rewire to repository.observeTea must (review
+        // 2026-06-19). repository.boards stays the placement-less default from setUp.
+        val base = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        val teaFlow = MutableStateFlow<Tea?>(base)
+        coEvery { repository.tea(eq("t1")) } returns base
+        every { repository.observeTea("t1") } returns teaFlow
+
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        viewModel.photos.test {
+            assertEquals(emptyList<TeaPhoto>(), awaitItem()) // no photos yet
+            // Adding a photo to the tea row re-emits through observeTea -> the strip updates live.
+            teaFlow.value = base.copy(photos = listOf(TeaPhoto(id = "ph1", uri = "/fake/p.jpg", position = 0)))
+            assertEquals(listOf("ph1"), awaitItem().map { it.id })
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     private fun catalogTea(
