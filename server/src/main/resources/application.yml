@@ -91,6 +91,22 @@ teatiers:
     # Global cap on concurrent /teas/ocr requests; over-budget calls fast-fail 503 so they can't
     # pin Tomcat threads behind the single-worker sidecar (review F4). Keep near the sidecar workers.
     max-concurrent: 4
+  appupdate:
+    # In-app auto-update manifest (decision #119), served at GET /api/v1/app/latest (anonymous, no-PII).
+    # The operator sets these AFTER cutting a GitHub release: the release workflow prints the APK SHA-256,
+    # and signing-cert-sha256 comes from `apksigner verify --print-certs`. latest-version-code <= 0 =>
+    # the endpoint 204s ("no update info"). Override via env, e.g. TEATIERS_APPUPDATE_LATEST_VERSION_CODE.
+    latest-version-code: 0
+    latest-version-name: ""
+    min-supported-version-code: 0
+    apk-url: ""
+    apk-sha256: ""
+    signing-cert-sha256: ""
+    mirror-urls: []
+    release-notes-ru: ""
+    release-notes-en: ""
+    mandatory: false
+    min-os-sdk: 26
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
