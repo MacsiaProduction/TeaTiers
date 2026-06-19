@@ -315,7 +315,10 @@ class TeaControllerTest {
 
     @Test
     fun `search rejects an over-long query with 400 problem json`() {
-        // @Validated + @Size(max=100) on q bounds the public endpoint's input (review P2).
+        // Spring 6.1+/Boot 4.x built-in method validation enforces the bare param-level @Size(max=100)
+        // on q -> HandlerMethodValidationException -> 400 problem+json. NOTE: no class-level @Validated
+        // (that routes through the AOP interceptor -> ConstraintViolationException, unhandled here ->
+        // 500), which would regress the very behavior this test guards (review P2).
         mockMvc.perform(get("/api/v1/teas/search").param("q", "x".repeat(101)))
             .andExpect(status().isBadRequest())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))

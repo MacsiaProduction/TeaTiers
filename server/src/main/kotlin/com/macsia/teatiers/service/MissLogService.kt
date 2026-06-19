@@ -37,9 +37,16 @@ class MissLogService(
      * Group case/whitespace variants of the same query without mangling readability: trim, collapse
      * internal whitespace, lowercase, and cap the length. Deliberately does NOT strip diacritics
      * (unlike the catalog dedup key) so Cyrillic `ё`/`й` survive and the operator can read the row.
+     *
+     * The cap counts **code points**, not UTF-16 units: a plain `take(MAX_LEN)` can cut between a
+     * surrogate pair (lowercase() can expand length and push an astral char onto the boundary),
+     * leaving a lone surrogate that isn't valid UTF-8 and would be rejected by the `text` column.
      */
-    private fun normalize(value: String): String =
-        value.trim().replace(WHITESPACE, " ").lowercase().take(MAX_LEN)
+    private fun normalize(value: String): String {
+        val collapsed = value.trim().replace(WHITESPACE, " ").lowercase()
+        if (collapsed.codePointCount(0, collapsed.length) <= MAX_LEN) return collapsed
+        return collapsed.substring(0, collapsed.offsetByCodePoints(0, MAX_LEN))
+    }
 
     private companion object {
         val WHITESPACE = Regex("\\s+")
