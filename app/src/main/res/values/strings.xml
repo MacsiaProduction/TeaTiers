@@ -292,4 +292,22 @@
     <string name="flavor_earthy_nutty">Землистость</string>
     <string name="flavor_umami">Умами</string>
     <string name="flavor_roasted">Обжарка</string>
+
+    <!-- In-app self-update (decision #119): GMS-free, GitHub Releases APK, signature-verified. -->
+    <string name="settings_updates_section">Обновления</string>
+    <string name="settings_check_updates">Проверить обновления</string>
+    <string name="settings_check_updates_hint">Загрузка из GitHub, подпись проверяется автоматически</string>
+    <string name="update_checking">Проверяем…</string>
+    <string name="update_up_to_date">Установлена последняя версия</string>
+    <string name="update_check_failed">Не удалось проверить обновления</string>
+    <string name="update_available_title">Доступно обновление</string>
+    <string name="update_version">Версия %1$s</string>
+    <string name="update_verified_badge">✓ Подпись разработчика проверена</string>
+    <string name="update_forced_note">Это обязательное обновление — без него приложение может работать некорректно.</string>
+    <string name="update_action_install">Обновить</string>
+    <string name="update_action_later">Позже</string>
+    <string name="update_working">Загрузка и установка…</string>
+    <string name="update_failed_title">Не удалось обновить</string>
+    <string name="update_failed_message">Что-то пошло не так. Можно скачать APK вручную с GitHub.</string>
+    <string name="update_download_github">Скачать с GitHub</string>
 </resources>

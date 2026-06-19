@@ -4,4 +4,6 @@
 <paths>
     <cache-path name="backups" path="backups/" />
     <cache-path name="scans" path="scans/" />
+    <!-- The downloaded, verified update APK handed to PackageInstaller (decision #119). -->
+    <cache-path name="updates" path="updates/" />
 </paths>

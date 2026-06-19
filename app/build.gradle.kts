@@ -129,6 +129,10 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)
 
+    // In-app self-update installer (decision #119): GMS-free PackageInstaller wrapper.
+    implementation(libs.ackpine.core)
+    implementation(libs.ackpine.ktx)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

@@ -5,6 +5,11 @@
          only a typed query string ever leaves the app (plan privacy note). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- In-app self-update (decision #119): install a verified, downloaded release APK via
+         PackageInstaller. The user still grants "install unknown apps" per-source + confirms each
+         install; we never install silently. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".TeaTiersApplication"
         android:allowBackup="false"

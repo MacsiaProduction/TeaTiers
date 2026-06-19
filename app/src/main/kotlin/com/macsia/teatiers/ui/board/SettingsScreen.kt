@@ -1,5 +1,6 @@
 package com.macsia.teatiers.ui.board
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +50,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,9 +58,11 @@ import com.macsia.teatiers.BuildConfig
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.ThemeMode
 import com.macsia.teatiers.viewmodel.AppLanguage
+import com.macsia.teatiers.viewmodel.AppUpdateViewModel
 import com.macsia.teatiers.viewmodel.BackupEvent
 import com.macsia.teatiers.viewmodel.BackupViewModel
 import com.macsia.teatiers.viewmodel.SettingsViewModel
+import com.macsia.teatiers.viewmodel.UpdateUiState
 import com.macsia.teatiers.viewmodel.appLanguageOf
 
 /**
@@ -73,8 +78,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
+    updateViewModel: AppUpdateViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.state.collectAsStateWithLifecycle()
+    // True once the user taps "Check for updates", so an Idle result reads as "up to date" (not blank).
+    var updateChecked by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     // LocalResources (not context.getString) so strings re-resolve on a locale/config change.
     val resources = LocalResources.current
@@ -200,6 +209,31 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsSection(title = stringResource(R.string.settings_updates_section)) {
+                ActionRow(
+                    title = stringResource(R.string.settings_check_updates),
+                    hint = stringResource(R.string.settings_check_updates_hint),
+                    onClick = {
+                        updateChecked = true
+                        updateViewModel.check()
+                    },
+                )
+                val status = when (updateState) {
+                    UpdateUiState.Checking -> stringResource(R.string.update_checking)
+                    UpdateUiState.Idle -> if (updateChecked) stringResource(R.string.update_up_to_date) else null
+                    is UpdateUiState.Failed -> stringResource(R.string.update_check_failed)
+                    is UpdateUiState.Available, UpdateUiState.Working -> null // shown as a dialog
+                }
+                if (status != null) {
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+            }
+
             SettingsSection(title = stringResource(R.string.settings_about_section)) {
                 Text(
                     text = stringResource(R.string.app_name),
@@ -249,6 +283,101 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+
+    UpdateDialogs(
+        state = updateState,
+        onInstall = updateViewModel::installUpdate,
+        onDismiss = updateViewModel::dismiss,
+        onOpenUrl = { url ->
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            } catch (_: ActivityNotFoundException) {
+                // No browser to handle the link; nothing more we can do here.
+            }
+        },
+    )
+}
+
+/** The update prompts (decision #119): an optional/forced "available" dialog, a blocking progress
+ *  dialog while it downloads+installs, and a failure dialog with a manual GitHub fallback. */
+@Composable
+private fun UpdateDialogs(
+    state: UpdateUiState,
+    onInstall: () -> Unit,
+    onDismiss: () -> Unit,
+    onOpenUrl: (String) -> Unit,
+) {
+    when (state) {
+        is UpdateUiState.Available -> AlertDialog(
+            // A forced update can't be dismissed by tapping outside or Back.
+            onDismissRequest = { if (!state.forced) onDismiss() },
+            title = { Text(stringResource(R.string.update_available_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.update_version, state.manifest.latestVersionName),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    if (state.manifest.releaseNotesRu.isNotBlank()) {
+                        Text(text = state.manifest.releaseNotesRu, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Text(
+                        text = stringResource(R.string.update_verified_badge),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (state.forced) {
+                        Text(
+                            text = stringResource(R.string.update_forced_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onInstall) { Text(stringResource(R.string.update_action_install)) }
+            },
+            dismissButton = if (state.forced) {
+                null
+            } else {
+                { TextButton(onClick = onDismiss) { Text(stringResource(R.string.update_action_later)) } }
+            },
+        )
+
+        UpdateUiState.Working -> AlertDialog(
+            onDismissRequest = {}, // a download/install in flight can't be dismissed
+            confirmButton = {},
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(stringResource(R.string.update_working))
+                }
+            },
+        )
+
+        is UpdateUiState.Failed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.update_failed_title)) },
+            text = { Text(stringResource(R.string.update_failed_message)) },
+            confirmButton = {
+                val url = state.manifest?.apkUrl
+                if (!url.isNullOrBlank()) {
+                    TextButton(onClick = { onOpenUrl(url) }) {
+                        Text(stringResource(R.string.update_download_github))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+
+        UpdateUiState.Idle, UpdateUiState.Checking -> Unit // no dialog
     }
 }
 
