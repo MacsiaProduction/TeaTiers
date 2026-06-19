@@ -1,6 +1,7 @@
 package com.macsia.teatiers.di
 
 import com.macsia.teatiers.BuildConfig
+import com.macsia.teatiers.data.remote.AppUpdateApi
 import com.macsia.teatiers.data.remote.CatalogApi
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.DefaultCatalogRepository
@@ -64,6 +65,10 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideCatalogApi(retrofit: Retrofit): CatalogApi = retrofit.create(CatalogApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAppUpdateApi(retrofit: Retrofit): AppUpdateApi = retrofit.create(AppUpdateApi::class.java)
 }
 
 @Module
