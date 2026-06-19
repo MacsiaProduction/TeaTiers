@@ -24,11 +24,13 @@ db_container="${DB_CONTAINER:-teatiers-db}"
 db_user="${POSTGRES_USER:-teatiers}"
 db_name="${POSTGRES_DB:-teatiers}"
 
-# Runs the SQL on $1 inside the db container, piping it via stdin (so no remote quoting of the query).
-# Output is pipe-delimited tuples (psql -tA -F '|').
-run_sql() {
+# Runs SQL ($1) inside the db container, piping it via stdin (so no remote quoting of the query) and
+# letting psql do the formatting ($2 = extra psql flags). We deliberately do NOT post-parse delimited
+# output: a query_norm can legitimately contain '|' or ',', which would mis-split a hand-rolled
+# separator. psql's own aligned table + COPY..WITH CSV handle embedded separators correctly (review).
+run_psql() {
   printf '%s\n' "$1" | ssh -i "$ssh_key" -o ConnectTimeout=15 "$ssh_target" \
-    "docker exec -i ${db_container} psql -tA -F '|' -U ${db_user} -d ${db_name}"
+    "docker exec -i ${db_container} psql ${2:-} -U ${db_user} -d ${db_name}"
 }
 
 cmd="${1:-top}"
@@ -36,23 +38,20 @@ case "$cmd" in
 top)
   n="${2:-50}"
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "N must be a number" >&2; exit 2; }
-  { echo "rank|query|misses|first_seen|last_seen"
-    run_sql "SELECT query_norm, miss_count, first_seen, last_seen FROM catalog_miss ORDER BY miss_count DESC, last_seen DESC LIMIT ${n};" \
-      | awk -F'|' 'NF>=4 {printf "%d|%s|%s|%s|%s\n", NR, $1, $2, $3, $4}'
-  } | column -t -s'|'
+  # psql renders the aligned table itself — correct even when a query contains '|' or ','. -P pager=off
+  # is belt-and-suspenders (no tty over `docker exec -i` anyway).
+  run_psql "SELECT row_number() OVER (ORDER BY miss_count DESC, last_seen DESC) AS rank, query_norm, miss_count, first_seen, last_seen FROM catalog_miss ORDER BY miss_count DESC, last_seen DESC LIMIT ${n};" "-P pager=off"
   ;;
 since)
   date="${2:?usage: catalog-misses.sh since YYYY-MM-DD}"
   [[ "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "DATE must be YYYY-MM-DD" >&2; exit 2; }
-  { echo "query|misses|first_seen|last_seen"
-    run_sql "SELECT query_norm, miss_count, first_seen, last_seen FROM catalog_miss WHERE last_seen >= DATE '${date}' ORDER BY miss_count DESC LIMIT 500;"
-  } | column -t -s'|'
+  run_psql "SELECT query_norm, miss_count, first_seen, last_seen FROM catalog_miss WHERE last_seen >= DATE '${date}' ORDER BY miss_count DESC LIMIT 500;" "-P pager=off"
   ;;
 csv)
   n="${2:-100}"
   [[ "$n" =~ ^[0-9]+$ ]] || { echo "N must be a number" >&2; exit 2; }
-  echo "query,misses,first_seen,last_seen"
-  run_sql "SELECT query_norm, miss_count, first_seen, last_seen FROM catalog_miss ORDER BY miss_count DESC LIMIT ${n};" | sed 's/|/,/g'
+  # COPY..WITH CSV does proper RFC-4180 quoting, so a query containing ',' or '"' stays one field.
+  run_psql "COPY (SELECT query_norm, miss_count, first_seen, last_seen FROM catalog_miss ORDER BY miss_count DESC LIMIT ${n}) TO STDOUT WITH CSV HEADER;"
   ;;
 *)
   echo "usage: $0 {top [N] | since YYYY-MM-DD | csv [N]}" >&2
