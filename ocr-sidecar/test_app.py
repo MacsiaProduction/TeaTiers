@@ -101,3 +101,28 @@ def test_inference_deadline_returns_504(monkeypatch):
     monkeypatch.setattr(app_module, "_recognize", lambda data: _time.sleep(1.0) or "late")
     r = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r.status_code == 504
+
+
+def test_timeout_recycles_worker_so_the_next_request_is_not_blocked(monkeypatch):
+    # A wedged first request must not pin the single worker: after its 504 the executor is recycled,
+    # so a following request runs on a fresh worker instead of queueing behind the stuck inference.
+    import time as _time
+
+    calls = {"n": 0}
+
+    def recognize(data):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            _time.sleep(0.5)  # wedges the (now-abandoned) worker
+            return "late"
+        return "fast"
+
+    monkeypatch.setattr(app_module, "_recognize", recognize)
+    monkeypatch.setattr(app_module, "INFERENCE_DEADLINE_S", 0.05)
+
+    r1 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
+    assert r1.status_code == 504
+    # Without the recycle this would queue behind the 0.5s wedge and trip its own 0.05s deadline (504).
+    r2 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
+    assert r2.status_code == 200
+    assert r2.json() == {"text": "fast"}

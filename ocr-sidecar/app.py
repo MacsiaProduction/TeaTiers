@@ -57,8 +57,11 @@ MULTIPART_SLACK_BYTES = 64 * 1024
 # image could OOM the container — PaddleOCR issue #16168).
 UPSCALE_SHORT_BELOW = int(os.environ.get("OCR_UPSCALE_SHORT_BELOW", "500"))
 UPSCALE_TARGET_SHORT = int(os.environ.get("OCR_UPSCALE_TARGET_SHORT", "960"))
-# Hard wall-clock deadline on a single inference so a pathological image can't pin the worker and the
-# client indefinitely; on expiry the request fails 504 and the FastAPI task is freed.
+# Hard wall-clock deadline on a single inference. On expiry the request fails 504; the worker thread
+# itself can't be killed, so the still-running inference would otherwise wedge the single-worker pool
+# and 504 every request queued behind it — hence on timeout we RECYCLE the executor (a fresh worker
+# for the next request; the wedged thread finishes on the abandoned pool and is discarded, costing
+# one transient in-flight inference's RAM, which the byte/pixel caps bound).
 INFERENCE_DEADLINE_S = float(os.environ.get("OCR_INFERENCE_DEADLINE_S", "15"))
 
 # Concurrency cap = 1: a single worker serializes inference so peak CPU/RSS stay bounded.
@@ -162,6 +165,7 @@ async def health() -> JSONResponse:
 
 @app.post("/ocr")
 async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    global _executor
     # Cheap early-out: reject a grossly oversized upload by its declared Content-Length BEFORE
     # spooling the whole body. The authoritative byte cap (post-read, below) still applies; this just
     # avoids buffering a huge body. A missing/garbage header falls through to the post-read check.
@@ -189,8 +193,13 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
             timeout=INFERENCE_DEADLINE_S,
         )
     except asyncio.TimeoutError:
-        # The worker thread can't be killed, but the client request is freed rather than hung.
-        log.warning("OCR timed out after %ss (%d bytes)", INFERENCE_DEADLINE_S, len(data))
+        # The wedged worker thread can't be killed; recycle the pool so the NEXT request gets a clean
+        # worker instead of queueing behind the still-running inference (which finishes on the
+        # abandoned executor and is then discarded).
+        log.warning("OCR timed out after %ss (%d bytes); recycling worker", INFERENCE_DEADLINE_S, len(data))
+        stale = _executor
+        _executor = ThreadPoolExecutor(max_workers=1)
+        stale.shutdown(wait=False)
         raise HTTPException(status_code=504, detail="recognition timed out")
     except Exception:
         log.exception("OCR recognition failed (%d bytes)", len(data))

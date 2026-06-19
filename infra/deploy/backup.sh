@@ -45,6 +45,8 @@ if [ -n "${BACKUP_S3_URI:-}" ]; then
   echo "uploaded to ${BACKUP_S3_URI%/}/$(basename "$out")"
 fi
 
-# Prune local dumps past the retention window.
-find "$BACKUP_DIR" -name 'teatiers-*.sql.gz' -type f -mtime "+${RETENTION_DAYS}" -delete
+# Prune local dumps past the retention window. The `*` after .sql.gz also reaps any stale
+# `.partial` left by a hard kill / power loss (SIGKILL can't fire the EXIT trap), which the
+# bare `.sql.gz` glob would skip — otherwise orphaned partials accumulate forever.
+find "$BACKUP_DIR" -name 'teatiers-*.sql.gz*' -type f -mtime "+${RETENTION_DAYS}" -delete
 echo "pruned dumps older than ${RETENTION_DAYS}d"
