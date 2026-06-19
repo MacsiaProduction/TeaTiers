@@ -2355,4 +2355,27 @@ deviated.
      "Verified for 2026" pricing; gpt's fabricated rapidocr 3.8.4 wheel SHA + 10-sig-fig USD prices; alice's
      fabricated `confusable-homoglyphs 3.2.0`. **Verified-safe pins:** `confusable_homoglyphs==3.3.1` (tests only —
      it's spoof-*detection*, not a replacement map), `rapidfuzz==3.14.5`, `opencv-python-headless==4.11.0.86`,
-     eslav rec 7.5 MB — all MIT/Apache-2.0.
+     eslav rec 7.5 MB — all MIT/Apache-2.0. **Track 1 SHIPPED + MEASURED (#102):** the confusable normalizer +
+     keep-best-of-both catalog matcher (`ocr-sidecar/name_match.py`, 9 tests) lifts raw name-capture **3/10 → 7/10**
+     on the real photos (`proof/bench_track1.py`); a measured tweak — margin-guarding the `confirm` band — was
+     needed (else handwriting pre-filled a confident wrong "Грузинский чай"). NOT yet wired into `/ocr`.
+
+124. **OCR goal REFRAMED: description capture > name capture; research run 19 queued (2026-06-20).** User
+     clarified the high-value OCR target is the long **DESCRIPTION** text, not the name (a name is short →
+     typeable; a description isn't). Two uses: (a) reference while **scoring taste**, and (b) — crucially —
+     **additional CONTEXT fed to the existing web/Wikidata/LLM *enrichment* lookup** to identify + enrich a
+     **NEW tea not in the catalog**. The OCR text is **INPUT to enrichment, NOT an LLM-extraction job** ("not
+     use llm just for extraction"). Implications vs run-18's name focus: descriptions are **NOT
+     catalog-matchable** → no fuzzy-match safety net → pure OCR fidelity, **higher bar**. The shipped
+     confusable normalizer (#123) still cleans description homoglyphs (59 chars across 8 labels, preserves
+     `artoftea.ru`) BUT on free text can map to the **wrong** Cyrillic (`Букет→Вукет`) — harmless for
+     catalog-matched names, bad for human-read descriptions — and can't fix real misrecognitions. **Two
+     constraints changed (user):** (i) the **VM can be UPSIZED** — the 4 GB ceiling that ruled out PP-OCRv5
+     *server* rec / higher det resolution / bigger local models in run 18 is **relaxed** (still CPU / no-GPU /
+     cost-conscious / concurrency-1 OK); (ii) cloud LLM/vision is allowed for the **text enrichment** step but
+     **NOT for the photo extraction** — decision #96 (photo never leaves the VM) holds. Wrote **research run 19**
+     (`research/19-ocr-description-extraction/prompt.md`): Track A best local CPU full-text RU OCR on a bigger
+     VM (model + det resolution + the VM size & monthly ₽), Track B **description-safe correction** that fixes
+     errors without inventing wrong words (dictionary/spellcheck-gated vs a small local seq2seq corrector),
+     Track C using the noisy OCR description as **enrichment context**, Track D recommendation. Output is
+     **phased**: cleaned full text first, structuring/enrichment after. Awaiting model answers to rate.
