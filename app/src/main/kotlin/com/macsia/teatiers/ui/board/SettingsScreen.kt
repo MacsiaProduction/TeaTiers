@@ -59,6 +59,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.ThemeMode
 import com.macsia.teatiers.viewmodel.AppLanguage
 import com.macsia.teatiers.viewmodel.AppUpdateViewModel
+import com.macsia.teatiers.viewmodel.DiagnosticsViewModel
 import com.macsia.teatiers.viewmodel.BackupEvent
 import com.macsia.teatiers.viewmodel.BackupViewModel
 import com.macsia.teatiers.viewmodel.SettingsViewModel
@@ -79,6 +80,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel(),
     updateViewModel: AppUpdateViewModel = hiltViewModel(),
+    diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
@@ -232,6 +234,22 @@ fun SettingsScreen(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+            }
+
+            SettingsSection(title = stringResource(R.string.settings_diagnostics_section)) {
+                val diagnosticsEnabled by diagnosticsViewModel.enabled.collectAsStateWithLifecycle()
+                SwitchRow(
+                    title = stringResource(R.string.settings_diagnostics_toggle),
+                    hint = stringResource(R.string.settings_diagnostics_toggle_hint),
+                    checked = diagnosticsEnabled,
+                    onCheckedChange = diagnosticsViewModel::setEnabled,
+                )
+                Text(
+                    text = stringResource(R.string.settings_diagnostics_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
 
             SettingsSection(title = stringResource(R.string.settings_about_section)) {

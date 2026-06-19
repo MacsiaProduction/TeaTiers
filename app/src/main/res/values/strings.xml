@@ -310,4 +310,10 @@
     <string name="update_failed_title">Не удалось обновить</string>
     <string name="update_failed_message">Что-то пошло не так. Можно скачать APK вручную с GitHub.</string>
     <string name="update_download_github">Скачать с GitHub</string>
+
+    <!-- Opt-in, GMS-free diagnostics (decision #111). Off by default; explicit consent + full disclosure. -->
+    <string name="settings_diagnostics_section">Диагностика</string>
+    <string name="settings_diagnostics_toggle">Отправлять диагностику</string>
+    <string name="settings_diagnostics_toggle_hint">По умолчанию выключено. Можно отключить в любой момент.</string>
+    <string name="settings_diagnostics_detail">TeaTiers может отправлять разработчику диагностику сбоев и проблем миграции базы данных. Это помогает находить сбои и потерю локальных данных после обновлений.\n\nВключает: версию приложения, версию Android, модель устройства, трассировку стека и числовые счётчики (например, сколько подборок или чаёв было до и после миграции).\n\nНикогда не включает: названия чаёв, заметки, оценки, фотографии и пути к ним, ссылки, места покупки, координаты, названия подборок. Аккаунтов в TeaTiers нет.</string>
 </resources>

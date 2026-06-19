@@ -40,3 +40,7 @@ service-account*.json
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# JVM fatal-error dumps (transient build crashes)
+hs_err_pid*.log
+replay_pid*.log

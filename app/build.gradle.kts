@@ -35,6 +35,14 @@ android {
         val catalogBaseUrl = (project.findProperty("catalogBaseUrl") as? String)
             ?: "https://tea.macsia.fun/api/v1/"
         buildConfigField("String", "CATALOG_BASE_URL", "\"$catalogBaseUrl\"")
+
+        // Shared anti-spam token for the opt-in diagnostics endpoint (decision #111). NOT a secret in
+        // the security sense — it ships in the APK — so it's a plain build input (env/-Pgradle prop),
+        // defaulting to "" which makes the reporter a no-op. Must match teatiers.diagnostics.token on
+        // the server. Blank by default so a stock build never sends diagnostics anywhere.
+        val diagnosticsToken = (project.findProperty("diagnosticsToken") as? String)
+            ?: System.getenv("DIAGNOSTICS_TOKEN") ?: ""
+        buildConfigField("String", "DIAGNOSTICS_TOKEN", "\"$diagnosticsToken\"")
     }
 
     signingConfigs {
@@ -132,6 +140,11 @@ dependencies {
     // In-app self-update installer (decision #119): GMS-free PackageInstaller wrapper.
     implementation(libs.ackpine.core)
     implementation(libs.ackpine.ktx)
+
+    // Opt-in, GMS-free crash/diagnostics reporting (decision #111): posts an allowlisted report to
+    // our first-party /client-diagnostics. acra-limiter throttles repeated reports.
+    implementation(libs.acra.http)
+    implementation(libs.acra.limiter)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

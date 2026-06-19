@@ -78,6 +78,13 @@ abstract class TeaDao {
     @Query("SELECT COUNT(*) FROM boards")
     abstract suspend fun boardCount(): Int
 
+    // Out-of-Room wipe sentinel (decision #111): numeric-only user-data counts, no content.
+    @Query("SELECT COUNT(*) FROM teas")
+    abstract suspend fun teaCount(): Int
+
+    @Query("SELECT COUNT(*) FROM tea_photos")
+    abstract suspend fun photoCount(): Int
+
     /** Per-board, position is global across tiers + the tray; sort within a (board, tier) group. */
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM placements WHERE boardId = :boardId")
     abstract suspend fun nextPlacementPosition(boardId: String): Int

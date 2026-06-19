@@ -25,6 +25,9 @@ okhttp = "5.4.0"
 # In-app self-update installer (decision #119). GMS-free PackageInstaller wrapper, Apache-2.0,
 # RU-authored (solrudev); verified latest 0.23.0 (2026-05-20), minSdk 16.
 ackpine = "0.23.0"
+# Opt-in, GMS-free crash/diagnostics reporting (decision #111, research run 15 winner gpt).
+# ch.acra:acra-http posts to our first-party /client-diagnostics; Apache-2.0, no Google deps.
+acra = "5.13.1"
 # CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
 # directly, so we emit an SBOM of the resolved graph and scan that.
 cyclonedx = "3.2.4"
@@ -83,6 +86,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp" }
 okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor" }
 ackpine-core = { group = "ru.solrudev.ackpine", name = "ackpine-core", version.ref = "ackpine" }
 ackpine-ktx = { group = "ru.solrudev.ackpine", name = "ackpine-ktx", version.ref = "ackpine" }
+acra-http = { group = "ch.acra", name = "acra-http", version.ref = "acra" }
+acra-limiter = { group = "ch.acra", name = "acra-limiter", version.ref = "acra" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver" }
 
 # Local persistence (M1). room-ktx adds Flow + suspend support; room-compiler runs via KSP.
