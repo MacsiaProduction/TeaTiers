@@ -33,7 +33,10 @@ class ApkDownloader @Inject constructor(
     suspend fun download(manifest: AppManifestDto): File? = withContext(Dispatchers.IO) {
         val urls = (listOf(manifest.apkUrl) + manifest.mirrorUrls).filter { it.isNotBlank() }
         if (urls.isEmpty()) return@withContext null
-        val target = File(context.cacheDir, UPDATE_APK)
+        // The `updates/` subdir is the one FileProvider exposes (file_paths.xml), so the installer
+        // can hand a content:// Uri to PackageInstaller.
+        val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+        val target = File(dir, UPDATE_APK)
         for (url in urls) {
             if (tryDownload(url, target)) return@withContext target
             target.delete() // drop a partial before trying the next mirror
