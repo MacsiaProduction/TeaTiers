@@ -48,6 +48,15 @@ abstract class TeaDao {
     abstract suspend fun loadTea(teaId: String): TeaWithChildren?
 
     /**
+     * Reactive single-tea read (review 2026-06-19): re-emits whenever the tea or its children
+     * change, so the edit screen's photo strip stays fresh even for a tea with zero board
+     * placements (which never appears in the boards flow). Emits null if the tea is gone.
+     */
+    @Transaction
+    @Query("SELECT * FROM teas WHERE id = :teaId")
+    abstract fun observeTea(teaId: String): Flow<TeaWithChildren?>
+
+    /**
      * Every user-tea (the cross-board "my teas" collection, decisions.md #27), including teas
      * with no placement left on any board (removed from every board but not deleted — #42).
      * Ordering is cosmetic and applied in Kotlin so Russian uppercase sorts correctly.
@@ -213,6 +222,44 @@ abstract class TeaDao {
     /** Teas left mid-enrichment by a prior run (process death / offline) — re-dispatched on launch. */
     @Query("SELECT * FROM teas WHERE enrichmentState IN ('PENDING', 'QUEUED')")
     abstract suspend fun teasNeedingEnrichment(): List<TeaEntity>
+
+    /**
+     * Atomic enrichment merge (review 2026-06-19): load the row, fill only the fields the user left
+     * blank with the catalog's `candidate*` values, and write back — all in ONE @Transaction, so a
+     * concurrent user edit landing between the read and the write can't be clobbered (the old
+     * read-merge-write in the manager had that lost-update window). The catalog is a suggestion that
+     * wins only where the user is blank (#21). If another user-tea already owns this catalog link
+     * (UNIQUE, #101), the enriched names/blurb still merge but the link is left untouched (review F6).
+     * `state` is passed in (not hard-coded) to keep this DAO free of the domain enum.
+     */
+    @Transaction
+    open suspend fun applyEnrichmentPatch(
+        teaId: String,
+        candidateNameRu: String?,
+        candidateNameZh: String?,
+        candidatePinyin: String?,
+        candidateNameEn: String?,
+        type: String,
+        candidateOrigin: String?,
+        candidateShortBlurb: String?,
+        catalogTeaId: Long,
+        state: String,
+    ) {
+        val current = loadTeaRow(teaId) ?: return
+        val nameRu = candidateNameRu?.takeIf { it.isNotBlank() } ?: current.nameRu
+        val nameZh = candidateNameZh?.takeIf { it.isNotBlank() } ?: current.nameZh
+        val pinyin = candidatePinyin?.takeIf { it.isNotBlank() } ?: current.pinyin
+        val nameEn = candidateNameEn?.takeIf { it.isNotBlank() } ?: current.nameEn
+        val origin = candidateOrigin?.takeIf { it.isNotBlank() } ?: current.origin
+        val shortBlurb = candidateShortBlurb?.takeIf { it.isNotBlank() } ?: current.shortBlurb
+
+        val linkOwner = findTeaIdByCatalogId(catalogTeaId)
+        if (linkOwner != null && linkOwner != teaId) {
+            patchEnrichmentSuggestions(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, state)
+        } else {
+            patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, catalogTeaId, state)
+        }
+    }
 
     @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")
     abstract suspend fun deleteFlavorsFor(teaId: String)

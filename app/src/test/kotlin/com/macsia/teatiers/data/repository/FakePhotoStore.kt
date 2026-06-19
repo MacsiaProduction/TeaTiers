@@ -20,6 +20,12 @@ class FakePhotoStore : PhotoStore {
     val deleted: MutableList<String> = mutableListOf()
     val stored: MutableMap<String, String> = mutableMapOf()
 
+    /** Files the fake "has on disk" — tests may pre-seed an orphan; [reconcile] sweeps it. */
+    val onDisk: MutableSet<String> = mutableSetOf()
+
+    /** Every keep-set [reconcile] was called with, for asserting the import/app-open sweep. */
+    val reconcileCalls: MutableList<Set<String>> = mutableListOf()
+
     private val counter = AtomicInteger(0)
 
     override suspend fun copyIn(source: Uri): String? {
@@ -27,16 +33,28 @@ class FakePhotoStore : PhotoStore {
         if (key in failures) return null
         val path = "/fake/${counter.incrementAndGet()}.jpg"
         stored[key] = path
+        onDisk += path
         return path
     }
 
     override suspend fun delete(path: String): Boolean {
         deleted += path
+        onDisk -= path
         return true
     }
 
     override suspend fun importInto(originalName: String, input: InputStream): String? {
         input.readBytes()
-        return "/fake/imported-${counter.incrementAndGet()}.jpg"
+        val path = "/fake/imported-${counter.incrementAndGet()}.jpg"
+        onDisk += path
+        return path
+    }
+
+    override suspend fun reconcile(keepPaths: Set<String>): Int {
+        reconcileCalls += keepPaths
+        val orphans = onDisk.filterNot { it in keepPaths }
+        onDisk.removeAll(orphans.toSet())
+        deleted += orphans
+        return orphans.size
     }
 }

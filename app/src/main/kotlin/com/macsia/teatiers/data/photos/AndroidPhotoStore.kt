@@ -91,6 +91,18 @@ class AndroidPhotoStore @Inject constructor(
         file.delete()
     }
 
+    override suspend fun reconcile(keepPaths: Set<String>): Int = withContext(Dispatchers.IO) {
+        // Only ever scoped to our own private dir, so it can never sweep anything but tea photos.
+        val files = rootDir.listFiles() ?: return@withContext 0
+        var deleted = 0
+        for (file in files) {
+            if (file.isFile && file.absolutePath !in keepPaths) {
+                if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan ${file.name}")
+            }
+        }
+        deleted
+    }
+
     private fun extensionFor(uri: Uri): String {
         val mime = context.contentResolver.getType(uri)
         return when (mime) {

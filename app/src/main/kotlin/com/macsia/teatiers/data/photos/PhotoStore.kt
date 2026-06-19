@@ -31,4 +31,12 @@ interface PhotoStore {
      * an I/O failure so the caller can drop that one photo without aborting the whole restore.
      */
     suspend fun importInto(originalName: String, input: InputStream): String?
+
+    /**
+     * Deletes every file in the store whose absolute path is NOT in [keepPaths]. Used after a
+     * destructive backup import — which replaces all DB rows, orphaning the prior corpus's files —
+     * and on app-open to sweep any leftover orphans (review 2026-06-19). Best-effort; returns the
+     * number of files deleted. A path in [keepPaths] that isn't on disk is simply ignored.
+     */
+    suspend fun reconcile(keepPaths: Set<String>): Int
 }

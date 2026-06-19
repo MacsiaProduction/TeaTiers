@@ -97,6 +97,14 @@ class TeaBoardRepository @Inject constructor(
                     entities.photos,
                 )
             }
+            // App-open orphan sweep (review 2026-06-18): drop any photo file that no DB row
+            // references — e.g. left by a crash between copy-in and row-insert, or an older import
+            // before reconcile existed. Runs once at startup, before any add-photo UI exists, so it
+            // can't race a fresh copy-in. Best-effort.
+            runCatching {
+                val known = dao.allPhotos().map { it.uri }.filter { it.startsWith("/") }.toSet()
+                photoStore.reconcile(known)
+            }
         }
     }
 
@@ -115,6 +123,14 @@ class TeaBoardRepository @Inject constructor(
         }
         return dao.loadTea(teaId)?.toDomain()
     }
+
+    /**
+     * Reactive single-tea read for the edit screen's photo strip (review 2026-06-19). Unlike [tea]
+     * (a one-shot snapshot read off the boards cache), this is a Room Flow, so adding or removing a
+     * photo refreshes the strip even for a tea with zero board placements — which never shows up in
+     * [boards]. Emits null if the tea is deleted.
+     */
+    fun observeTea(teaId: String): Flow<Tea?> = dao.observeTea(teaId).map { it?.toDomain() }
 
     /**
      * Counts how many boards the user-tea currently sits on. Drives the "Изменения видны во

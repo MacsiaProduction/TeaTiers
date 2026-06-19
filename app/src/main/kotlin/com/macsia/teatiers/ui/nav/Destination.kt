@@ -38,16 +38,20 @@ private fun Destination.encode(): String = when (this) {
 }
 
 private fun String.decodeDestination(): Destination {
-    val parts = split(":")
+    // limit=2: an id never contains ':' (encode guarantees it), but splitting defensively keeps a
+    // stray ':' from truncating the id. A route that's missing its arg (corrupt/old saved stack)
+    // falls back to Boards instead of throwing IndexOutOfBounds and boot-looping the app (review P3).
+    val parts = split(":", limit = 2)
+    val arg = parts.getOrNull(1)
     return when (parts.first()) {
         "my-teas" -> Destination.MyTeas
         "settings" -> Destination.Settings
         "attributions" -> Destination.Attributions
-        "board" -> Destination.Board(parts[1])
-        "tea" -> Destination.TeaDetail(parts[1])
-        "add" -> Destination.AddTea(parts[1])
-        "edit-tea" -> Destination.EditTea(parts[1])
-        "tiers" -> Destination.TierEditor(parts[1])
+        "board" -> arg?.let(Destination::Board) ?: Destination.Boards
+        "tea" -> arg?.let(Destination::TeaDetail) ?: Destination.Boards
+        "add" -> arg?.let(Destination::AddTea) ?: Destination.Boards
+        "edit-tea" -> arg?.let(Destination::EditTea) ?: Destination.Boards
+        "tiers" -> arg?.let(Destination::TierEditor) ?: Destination.Boards
         else -> Destination.Boards
     }
 }

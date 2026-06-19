@@ -127,47 +127,27 @@ class TeaEnrichmentManager @Inject constructor(
         dao.updateEnrichmentState(localTeaId, EnrichmentState.FAILED.name)
     }
 
-    /** Merges the resolved [detail] into the local row (catalog wins only where the user is blank). */
+    /**
+     * Merges the resolved [detail] into the local row (catalog wins only where the user is blank, #21).
+     * The load-merge-write is a single Room @Transaction (review 2026-06-19) so a concurrent user edit
+     * landing between the read and the write can't be clobbered. The DAO also owns the duplicate-link
+     * case: `catalogTeaId` is UNIQUE (one user-tea per catalog row), but the local name-matcher can't
+     * unify every differently-scripted duplicate (e.g. "Tieguanyin" / "тегуанинь"), so two user-teas
+     * can resolve to the same catalog id — when another tea already owns the link, the names/blurb
+     * still merge but the link is left untouched (#101 / review F6).
+     */
     private suspend fun applyPatch(teaId: String, detail: CatalogTeaDetail) {
-        val current = dao.loadTeaRow(teaId) ?: return
-        // Merge: the catalog fills only what the user left blank (#21).
-        val nameRu = detail.nameRu.orBlankFallback(current.nameRu)
-        val nameZh = detail.nameZh.orKeep(current.nameZh)
-        val pinyin = detail.pinyin.orKeep(current.pinyin)
-        val nameEn = detail.nameEn.orKeep(current.nameEn)
-        val type = detail.type.name
-        val origin = detail.origin?.takeIf { it.isNotBlank() } ?: current.origin
-        val shortBlurb = detail.descriptionFor(CatalogLocale.RU)?.short.orKeep(current.shortBlurb)
-
-        // catalogTeaId is UNIQUE (one user-tea per catalog row, by design). The local name-matcher
-        // can't always unify differently-scripted duplicates (e.g. "Tieguanyin" / "тегуанинь"), so two
-        // user-teas can resolve to the SAME catalog id. If another tea already owns this link, writing
-        // it here would throw on the UNIQUE index and dead-end this row at FAILED (#101). Settle this
-        // duplicate DONE — but still merge the enriched names/blurb (review F6) so it isn't stranded
-        // showing only the raw typed string while the original shows the enriched card; just don't
-        // rewrite the link (it stays this row's existing value, typically null).
-        val linkOwner = dao.findTeaIdByCatalogId(detail.id)
-        if (linkOwner != null && linkOwner != teaId) {
-            dao.patchEnrichmentSuggestions(
-                teaId = teaId,
-                nameRu = nameRu, nameZh = nameZh, pinyin = pinyin, nameEn = nameEn,
-                type = type, origin = origin, shortBlurb = shortBlurb,
-                state = EnrichmentState.DONE.name,
-            )
-            return
-        }
-        dao.patchEnrichment(
+        dao.applyEnrichmentPatch(
             teaId = teaId,
-            nameRu = nameRu, nameZh = nameZh, pinyin = pinyin, nameEn = nameEn,
-            type = type, origin = origin, shortBlurb = shortBlurb,
+            candidateNameRu = detail.nameRu,
+            candidateNameZh = detail.nameZh,
+            candidatePinyin = detail.pinyin,
+            candidateNameEn = detail.nameEn,
+            type = detail.type.name,
+            candidateOrigin = detail.origin,
+            candidateShortBlurb = detail.descriptionFor(CatalogLocale.RU)?.short,
             catalogTeaId = detail.id,
             state = EnrichmentState.DONE.name,
         )
     }
-
-    private fun String?.orKeep(existing: String?): String? =
-        this?.takeIf { it.isNotBlank() } ?: existing
-
-    private fun String?.orBlankFallback(existing: String): String =
-        this?.takeIf { it.isNotBlank() } ?: existing
 }

@@ -142,9 +142,10 @@ class AddTeaViewModel @Inject constructor(
     val draftPhotos: StateFlow<List<DraftPhoto>> = _draftPhotos.asStateFlow()
 
     /**
-     * Photos visible on the strip. In edit mode this projects from the repository's user-tea
-     * (so a successful `addPhoto`/`removePhoto`/`reorderPhotos` immediately shows up); in add
-     * mode it projects from [_draftPhotos] using `DraftPhoto.id` as the strip id.
+     * Photos visible on the strip. In edit mode this projects from a reactive single-tea Room flow
+     * (so a successful `addPhoto`/`removePhoto`/`reorderPhotos` immediately shows up — even for a tea
+     * with zero board placements, which never appears in `repository.boards`, review 2026-06-19); in
+     * add mode it projects from [_draftPhotos] using `DraftPhoto.id` as the strip id.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val photos: StateFlow<List<TeaPhoto>> = _editingTeaId
@@ -152,9 +153,7 @@ class AddTeaViewModel @Inject constructor(
             if (id == null) {
                 _draftPhotos.mapLatest { drafts -> drafts.mapIndexed { i, d -> d.asTeaPhoto(i) } }
             } else {
-                repository.boards.mapLatest {
-                    repository.tea(id)?.photos.orEmpty()
-                }
+                repository.observeTea(id).mapLatest { it?.photos.orEmpty() }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
