@@ -23,7 +23,7 @@ jobs:
     name: server SBOM + OSV (JDK 21)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -42,7 +42,7 @@ jobs:
     name: app SBOM + OSV (JDK 17)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -62,7 +62,7 @@ jobs:
     name: ocr-sidecar deps + OSV (Python 3.12)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
