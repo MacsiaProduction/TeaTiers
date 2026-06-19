@@ -37,6 +37,22 @@ android {
         buildConfigField("String", "CATALOG_BASE_URL", "\"$catalogBaseUrl\"")
     }
 
+    signingConfigs {
+        create("release") {
+            // CI is the signing authority (decision #118): the release workflow base64-decodes the
+            // keystore to a file and passes its path + creds via env (from GitHub secrets). A local
+            // `assembleRelease` without these env vars produces an UNSIGNED apk — the config is only
+            // wired to the release build when the keystore env is present (see buildTypes.release) —
+            // so day-to-day local/debug builds are unaffected and no secret lives in VCS.
+            System.getenv("RELEASE_KEYSTORE_FILE")?.let { ksPath ->
+                storeFile = file(ksPath)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -44,6 +60,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Sign only when CI supplied the keystore; left unset locally so a local release build
+            // stays unsigned rather than failing on a missing keystore.
+            if (System.getenv("RELEASE_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

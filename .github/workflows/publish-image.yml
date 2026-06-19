@@ -26,6 +26,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write # cosign keyless signing + provenance attestation (OIDC)
+  attestations: write # SLSA build-provenance attestation pushed to the registry
 
 concurrency:
   group: publish-image-${{ github.ref }}
@@ -42,6 +44,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build + push
+        id: push
         env:
           OWNER: ${{ github.repository_owner }}
           EXTRA_TAG: ${{ inputs.tag }}
@@ -55,4 +58,24 @@ jobs:
           args=(); for t in "${tags[@]}"; do args+=(-t "$t"); done
           docker build "${args[@]}" server
           for t in "${tags[@]}"; do docker push "$t"; done
-          echo "Pushed: ${tags[*]}"
+          # The immutable digest is the supply-chain anchor: sign + attest it, and deploy by it
+          # (or by the :${GITHUB_SHA::12} tag) rather than mutable :latest (review 2026-06-19).
+          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${repo}:latest" | cut -d@ -f2)
+          echo "repo=${repo}" >> "$GITHUB_OUTPUT"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Pushed: ${tags[*]} @ ${digest}"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless, Sigstore)
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign "${{ steps.push.outputs.repo }}@${{ steps.push.outputs.digest }}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.push.outputs.repo }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

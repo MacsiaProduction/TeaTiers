@@ -22,6 +22,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write # cosign keyless signing + provenance attestation (OIDC)
+  attestations: write # SLSA build-provenance attestation pushed to the registry
 
 concurrency:
   group: ocr-sidecar-${{ github.ref }}
@@ -69,6 +71,7 @@ jobs:
           docker rm -f ocr >/dev/null
 
       - name: Push to ghcr.io (main only)
+        id: push
         if: github.event_name == 'push'
         env:
           OWNER: ${{ github.repository_owner }}
@@ -81,4 +84,25 @@ jobs:
           docker tag teatiers-ocr-sidecar:ci "${repo}:${GITHUB_SHA::12}"
           docker push "${repo}:latest"
           docker push "${repo}:${GITHUB_SHA::12}"
-          echo "Pushed ${repo}:latest + :${GITHUB_SHA::12}"
+          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "${repo}:latest" | cut -d@ -f2)
+          echo "repo=${repo}" >> "$GITHUB_OUTPUT"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Pushed ${repo}:latest + :${GITHUB_SHA::12} @ ${digest}"
+
+      - name: Install cosign
+        if: github.event_name == 'push'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless, Sigstore)
+        if: github.event_name == 'push'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign "${{ steps.push.outputs.repo }}@${{ steps.push.outputs.digest }}"
+
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.push.outputs.repo }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
