@@ -7,7 +7,7 @@ springDependencyManagement = "1.1.7"
 mockk = "1.14.11"
 # OkHttp MockWebServer for client HTTP round-trip tests (test-only; not on runtimeClasspath, so it
 # never reaches the SBOM/OSV gate or the bootJar). Last OkHttp 4.x stable, verified on Maven Central.
-mockwebserver = "4.12.0"
+mockwebserver = "5.4.0"
 # CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
 # directly, so we emit an SBOM of the resolved graph and scan that.
 cyclonedx = "3.2.4"
