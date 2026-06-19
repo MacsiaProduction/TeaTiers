@@ -2218,3 +2218,37 @@ deviated.
      deploy-by-digest, API-version headers + a `minSupportedAppVersion`/`upgradeAvailable` endpoint (which
      the updater reuses) + a bundled fallback seed, ACRA diagnostics + the out-of-Room wipe sentinel
      (run 15), the English-locale half-exposure fix, and a miss-log operator script/runbook.
+
+119. **In-app auto-update architecture locked from research run 17 (2026-06-19).** Run 17 (winner opus;
+     `research/17-app-autoupdate/RATING.md`) designed the GMS-free self-updater for the GitHub-Releases
+     APK (#118). The architecture was **unanimous across all 5 answers**; the split was security
+     correctness (opus/gpt got it right; deepseek/gemini/alice each had a real install-flow or signer-pin
+     bug). **Locked design (user choices folded in):**
+     - **Install:** a custom updater over `PackageInstaller.Session` (not the deprecated install intent;
+       streams via `openWrite`, no FileProvider), using **Ackpine** (`ru.solrudev.ackpine`, Apache-2.0,
+       GMS-free, RU-authored) for the fiddly session + `STATUS_PENDING_USER_ACTION` confirm + OEM
+       (MIUI/EMUI/Samsung) handling — **verify Ackpine's latest version + maintenance before pinning**.
+       `REQUEST_INSTALL_PACKAGES` + route to `canRequestPackageInstalls()`/`ACTION_MANAGE_UNKNOWN_APP_SOURCES`
+       when ungranted. No silent install (unprivileged).
+     - **Security (must-get-right):** Android enforces **same-signer on update** (not first install); the
+       app enforces **sha256-pin** the APK, **signer-cert-pin** to our release cert via `apkContentsSigners`
+       (NOT `signingCertificateHistory` — accepts rotated-away certs), and **downgrade protection**
+       (reject `versionCode ≤ installed`). **Phased manifest integrity (user):** pin-only over the
+       TLS-trusted first-party manifest **now**; add the **offline Ed25519-signed manifest** (key off-CI,
+       pubkey embedded in-app, byte-identical stored blob, detached signature) **before public**.
+     - **Host (user):** version **manifest from the first-party Spring `/api/v1/app/latest`** (always
+       RU-reachable, anonymous, no-PII, ETag/304) — **this IS review #12's `minSupportedAppVersion`/
+       `upgradeAvailable` endpoint, so #12 is subsumed by the autoupdate.** APK from the **GitHub Release
+       now**; add the **Yandex Object Storage mirror + manifest pointer before public** (GitHub asset CDN
+       is RU-throttled, so GitHub is never the *primary* download). Forced update = `installed <
+       minSupportedVersionCode` OR `mandatory`.
+     - **UX:** optional dismissable card vs forced full-screen; unmetered-Wi-Fi default; grant explainer;
+       manual GitHub fallback link; RU copy + a "проверено" badge.
+     **Sequencing (user):** build the **autoupdate first** (app updater + the signed-manifest endpoint =
+     #12), then **ACRA + the wipe sentinel (#13)**.
+     **Discard:** every answer's specific RU-reachability *percentages* (future-dated/single-news-sourced,
+     uncited — keep the conclusion, drop the numbers); alice's "self-`commit()` shows no install dialog"
+     (false — must handle `STATUS_PENDING_USER_ACTION`); gemini's `signatures[0]` cert-fingerprint bug +
+     un-canonicalized manifest signing; deepseek's `fsync`-after-close + history-cert signer-pin; **all
+     library version pins** (Ackpine 0.21.1/0.22.8/0.23.0 etc. are future-dated guesses — verify the real
+     latest). Bundled read-only fallback seed in the APK (review #12) stays on the list for the same push.
