@@ -53,6 +53,9 @@ object DiagnosticsWire {
         rowCounts = rowCounts,
     )
 
+    /** True when this build can actually send (a token is configured); false => [post] is a no-op. */
+    fun isConfigured(): Boolean = BuildConfig.DIAGNOSTICS_TOKEN.isNotBlank()
+
     private fun endpointUrl(): String = BuildConfig.CATALOG_BASE_URL.trimEnd('/') + "/client-diagnostics"
 
     /**

@@ -73,6 +73,9 @@ class MigrationSentinel @Inject constructor(
 
     suspend fun check() {
         if (!prefs.enabled.value) return
+        // Note: first-run sample reseeding also runs on @AppScope, so a freshly-wiped device's
+        // `_after` counts may be 0 or 1 depending on ordering. That's cosmetic — detection itself is
+        // driven by the reliable destructive-migration flag, not by the exact post-wipe count.
         val current = RowCounts(
             boards = teaDao.boardCount(),
             teas = teaDao.teaCount(),
@@ -83,10 +86,15 @@ class MigrationSentinel @Inject constructor(
         val versionCode = com.macsia.teatiers.BuildConfig.VERSION_CODE
         val prev = prefs.readState()
 
-        detectWipe(prev, current, dbVersion, versionCode)?.let { counts ->
-            DiagnosticsWire.post(
-                DiagnosticsWire.report(kind = ClientDiagnosticReportDto.KIND_MIGRATION_SIGNAL, rowCounts = counts),
+        val wipe = detectWipe(prev, current, dbVersion, versionCode)
+        if (wipe != null && DiagnosticsWire.isConfigured()) {
+            val delivered = DiagnosticsWire.post(
+                DiagnosticsWire.report(kind = ClientDiagnosticReportDto.KIND_MIGRATION_SIGNAL, rowCounts = wipe),
             )
+            // A wipe is a one-shot event: if we couldn't deliver it (offline at the critical moment),
+            // KEEP the evidence — leave the destructive flag + the old baseline so the next launch
+            // retries — instead of advancing past it and losing the signal forever.
+            if (!delivered) return
         }
         prefs.saveBaseline(versionCode, dbVersion, current)
     }
