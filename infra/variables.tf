@@ -34,6 +34,12 @@ variable "server_image" {
   default     = ""
 }
 
+variable "ocr_sidecar_image" {
+  type        = string
+  description = "Fully-qualified OCR sidecar image ref (decision #106/#108). docker-compose.prod.yml reads it as OCR_SIDECAR_IMAGE; without this, cloud-init would render an empty value and the ocr service would fail to start. Empty until the sidecar image is published."
+  default     = ""
+}
+
 variable "ssh_public_key" {
   type        = string
   description = "SSH public key authorized on the VM (contents, not a path). Empty keeps the existing OS Login access."

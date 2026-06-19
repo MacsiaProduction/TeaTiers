@@ -22,9 +22,16 @@ USER="${POSTGRES_USER:-teatiers}"
 mkdir -p "$BACKUP_DIR"
 stamp="$(date -u +%Y%m%d-%H%M%S)"
 out="$BACKUP_DIR/teatiers-${stamp}.sql.gz"
+tmp="${out}.partial"
+# Remove a partial dump on any failure (set -e/pipefail aborts the script mid-pipe). After a
+# successful mv, $tmp no longer exists, so this EXIT trap is a harmless no-op.
+trap 'rm -f "$tmp"' EXIT
 
-# pg_dump runs inside the container; nothing is published off the compose network.
-docker exec "$DB_CONTAINER" pg_dump --no-owner --no-privileges -U "$USER" "$DB" | gzip -c > "$out"
+# pg_dump runs inside the container; nothing is published off the compose network. Write to a
+# .partial first and rename only on success (mv is atomic on the same filesystem), so a crashed or
+# truncated dump never leaves a corrupt .sql.gz that a restore might later pick up.
+docker exec "$DB_CONTAINER" pg_dump --no-owner --no-privileges -U "$USER" "$DB" | gzip -c > "$tmp"
+mv "$tmp" "$out"
 echo "wrote $out ($(du -h "$out" | cut -f1))"
 
 # Optional off-box copy. Needs the AWS CLI + AWS_* creds in the environment (e.g. a backup SA's
@@ -38,6 +45,8 @@ if [ -n "${BACKUP_S3_URI:-}" ]; then
   echo "uploaded to ${BACKUP_S3_URI%/}/$(basename "$out")"
 fi
 
-# Prune local dumps past the retention window.
-find "$BACKUP_DIR" -name 'teatiers-*.sql.gz' -type f -mtime "+${RETENTION_DAYS}" -delete
+# Prune local dumps past the retention window. The `*` after .sql.gz also reaps any stale
+# `.partial` left by a hard kill / power loss (SIGKILL can't fire the EXIT trap), which the
+# bare `.sql.gz` glob would skip — otherwise orphaned partials accumulate forever.
+find "$BACKUP_DIR" -name 'teatiers-*.sql.gz*' -type f -mtime "+${RETENTION_DAYS}" -delete
 echo "pruned dumps older than ${RETENTION_DAYS}d"

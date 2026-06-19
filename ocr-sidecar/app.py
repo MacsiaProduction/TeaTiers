@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 import io
@@ -46,6 +46,23 @@ MAX_IMAGE_BYTES = int(os.environ.get("OCR_MAX_IMAGE_BYTES", str(10 * 1024 * 1024
 MAX_IMAGE_PIXELS = int(os.environ.get("OCR_MAX_IMAGE_PIXELS", str(30_000_000)))
 # Cap the text the sidecar returns so the server's sanitizer can't be handed an unbounded blob.
 MAX_TEXT_CHARS = int(os.environ.get("OCR_MAX_TEXT_CHARS", str(8192)))
+# Multipart framing (boundary + part headers) makes the request Content-Length a little larger than
+# the file bytes; allow this slack so the cheap Content-Length early-out doesn't reject a file that
+# is actually at/under MAX_IMAGE_BYTES (the authoritative post-read check still applies).
+MULTIPART_SLACK_BYTES = 64 * 1024
+# Conditional low-res upscale (RECONSIDER option C, decision #114): when the SHORT side is small (a
+# low-res capture), upscale to UPSCALE_TARGET_SHORT before OCR — the one measured accuracy win
+# (real-photo name-capture 3/4 -> 4/4). It MUST stay conditional (an unconditional upscale regresses
+# good shots: ru 9.2%->17% CER), bicubic, and pixel-capped (an unbounded upscale of a wide low-res
+# image could OOM the container — PaddleOCR issue #16168).
+UPSCALE_SHORT_BELOW = int(os.environ.get("OCR_UPSCALE_SHORT_BELOW", "500"))
+UPSCALE_TARGET_SHORT = int(os.environ.get("OCR_UPSCALE_TARGET_SHORT", "960"))
+# Hard wall-clock deadline on a single inference. On expiry the request fails 504; the worker thread
+# itself can't be killed, so the still-running inference would otherwise wedge the single-worker pool
+# and 504 every request queued behind it — hence on timeout we RECYCLE the executor (a fresh worker
+# for the next request; the wedged thread finishes on the abandoned pool and is discarded, costing
+# one transient in-flight inference's RAM, which the byte/pixel caps bound).
+INFERENCE_DEADLINE_S = float(os.environ.get("OCR_INFERENCE_DEADLINE_S", "15"))
 
 # Concurrency cap = 1: a single worker serializes inference so peak CPU/RSS stay bounded.
 _executor = ThreadPoolExecutor(max_workers=1)
@@ -93,9 +110,28 @@ def within_pixel_budget(image_bytes: bytes) -> bool:
     return width * height <= MAX_IMAGE_PIXELS
 
 
+def _maybe_upscale(img: Image.Image) -> Image.Image:
+    """
+    Conditionally upscale a low-resolution capture before OCR (RECONSIDER option C, decision #114).
+    Only when the SHORT side is below [UPSCALE_SHORT_BELOW] — good shots are left untouched, since an
+    unconditional upscale regresses them — using bicubic, and skipped entirely if the result would
+    exceed the pixel budget (RAM guard for a wide low-res input).
+    """
+    width, height = img.size
+    short = min(width, height)
+    if short == 0 or short >= UPSCALE_SHORT_BELOW:
+        return img
+    scale = UPSCALE_TARGET_SHORT / short
+    new_w, new_h = round(width * scale), round(height * scale)
+    if new_w * new_h > MAX_IMAGE_PIXELS:
+        return img  # would exceed the pixel budget; OCR at native resolution instead
+    return img.resize((new_w, new_h), Image.BICUBIC)
+
+
 def _recognize(image_bytes: bytes) -> str:
     """Runs on the single-worker executor. Returns the concatenated recognized text (length-capped)."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img = _maybe_upscale(img)
     arr = np.array(img)
     result = _engine(arr)
     txts = getattr(result, "txts", None)
@@ -128,7 +164,19 @@ async def health() -> JSONResponse:
 
 
 @app.post("/ocr")
-async def ocr(file: UploadFile = File(...)) -> JSONResponse:
+async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
+    global _executor
+    # Cheap early-out: reject a grossly oversized upload by its declared Content-Length BEFORE
+    # spooling the whole body. The authoritative byte cap (post-read, below) still applies; this just
+    # avoids buffering a huge body. A missing/garbage header falls through to the post-read check.
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        try:
+            declared_len = int(declared)
+        except ValueError:
+            declared_len = -1
+        if declared_len > MAX_IMAGE_BYTES + MULTIPART_SLACK_BYTES:
+            raise HTTPException(status_code=413, detail="image too large")
     data = await file.read()
     # Never log the bytes or the recognized text — only sizes/status/timing.
     if not data:
@@ -140,7 +188,19 @@ async def ocr(file: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=413, detail="image dimensions too large")
     started = time.time()
     try:
-        text = await asyncio.get_event_loop().run_in_executor(_executor, _recognize, data)
+        text = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(_executor, _recognize, data),
+            timeout=INFERENCE_DEADLINE_S,
+        )
+    except asyncio.TimeoutError:
+        # The wedged worker thread can't be killed; recycle the pool so the NEXT request gets a clean
+        # worker instead of queueing behind the still-running inference (which finishes on the
+        # abandoned executor and is then discarded).
+        log.warning("OCR timed out after %ss (%d bytes); recycling worker", INFERENCE_DEADLINE_S, len(data))
+        stale = _executor
+        _executor = ThreadPoolExecutor(max_workers=1)
+        stale.shutdown(wait=False)
+        raise HTTPException(status_code=504, detail="recognition timed out")
     except Exception:
         log.exception("OCR recognition failed (%d bytes)", len(data))
         raise HTTPException(status_code=500, detail="recognition failed")
