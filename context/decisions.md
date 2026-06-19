@@ -2314,3 +2314,45 @@ deviated.
      handwriting preprocessing/engine eval; Track 3 *deferred* go/no-go on an opt-in, per-photo AI-vision
      fallback (Yandex Vision OCR — only for handwritten, only with egress for that case). Real photos gitignored
      (copyright/privacy, per #112); the AI transcriptions + our OCR outputs committed as the eval reference.
+
+123. **Research run 18 judged → OCR name-capture plan locked (2026-06-20).** Rated the 5 answers
+     (`research/18-ocr-name-capture/RATING.md`) via a verify-then-rank workflow (5 extractors → web-checked the
+     load-bearing pins/pricing → synthesis). **Winner = opus** (its 13th win), gpt a close #2; alice #3, deepseek
+     #4, gemini #5. The **plan is unanimous across all 5**; the split was engineering rigor + hallucination.
+     **Locked plan (user choices pending):**
+     - **Track 1 — SHIP NOW (zero egress, fits VM, highest ROI).** A one-directional **Latin/digit→Cyrillic
+       confusable normalizer** (`A→А B→В E→Е H→Н K→К M→М O→О P→Р C→С T→Т X→Х Y→У W→Ш 3→з 6→б 9→а 0→О`), hand-rolled
+       + stdlib `unicodedata` for script detection, gated by **opus's per-token rule**: never map a token containing
+       an unambiguous Latin-only letter (D,F,G,R,S,L…); map only if the token has ≥1 unambiguous Cyrillic char OR
+       the line is Cyrillic-majority AND the token is all ambiguous/mappable glyphs (catches all-caps `XYH`).
+       **Keep-best-of-both** (emit normalized AND original, score both, keep higher — protects `Gaba`/`HONG LO`).
+       Catalog match: **pg_trgm** (generated `name_norm` GIN col via an immutable `tea_name_norm()` = unaccent+ё→е+
+       lower; `%` candidate-gen, threshold ~0.3–0.4, LIMIT 10) as the **generator**, **rapidfuzz** re-rank =
+       max(WRatio, token_sort_ratio) over raw+normalized; **opus's margin-guarded thresholds** (auto-accept
+       token_sort_ratio≥88 AND margin-to-2nd≥8; suggest-confirm 70–88; reject<70). **Architecture (gpt's call):**
+       confusable-normalize in the **Python sidecar** (rapidfuzz already there, no DB); keep the **sidecar
+       stateless — NO DB creds**; do the catalog candidate-gen + final match **in Spring** (where the catalog DB
+       is). **MUST MEASURE** the lift on n=10 then ≥50 photos — every model's "2/10→6–8/10" is an unvalidated
+       estimate, not a result.
+     - **Track 2 — small, AFTER T1 measured.** Conditional CLAHE (clip 2.0, tile 8×8) + conditional deskew
+       (minAreaRect, only |angle|>~2–3°) + keep-best-of-both; binarization/upscale **default-OFF** (the #114
+       regression step). Pin `opencv-python-headless==4.11.0.86`. **DO NOT swap the recognizer** — no local CPU
+       model fits the 4 GB VM AND beats `eslav_pp-ocrv5_mobile_rec.onnx` (7.5 MB) on cursive (TrOCR-base RU =
+       334 M ≈ 1.3 GB, won't fit; PP-OCRv5 server rec is general scene-text NOT HTR — deepseek's "targets
+       handwriting" is REFUTED).
+     - **Track 3 — handwriting = MANUAL ENTRY for the MVP; Yandex Vision OCR = conditional opt-in, deferred.**
+       If built later: an explicit per-photo, consent-gated, default-off button (fires only when the local match is
+       below the reject threshold AND the user taps "send this one photo to Yandex"). `POST
+       https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText`, `model:"handwritten"`, `languageCodes ["ru","en"]`,
+       10 MB/20 MP. Rough planning price **~0.13 ₽ printed / ~1.50 ₽ handwritten** (RUB region) — **re-verify on the
+       live pricing page** before building. **The `x-data-logging-enabled:false` "no-storage" guarantee is the
+       single least-verified claim** (opus/gpt assert it; alice contradicts "3-day, no toggle"; gemini's own checker
+       flagged it HIGH-suspicion) — do NOT ship a no-storage consent promise on that header until confirmed against
+       current Yandex docs; crop-to-text + per-photo consent regardless.
+     **Discard (kept out of the build):** deepseek's PP-OCRv5-server-rec-for-handwriting (refuted) + invented
+     `icukit` (it's PyICU) + its blind `str.replace`; gemini's hallucinated HF model
+     `Kansallisarkisto/cyrillic-large-handwritten-onnx`@1.22 GB + stale `rapidocr_onnxruntime==1.3.24` + uncited
+     "Verified for 2026" pricing; gpt's fabricated rapidocr 3.8.4 wheel SHA + 10-sig-fig USD prices; alice's
+     fabricated `confusable-homoglyphs 3.2.0`. **Verified-safe pins:** `confusable_homoglyphs==3.3.1` (tests only —
+     it's spoof-*detection*, not a replacement map), `rapidfuzz==3.14.5`, `opencv-python-headless==4.11.0.86`,
+     eslav rec 7.5 MB — all MIT/Apache-2.0.
