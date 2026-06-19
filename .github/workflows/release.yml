@@ -37,10 +37,26 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - name: Require a v* tag
+        # On a tag push GITHUB_REF_NAME is the tag (v0.1.0); on a manual workflow_dispatch from a
+        # branch it's the branch name — which would cut a junk non-version release. Fail fast so a
+        # release is only ever a vX.Y.Z tag (the in-app updater assumes that version semantics).
+        run: |
+          case "$GITHUB_REF_NAME" in
+            v[0-9]*) echo "Release ref: $GITHUB_REF_NAME" ;;
+            *) echo "::error::Release must be cut from a v* tag, got '$GITHUB_REF_NAME'. Push a tag: git tag v0.1.0 && git push origin v0.1.0"; exit 1 ;;
+          esac
+
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
+
+      # Provision the Android SDK (sdkmanager + accepted licenses) so AGP can resolve compileSdk 37
+      # / build-tools — matches the `app` jobs in ci.yml + osv-scanner.yml; assembleRelease + the
+      # apksigner lookup below both depend on it (review 2026-06-19).
+      - uses: android-actions/setup-android@v4
 
       - name: Decode signing keystore
         env:
