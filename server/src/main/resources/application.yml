@@ -120,6 +120,10 @@ teatiers:
     max-stack-trace-chars: 20000
     max-field-chars: 120
     max-row-count-keys: 32
+    # Global ceiling on accepted reports per UTC day (review finding). The APK-extractable token is no
+    # real barrier, so this bounds disk growth absolutely. Global (not per-IP) so we still never read
+    # the client IP. <= 0 disables. ~500 amply covers legit opt-in crash/migration reports for the MVP.
+    daily-cap: 500
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:

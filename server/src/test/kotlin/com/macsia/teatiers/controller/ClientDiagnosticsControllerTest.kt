@@ -2,6 +2,7 @@ package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.dto.ClientDiagnosticReportDto
 import com.macsia.teatiers.service.ClientDiagnosticsService
+import com.macsia.teatiers.service.DiagnosticsDailyBudget
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -19,11 +20,13 @@ import org.springframework.http.HttpStatus
 class ClientDiagnosticsControllerTest {
 
     private val service = mockk<ClientDiagnosticsService>()
+    private val dailyBudget = mockk<DiagnosticsDailyBudget>()
 
-    private fun controller(enabled: Boolean = true, token: String = "s3cret") =
+    private fun controller(enabled: Boolean = true, token: String = "s3cret", underBudget: Boolean = true) =
         ClientDiagnosticsController(
             ClientDiagnosticsProperties(enabled = enabled, token = token),
             service,
+            dailyBudget.also { every { it.tryAcquire() } returns underBudget },
         )
 
     private val crash = ClientDiagnosticReportDto(kind = "crash", stackTrace = "boom")
@@ -68,5 +71,13 @@ class ClientDiagnosticsControllerTest {
 
         assertEquals(HttpStatus.ACCEPTED, response.statusCode)
         verify(exactly = 1) { service.record(crash) }
+    }
+
+    @Test
+    fun `429 and does not record once the global daily cap is hit`() {
+        val response = controller(underBudget = false).report(token = "s3cret", report = crash)
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode)
+        verify(exactly = 0) { service.record(any()) }
     }
 }

@@ -24,4 +24,9 @@ data class ClientDiagnosticsProperties(
     val maxFieldChars: Int = 120,
     /** At most this many numeric row-count entries are kept from a migration signal. */
     val maxRowCountKeys: Int = 32,
+    /**
+     * Global ceiling on accepted reports per UTC day — bounds disk growth since the APK-extractable
+     * token is not a real auth barrier (review finding). `<= 0` disables the cap.
+     */
+    val dailyCap: Int = 500,
 )
