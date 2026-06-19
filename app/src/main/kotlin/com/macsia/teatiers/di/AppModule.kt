@@ -6,12 +6,15 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.macsia.teatiers.data.db.CatalogDao
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
+import com.macsia.teatiers.data.diagnostics.DiagnosticsPreferences
 import com.macsia.teatiers.data.photos.AndroidImageReader
 import com.macsia.teatiers.data.photos.AndroidPhotoStore
 import com.macsia.teatiers.data.photos.ImageReader
@@ -45,6 +48,13 @@ object AppModule {
             // the older data and the sample provider reseeds. Real Migration(N, N+1) instances
             // become mandatory before we ship to a real user.
             .fallbackToDestructiveMigration(dropAllTables = true)
+            // The definitive "tables were dropped" mark for the out-of-Room wipe sentinel (decision
+            // #111). Stored outside Room so the migration that wiped the data can't erase the evidence.
+            .addCallback(object : RoomDatabase.Callback() {
+                override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                    DiagnosticsPreferences.markDestructiveMigration(context)
+                }
+            })
             .build()
 
     @Provides

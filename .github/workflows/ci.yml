@@ -45,3 +45,13 @@ jobs:
       - uses: android-actions/setup-android@v4
       - name: Check + assemble
         run: ./gradlew --no-daemon check assembleDebug
+      - name: GMS-free gate (decision #111)
+        # TeaTiers ships GMS-free for the RU sideload. Fail if a Google Play Services / Firebase /
+        # play-services artifact ever leaks into what the release APK actually bundles.
+        run: |
+          deps="$(./gradlew --no-daemon -q dependencies --configuration releaseRuntimeClasspath)"
+          if echo "$deps" | grep -iE 'com\.google\.android\.gms|com\.google\.firebase|play-services'; then
+            echo "::error::A Google Play Services / Firebase dependency leaked into releaseRuntimeClasspath — TeaTiers must stay GMS-free (decision #111)."
+            exit 1
+          fi
+          echo "GMS-free OK: no gms / firebase / play-services on releaseRuntimeClasspath."

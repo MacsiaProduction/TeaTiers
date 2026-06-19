@@ -69,6 +69,10 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun boardCount(): Int = boards.size
 
+    override suspend fun teaCount(): Int = teas.size
+
+    override suspend fun photoCount(): Int = photos.size
+
     override suspend fun nextPlacementPosition(boardId: String): Int =
         (placements.filter { it.boardId == boardId }.maxOfOrNull { it.position } ?: -1) + 1
 
