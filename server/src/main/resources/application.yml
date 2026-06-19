@@ -107,6 +107,19 @@ teatiers:
     release-notes-en: ""
     mandatory: false
     min-os-sdk: 26
+  diagnostics:
+    # Opt-in, GMS-free client diagnostics (decision #111), received at POST /api/v1/client-diagnostics.
+    # OFF by default and fails closed: until enabled=true AND a non-blank token are set, the endpoint
+    # 503s and stores nothing. The token is a shared anti-spam credential the app sends as
+    # X-Diagnostics-Token; it ships in the APK so it is NOT a security boundary — rotate freely.
+    # No client IP is ever read or stored; aged rows are purged after retention-days. Override via env
+    # (TEATIERS_DIAGNOSTICS_ENABLED / TEATIERS_DIAGNOSTICS_TOKEN).
+    enabled: false
+    token: ${TEATIERS_DIAGNOSTICS_TOKEN:}
+    retention-days: 30
+    max-stack-trace-chars: 20000
+    max-field-chars: 120
+    max-row-count-keys: 32
 
 # Expose only the health endpoint for compose/systemd liveness & readiness probes.
 management:
