@@ -458,7 +458,15 @@ benchmarks better (#18).
 
 ### 7.1 MVP release gate (first public APK)
 
-The explicit checklist for "the first public/RuStore/sideload APK may ship" (from the
+> **⚠ Distribution updated (#118, 2026-06-19):** the MVP ships as a **signed APK on GitHub Releases**
+> — **no RuStore, no marketplaces** (deferred post-MVP) — with an **in-app auto-updater** (design =
+> research run 17). Read "RuStore/sideload" below as "GitHub Releases APK". **The GitHub-Releases
+> pipeline + auto-update are being built now as a *feature* for internal/tester distribution; the
+> *public-launch* gate below stays unmet** — the two hard public blockers (Room destructive-migration
+> schema cutover, line 1; a versioned privacy/legal artifact) are deferred until the actual public
+> launch, not part of this feature push.
+
+The explicit checklist for "the first public APK may ship" (from the
 2026-06-17 architecture review; see `context/review/2026-06-17-disposition.md`). Until every
 line is ✅ or a deliberate written waiver, the build stays internal-only.
 
@@ -555,6 +563,7 @@ line is ✅ or a deliberate written waiver, the build stays internal-only.
 | `research/14-yandex-async-reverify/` | ⏸ reserved (empty) | Intentionally empty — a **re-verify** of the Yandex async/Responses API + `aliceai-llm-flash` slug/price, to run *immediately before* the background-enrichment tier (specs go stale). | §6 async tier (deferred) |
 | `research/15-crash-telemetry/` | ✅ gpt (#111) | Crash/telemetry for the public MVP → **ACRA + a first-party `/client-diagnostics` endpoint** on the existing backend (no heavy dashboard); out-of-Room **count-sentinel** migration/data-loss detector; strict allowlist, opt-in, CI GMS-gate. GlitchTip = documented upgrade path (not on the 4 GB VM). | app telemetry, #111 |
 | `research/16-catalog-breadth/` | ✅ gpt (#116) | Catalog breadth with crawling banned + AI off → **reframe as a famous-tea reference seed + demand-driven no-PII seed-from-misses** (operator promotes top misses to `verified`). Key negative result: **no new redistributable tea dataset** exists beyond the locked Wikidata/Wikipedia/OFF core. Wikidata bulk-sync modest (~200–600 tea entities, all estimates). | §4a/§6 growth, #116 |
+| `research/17-app-autoupdate/` | ⏳ scaffolded (#118) | In-app auto-update for the GMS-free, RU-first **GitHub-Releases** APK: PackageInstaller flow, APK authenticity (same-signer + signer-pin + sha256 + downgrade + manifest integrity), manifest/APK host with **RU reachability** (GitHub CDN vs first-party manifest vs Yandex Object Storage), update UX, library-vs-custom (Play In-App Updates = GMS-only, out). Prompt ready; run + rate. | §7.1 release, #118 |
 
 Full reasoning + the per-run **Discard** lists (unverified QIDs, conflicting SDK
 version pins) are in each run's `RATING.md` — honor them before writing code.

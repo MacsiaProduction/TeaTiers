@@ -2199,3 +2199,22 @@ deviated.
      `200 UNRESOLVED` and lands in `catalog_miss` (`zxqwfake teaname 9981 | 1 | 2026-06-19`); the public
      edge now returns HSTS + `nosniff` + `Referrer-Policy` and drops the `Server` banner; OCR sidecar
      healthy. The catalog growth engine is **live in prod**.
+
+118. **Distribution: GitHub Releases signed APK for the MVP; RuStore/marketplaces deferred; build an
+     in-app auto-updater (2026-06-19, user decision).** Supersedes the distribution half of decision #3
+     ("RuStore + direct APK"): **for the MVP we ship a single signed release APK published on GitHub
+     Releases — no Google Play, no RuStore, no other marketplace.** RuStore + other channels are
+     **deferred post-MVP** (revisit at public launch). The GMS-free / no-Play-Services lock (#3) is
+     unchanged and now load-bearing (Play In-App Updates is GMS-only → out). Because there's no store,
+     the app needs its **own in-app auto-update**; its design is **research run 17** (`research/17-app-
+     autoupdate/`, winner TBD) — GMS-free `PackageInstaller` flow, APK authenticity (Android same-signer
+     + in-app signer-pin + sha256 + downgrade protection + manifest integrity), manifest/APK host with
+     **RU reachability** as a first-class concern (GitHub api/asset CDN throttling vs a first-party
+     `tea.macsia.fun` manifest vs a Yandex Object Storage mirror), and the update UX. **This is a feature
+     now, not a public launch** — the app isn't public yet, so the review's hard public-release blockers
+     (Room destructive-migration schema cutover #57-area, a versioned privacy/legal artifact) are
+     **deferred until the actual public launch**, not part of this push. Concrete now (per the same
+     decision): a CI release pipeline (signed APK → GitHub Release), image signing/provenance +
+     deploy-by-digest, API-version headers + a `minSupportedAppVersion`/`upgradeAvailable` endpoint (which
+     the updater reuses) + a bundled fallback seed, ACRA diagnostics + the out-of-Room wipe sentinel
+     (run 15), the English-locale half-exposure fix, and a miss-log operator script/runbook.
