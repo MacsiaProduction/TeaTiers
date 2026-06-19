@@ -128,3 +128,56 @@ on a clear shot, and the OCR→review→`sourceText` flow lets the user fix homo
 shot. **This is a tiny sample** — a larger corpus (drop more into `corpus/`) firms up the number, but
 the qualitative verdict (usable with review; homoglyphs + low-res are the watch-items) is consistent
 across synthetic + real.
+
+### Real packaging (n=10, with AI-vision comparison, 2026-06-19)
+
+Ten more real photos (`examples/1..10`), measured via `measure_photos.py`, AND scored head-to-head
+against two **AI-vision** transcriptions the user provided per photo (**Alice** = Yandex; **DeepSeek**).
+First same-photo baseline for "what a strong (external-API) OCR would do".
+
+**Canonical harness (raw output, `partial_ratio ≥ 85` = captured):** strict name-capture **2/10 (20%)**,
+**mean name similarity 70.4 / 100**, exact-match 0% (we return the whole multi-block label, never just
+the name), ~817 ms/img, peak RSS 1224 MB.¹ Per-photo `partial_ratio`: #1 76, #2 82, #3 53², #4 **100**,
+#5 75, #6 73, #7 67, #8 **100**, #9 60, #10 **19**.
+
+**Name-quality vs Alice / DeepSeek** (0–100, human-judged on the name specifically):
+
+| engine | mean | clean | garbled-but-recoverable | failed |
+|--------|-----:|:-----:|:-----------------------:|:------:|
+| **ours** (local RapidOCR) | **66.7** | 3 | 6 | 1 |
+| Alice (Yandex AI-vision)  | 97.0 | 8 | 2 | 0 |
+| DeepSeek (AI-vision)      | 98.3 | 9 | 1 | 0 |
+
+**Reading the two numbers together.** The 20% strict-capture conflates three different things: (a)
+**case** — #3's label is ALL-CAPS `ШУПУЭР…` vs a title-case GT, which alone tanks `partial_ratio` to 53
+though the name is fully read; (b) **Cyrillic↔Latin/digit homoglyphs** — the dominant, systematic defect,
+hitting even clean high-contrast print (`Гунфу→Фyнфy`, `ХУН→XYH`, `Н→H`, `В→B`, `Ш→W`, `з→3`, `а→9`);
+(c) one genuine **handwriting failure** (#10, pr 19). The **mean similarity 70.4** is the honest signal:
+our names are ~70% right — *degraded, not random*. Case-fold + Cyrillic-confusable normalization + a
+fuzzy match against the existing catalog would lift **~9/10 to recoverable** — only #10 (cursive marker
+Cyrillic → wrong-script Latin garbage) is truly lost.
+
+**The new, decision-relevant fact is the gap to AI-vision.** Alice and DeepSeek essentially *nail* these
+photos (8–9/10 letter-clean, incl. the handwritten #9/#10 that defeat us), decoding Cyrillic in-script
+and reading cursive. Our local engine is materially worse on raw output and has a hard **cliff on
+handwritten/stylized names** that homoglyph fixes can't touch (the script itself is wrong). This is the
+quantified cost of the no-egress/local choice (#96) — acceptable *given the review-before-save UX*.
+
+**Verdict — QUALIFIED YES for the MVP.** Keep the local sidecar for v1: 9/10 photos give the user a
+usable starting point, and review-before-`sourceText` means the catalog is the source of truth. NOT good
+enough for any silent/auto path, and **handwritten names are effectively manual entry** — set that
+expectation in the UX copy.
+
+**Recommendation → research run 18** (`research/18-ocr-name-capture/`). Two tracks, local-first:
+1. **Cyrillic homoglyph + case post-corrector + fuzzy catalog match** (keeps no-egress; cheap; recovers
+   most of the 6 "garbled" cases) — single best ROI; turns the 70.4 mean into clean names.
+2. **Local handwriting handling** (binarize/deskew/contrast/underline-strip; eval RapidOCR handwriting
+   models or an alternative local engine) — the real gap (#9/#10).
+3. **Deferred go/no-go:** an *opt-in, per-photo* AI-vision fallback (Yandex Vision / Alice, RU-reachable)
+   **only** for handwritten labels — decide after Track 2, since it breaks #96's no-egress for the 90%
+   the local engine already handles.
+
+> ¹ Peak RSS 1224 MB is the proof venv over all 14 corpus photos at full 1440×2560; the app downscales
+> to ≤1600 px before upload, and the 30 MP pixel cap + the earlier 739 MB number bound the real path —
+> but RSS on full-res inputs is worth re-checking. ² #3's name *is* read; the 53 is a case artifact
+> (ALL-CAPS label vs title-case GT), not a miss.

@@ -2294,3 +2294,23 @@ deviated.
      parse-before-auth/body-cap → recommend an edge (Caddy) rate/body cap as future defense-in-depth. **Still
      dormant until** the server sets `teatiers.diagnostics.enabled=true`+token AND a build ships
      `DIAGNOSTICS_TOKEN` AND the user opts in — three independent gates.
+
+122. **Real-photo OCR quality measured (n=10) → keep local for MVP, research run 18 queued (2026-06-19).**
+     User uploaded 10 real RU tea-packaging photos (`research/13-ocr-sidecar-accuracy/examples/`) + per-photo
+     **AI-vision** transcriptions (Yandex **Alice**, **DeepSeek**). Ran our exact sidecar engine config
+     (RapidOCR PP-OCRv5 eslav, #105/#114) via the canonical `proof/measure_photos.py` harness AND a parallel
+     human-scored head-to-head (`proof/FINDINGS.md` §5, n=10). **Result:** our raw name-capture is weak —
+     strict `partial_ratio≥85` **2/10 (20%)**, **mean similarity 70.4**, human name-quality mean **66.7**
+     (3 clean / 6 garbled-but-recoverable / 1 fail) — vs **Alice 97 (8/2/0)** and **DeepSeek 98 (9/1/0)**, which
+     essentially nail the photos including handwriting. **The defect is mostly mechanical:** Cyrillic↔Latin/digit
+     **homoglyphs** (`Гунфу→Фyнфy`, `ХУН→XYH`, `з→3`, `а→9`) + case + word-order — names are ~70% right
+     (*degraded, not random*), so case-fold + confusable-normalize + fuzzy catalog match would recover ~9/10.
+     **The real gap is handwriting/cursive** (#9, #10) — #10 was an outright fail (wrong-script Latin garbage),
+     and homoglyph fixes can't help (wrong script). **Verdict: QUALIFIED YES — keep the local/no-egress sidecar
+     (#96) for the MVP** (the review-before-`sourceText` UX tolerates it; 9/10 give a usable starting point),
+     NOT good enough for any silent/auto path, handwritten names ≈ manual entry. **User chose "measure, then I
+     decide".** Wrote **research run 18** (`research/18-ocr-name-capture/prompt.md`): Track 1 local Cyrillic
+     homoglyph+case post-corrector + fuzzy catalog match (highest ROI, keeps no-egress); Track 2 local
+     handwriting preprocessing/engine eval; Track 3 *deferred* go/no-go on an opt-in, per-photo AI-vision
+     fallback (Yandex Vision OCR — only for handwritten, only with egress for that case). Real photos gitignored
+     (copyright/privacy, per #112); the AI transcriptions + our OCR outputs committed as the eval reference.
