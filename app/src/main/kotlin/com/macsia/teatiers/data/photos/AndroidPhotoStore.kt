@@ -17,6 +17,9 @@ import javax.inject.Singleton
 private const val TAG = "AndroidPhotoStore"
 private const val PHOTOS_DIR = "tea_photos"
 
+/** Don't sweep a file written this recently — it may be an in-flight copy whose row isn't in yet. */
+private const val RECENT_GRACE_MS = 60_000L
+
 /**
  * Disk-backed [PhotoStore]: copies the picked image into `<filesDir>/tea_photos/<uuid>.<ext>`.
  *
@@ -94,11 +97,16 @@ class AndroidPhotoStore @Inject constructor(
     override suspend fun reconcile(keepPaths: Set<String>): Int = withContext(Dispatchers.IO) {
         // Only ever scoped to our own private dir, so it can never sweep anything but tea photos.
         val files = rootDir.listFiles() ?: return@withContext 0
+        val now = System.currentTimeMillis()
         var deleted = 0
         for (file in files) {
-            if (file.isFile && file.absolutePath !in keepPaths) {
-                if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan ${file.name}")
-            }
+            if (!file.isFile || file.absolutePath in keepPaths) continue
+            // Grace window: never sweep a file written in the last RECENT_GRACE_MS. It may be an
+            // in-flight copyIn whose DB row hasn't been inserted yet (so it isn't in keepPaths) —
+            // the app-open sweep would otherwise TOCTOU-delete a photo a concurrent add just wrote.
+            // A genuine orphan younger than the window is simply caught by the next sweep.
+            if (now - file.lastModified() < RECENT_GRACE_MS) continue
+            if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan ${file.name}")
         }
         deleted
     }

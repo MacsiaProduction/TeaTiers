@@ -37,6 +37,10 @@ interface PhotoStore {
      * destructive backup import — which replaces all DB rows, orphaning the prior corpus's files —
      * and on app-open to sweep any leftover orphans (review 2026-06-19). Best-effort; returns the
      * number of files deleted. A path in [keepPaths] that isn't on disk is simply ignored.
+     *
+     * Implementations should leave a *very recently written* file alone even if it isn't in
+     * [keepPaths]: it may be an in-flight [copyIn] whose DB row hasn't been inserted yet, and the
+     * app-open sweep must not race-delete it. Such a young orphan is caught by the next sweep.
      */
     suspend fun reconcile(keepPaths: Set<String>): Int
 }

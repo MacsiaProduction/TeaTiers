@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.repository
 
 import android.net.Uri
+import android.util.Log
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
 import com.macsia.teatiers.data.db.PhotoEntity
@@ -99,12 +100,13 @@ class TeaBoardRepository @Inject constructor(
             }
             // App-open orphan sweep (review 2026-06-18): drop any photo file that no DB row
             // references — e.g. left by a crash between copy-in and row-insert, or an older import
-            // before reconcile existed. Runs once at startup, before any add-photo UI exists, so it
-            // can't race a fresh copy-in. Best-effort.
+            // before reconcile existed. It can in principle overlap a concurrent addPhoto (e.g. a
+            // process-death restore straight onto the edit screen), so reconcile itself protects an
+            // in-flight copy via a recent-file grace window (see PhotoStore.reconcile). Best-effort.
             runCatching {
                 val known = dao.allPhotos().map { it.uri }.filter { it.startsWith("/") }.toSet()
                 photoStore.reconcile(known)
-            }
+            }.onFailure { Log.w("TeaBoardRepository", "App-open photo reconcile failed", it) }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.macsia.teatiers.data.repository
 
+import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.toSeedEntities
 import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
@@ -488,5 +489,29 @@ class TeaBoardRepositoryTest {
             val second = repository.boards.value.first { it.id == secondId }
             assertEquals(first.tiers.map { it.label }, second.tiers.map { it.label })
             assertTrue(first.tiers.map { it.id }.intersect(second.tiers.map { it.id }.toSet()).isEmpty())
+        }
+
+    @Test
+    fun `app-open sweep keeps photo files a DB row references and drops the orphans`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // The startup orphan sweep (review 2026-06-18) builds its keep-set from dao.allPhotos()
+            // local paths — a distinct path from the import sweep, so it gets its own coverage.
+            val knownPath = "/fake/known.jpg"
+            val dao = FakeTeaDao()
+            val seed = listOf(seededBoard).toSeedEntities()
+            dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+            dao.insertPhotos(listOf(PhotoEntity("ph1", "green", knownPath, 0, "USER", null, null, 0L)))
+            val photoStore = FakePhotoStore().apply {
+                onDisk += knownPath
+                onDisk += "/fake/orphan.jpg"
+            }
+
+            TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider())
+            advanceUntilIdle()
+
+            assertEquals(setOf(knownPath), photoStore.reconcileCalls.last())
+            assertTrue(photoStore.deleted.contains("/fake/orphan.jpg"))
+            assertFalse(photoStore.onDisk.contains("/fake/orphan.jpg"))
+            assertTrue(photoStore.onDisk.contains(knownPath))
         }
 }
