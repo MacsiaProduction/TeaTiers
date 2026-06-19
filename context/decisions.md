@@ -2227,9 +2227,12 @@ deviated.
      - **Install:** a custom updater over `PackageInstaller.Session` (not the deprecated install intent;
        streams via `openWrite`, no FileProvider), using **Ackpine** (`ru.solrudev.ackpine`, Apache-2.0,
        GMS-free, RU-authored) for the fiddly session + `STATUS_PENDING_USER_ACTION` confirm + OEM
-       (MIUI/EMUI/Samsung) handling — **verify Ackpine's latest version + maintenance before pinning**.
-       `REQUEST_INSTALL_PACKAGES` + route to `canRequestPackageInstalls()`/`ACTION_MANAGE_UNKNOWN_APP_SOURCES`
-       when ungranted. No silent install (unprivileged).
+       (MIUI/EMUI/Samsung) handling. **Verified 2026-06-19 (github.com/solrudev/Ackpine): latest
+       `0.23.0` (2026-05-20), Apache-2.0, GMS-free (AOSP PackageInstaller wrapper), actively maintained
+       (~2,153 commits), minSdk 16 (≤ our 26), handles the install + user-confirmation flow.** Pin
+       `ru.solrudev.ackpine:ackpine-core` + `ackpine-ktx` `0.23.0`. `REQUEST_INSTALL_PACKAGES` + route to
+       `canRequestPackageInstalls()`/`ACTION_MANAGE_UNKNOWN_APP_SOURCES` when ungranted. No silent
+       install (unprivileged).
      - **Security (must-get-right):** Android enforces **same-signer on update** (not first install); the
        app enforces **sha256-pin** the APK, **signer-cert-pin** to our release cert via `apkContentsSigners`
        (NOT `signingCertificateHistory` — accepts rotated-away certs), and **downgrade protection**
