@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Languages offered by the in-app picker (#28) and the system per-app language settings on
-     API 33+. Russian is the default/source locale; the en translation lands in M5. Chinese (zh)
-     UI is deferred to the far future (decision #94) and is intentionally not offered. -->
+     API 33+. Russian is the default/source locale. English is NOT offered yet: there is no
+     `values-en`, so selecting it would just fall back to Russian (half-exposed locale, review
+     2026-06-19). Re-add `en` here AND in the in-app picker (SettingsScreen) once a real values-en
+     ships. Chinese (zh) UI is deferred to the far future (decision #94) and is intentionally absent. -->
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="ru" />
-    <locale android:name="en" />
 </locale-config>

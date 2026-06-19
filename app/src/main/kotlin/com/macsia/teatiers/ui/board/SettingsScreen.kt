@@ -164,7 +164,10 @@ fun SettingsScreen(
 
             SettingsSection(title = stringResource(R.string.settings_language_section)) {
                 val current = appLanguageOf(AppCompatDelegate.getApplicationLocales().toLanguageTags())
-                AppLanguage.entries.forEach { language ->
+                // Don't offer English until a real `values-en` ships: picking it would just fall back to
+                // the Russian strings (half-exposed locale, review 2026-06-19). The enum keeps ENGLISH so
+                // a previously-persisted "en" still resolves; we just don't present it. Re-add when ready.
+                AppLanguage.entries.filter { it != AppLanguage.ENGLISH }.forEach { language ->
                     RadioRow(
                         title = stringResource(language.labelRes()),
                         selected = current == language,
