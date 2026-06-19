@@ -91,8 +91,23 @@ built-in `GITHUB_TOKEN` — no external registry secret. It runs on every push t
 4. Once confirmed, **retire YCR**: delete `infra/registry.tf` + the `registry_id`/`puller_sa_id`
    outputs and `tofu apply` (the puller SA can stay attached to the VM harmlessly, or be detached).
 
+**Deploy by digest/SHA + verify the signature (review 2026-06-19).** Both image workflows now (a) push
+a `:${SHA::12}` tag alongside `:latest`, (b) **cosign-sign** the image keyless (Sigstore), and (c) attach
+a **SLSA build-provenance** attestation. Prefer pinning an immutable ref in `/opt/teatiers/.env` —
+`SERVER_IMAGE=ghcr.io/macsiaproduction/teatiers-server@sha256:<digest>` (or the `:<sha>` tag) — over
+mutable `:latest`, so a redeploy is reproducible and can't silently pull a different build. Before a
+redeploy you can verify provenance + signature:
+```bash
+# verify the build came from this repo's workflow (keyless cosign)
+cosign verify ghcr.io/macsiaproduction/teatiers-server@sha256:<digest> \
+  --certificate-identity-regexp 'https://github.com/MacsiaProduction/TeaTiers/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/macsiaproduction/teatiers-server@sha256:<digest> --repo MacsiaProduction/TeaTiers
+```
+
 **OCR sidecar (slice 1b).** The `.github/workflows/ocr-sidecar.yml` pipeline publishes
-`ghcr.io/macsiaproduction/teatiers-ocr-sidecar` the same way. Make that package **public** too, then
+`ghcr.io/macsiaproduction/teatiers-ocr-sidecar` the same way (signed + attested). Make that package
+**public** too, then
 set `OCR_SIDECAR_IMAGE=ghcr.io/macsiaproduction/teatiers-ocr-sidecar:latest` in `/opt/teatiers/.env`
 and `sudo docker compose pull && sudo docker compose up -d ocr-sidecar`. The server reaches it over
 the private compose network (`TEATIERS_OCR_SIDECAR_URL`, already set in the prod compose); the tier

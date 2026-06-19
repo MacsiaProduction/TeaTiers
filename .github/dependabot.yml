@@ -1,0 +1,42 @@
+# Dependency-update visibility (review 2026-06-19): surface drift in the Gradle catalogs, the sidecar
+# pip + Docker base, and the GitHub Actions before the OSV advisory gate fails. Weekly, grouped, with a
+# small open-PR cap so it stays low-noise for a solo operator. Version pins still live in the catalogs /
+# requirements / Dockerfile — Dependabot proposes, CI (OSV-Scanner) + review decide.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /server
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      server-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: gradle
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      app-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /ocr-sidecar
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /ocr-sidecar
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
