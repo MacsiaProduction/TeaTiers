@@ -27,6 +27,8 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 import io
 
+from description_correct import correct_description
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ocr-sidecar")
 
@@ -140,6 +142,14 @@ def _recognize(image_bytes: bytes) -> str:
     return " ".join(str(t) for t in txts)[:MAX_TEXT_CHARS]
 
 
+def _recognize_and_correct(image_bytes: bytes) -> dict[str, str]:
+    """Recognize then dictionary-gate-correct (decision #125 Track B), both on the worker thread so the
+    whole thing is bounded by the one deadline. `text` is the raw OCR; `corrected` is the
+    description-safe cleaned text (homoglyphs fixed to real RU words, un-validatable tokens kept raw)."""
+    raw = _recognize(image_bytes)
+    return {"text": raw, "corrected": correct_description(raw)}
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global _engine
@@ -148,9 +158,11 @@ async def lifespan(_: FastAPI):
             raise RuntimeError(f"OCR model missing: {p} (was the image built with fetch_models.sh?)")
     log.info("Loading RapidOCR (eslav PP-OCRv5 rec + mobile det, cls off)…")
     _engine = _build_engine()
-    # Warm up so the first real request doesn't pay the graph-init cost.
+    # Warm up so the first real request doesn't pay the graph-init cost (the ONNX graph + pymorphy3's
+    # Russian dictionary, which the corrector loads lazily on first use).
     white = np.full((48, 160, 3), 255, dtype=np.uint8)
     await asyncio.get_event_loop().run_in_executor(_executor, lambda: _engine(white))
+    await asyncio.get_event_loop().run_in_executor(_executor, correct_description, "тест")
     log.info("OCR engine ready.")
     yield
 
@@ -188,8 +200,8 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
         raise HTTPException(status_code=413, detail="image dimensions too large")
     started = time.time()
     try:
-        text = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(_executor, _recognize, data),
+        result = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(_executor, _recognize_and_correct, data),
             timeout=INFERENCE_DEADLINE_S,
         )
     except asyncio.TimeoutError:
@@ -204,5 +216,5 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
     except Exception:
         log.exception("OCR recognition failed (%d bytes)", len(data))
         raise HTTPException(status_code=500, detail="recognition failed")
-    log.info("ocr ok: %d bytes -> %d chars in %d ms", len(data), len(text), int(1000 * (time.time() - started)))
-    return JSONResponse({"text": text})
+    log.info("ocr ok: %d bytes -> %d chars in %d ms", len(data), len(result["text"]), int(1000 * (time.time() - started)))
+    return JSONResponse(result)

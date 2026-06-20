@@ -1,6 +1,9 @@
-# Only the app + model fetch/verify inputs belong in the build context.
+# Only the app + its runtime modules + model fetch/verify inputs belong in the build context
+# (test_*.py stay out — they aren't in the runtime image).
 *
 !app.py
+!name_match.py
+!description_correct.py
 !requirements.txt
 !models.lock
 !fetch_models.sh
