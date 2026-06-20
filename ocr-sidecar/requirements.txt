@@ -12,3 +12,7 @@ numpy==2.4.6
 # Track-1 OCR name recovery (research run 18 winner opus / decision #123): fuzzy-matches the
 # confusable-normalized OCR text against the catalog. MIT, C++/pybind, no extra system libs.
 rapidfuzz==3.14.5
+# Description-safe OCR correction (research run 19 winner opus / decision #125): pymorphy3 is the
+# real-Russian-word oracle that gates homoglyph fixes (Букет, not Вукет). Both MIT.
+pymorphy3==2.0.6
+pymorphy3-dicts-ru==2.4.417150.4580142
