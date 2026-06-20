@@ -2520,3 +2520,37 @@ deviated.
      controls, P2-6 doc-consistency (plan/runbook still bans crawling post-#129; seed is ~100 not ~300). No new
      research run (review §10: run 20 already covers scraping; the sample/catalog split is a design-directly
      product decision, not an open research question).
+
+131. **Research run 20 judged — RU tea-site scraping plan LOCKED; winner opus; BUILD DEFERRED (2026-06-21).**
+     Rated the 5 uploaded answers via the verify-then-rank workflow (74 claims web/repo-checked: 40 confirmed,
+     21 partly-true, 12 refuted). **Winner: opus** (4.30) — the only plan matching the real dedup design, all
+     pins real + license-correct, honest about its gaps; **gpt co-#2** (4.30, halluc 1 — zero fabrications,
+     contributed the load-bearing shared-normalizer insight + CI facts-only gates). alice 2.60, gemini 2.25,
+     deepseek 1.80. `research/20-catalog-scraping/RATING.md`. **Verified findings that shape the build:**
+     - **First source = `artoftea.ru`** — live-verified server-rendered **OpenCart**, robots permissive for
+       product/category pages (only service paths + sort/filter params disallowed), **no JSON-LD** (needs a
+       CSS-selector parser), exposes the wanted facts (RU + transliterated name, type, «Регион сбора чая»,
+       harvest year, country). **`tea.ru` EXCLUDED** — live `robots.txt` blocks `/catalog/`,`/product/`,
+       `/products/`. `h2ocompany.ru` is a real secondary source; **moychay active catalog ≈700–800** (the 46k
+       is the out-of-stock archive — don't size off it).
+     - **artoftea flavour is FREE TEXT, not a 0–5 facet scale** (gemini's + opus's "0-5/8-facet" claim REFUTED)
+       → treat scraped flavour as prose for LLM enrichment, never a `tea_flavor` 1:1 map.
+     - **Dedup = the EXISTING machinery**: the unique `dedup_key` (pinyin-canonical `name|slug|TYPE`) +
+       pg_trgm `word_similarity` (`<%`) at **0.3** on the `name_norm` generated col — which is `lower(f_unaccent())`
+       and does **NOT** transliterate Cyrillic→Latin. So the scraped-name normalizer MUST reuse that SAME
+       `lower+f_unaccent` (gpt) and Cyrillic↔pinyin unification rides the `dedup_key` (opus pypinyin caveat:
+       `Style.NORMAL` tone-free + a Palladius↔pinyin exceptions table). Every quoted threshold (0.6/0.7/0.85)
+       and the `ON CONFLICT (tea_id,locale,source_url)` / `{country}_{region}_{name}` keys were FABRICATED.
+     - **Legal:** facts aren't copyrightable (ГК РФ 1259(5)); vendor prose/photos ARE → keep the **public APK
+       facts-only**. Operative DB-right law is **RU Art. 1334** (rebuttable ≥10k-element presumption), NOT the
+       EU Database Directive (over-lawyered; per its own Art. 11 it doesn't even cover RU DB makers).
+     **Locked first cut (to BUILD LATER):** a tiny pinned **`httpx 0.28.1` + `selectolax 0.4.10` + `pypinyin
+     0.55.0`**, **stdlib `urllib.robotparser`** (NOT the abandoned `reppy`), SQLite `content_hash` cache; a
+     robots/politeness gate (identifying UA, 1–2 s delay, **step 1 = fetch `artoftea.ru/robots.txt`**); a
+     **local one-off bulk import** (not a crawler, not on the VM) driven by `catalog_miss` (#116) most-wanted;
+     idempotent upsert on the existing `dedup_key`; **facts-only into the public catalog with a build-time/CI
+     guard** (reject `tea_description.source LIKE 'scrape:%'`, null/unknown image licenses, source-null names);
+     raw scraped prose → a **net-new server-side staging/enrichment-input** column (like the transient
+     `sourceText` — there is NO `source_text` column today), never shipped; existing LLM enrichment writes our
+     own descriptions (#22). **Build is DEFERRED** (owner: "record decision, build later") — release-blockers
+     first (#130: Room migration safety done in PR #108, privacy-doc accuracy, canonical-tea/sample split).
