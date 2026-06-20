@@ -2424,3 +2424,22 @@ deviated.
        not 215/120 MB — and on `det_limit_side_len`, not an EasyOCR param) + code bugs; all VM-size/₽ figures
        (moot on 32 GB); deepseek's stale `rapidocr==3.3.0`; any quoted model SHA. Surya is GPU-oriented +
        OpenRAIL-M commercial-restricted — out.
+
+126. **Local OCR test → corrector shipped to `/ocr`; server detector deferred to the pelican task
+     (2026-06-20).** User: test the new OCR + corrections **locally first**, **stay on the current 4 GB
+     `teatiers` VM for now**, migrate to the pelican node as a **separate task later** (consider ArgoCD/GitOps
+     for that, RAM permitting). **Measured locally** (`/tmp` harness, the 10 real photos, ground-truth-free
+     valid-Russian-word ratio): current mobile-det-960 **84.6%** vs **server-det + 1280-min 83.8%** (a *wash* —
+     slightly worse on these clean printed labels) at **~6× latency (~6 s vs ~1 s)** and **~4.5 GB peak (does
+     NOT fit the 4 GB VM)**; +corrector **85.1%** plus the qualitative win (`Хyн→Хун`, `КУСТОВ`, `Букет`-not-
+     `Вукет`). The server detector's *only* upside was **recall** (#1 captured a sentence the 960-downscale
+     dropped) — promising for descriptions but unproven + it scrambled #6's layout. **Decisions:** (a) the
+     **server detector + 1280 is DEFERRED to the pelican-migration task** — re-test there (32 GB / 4 vCPU) on
+     n≥30 with a real ground truth before adopting; the run-19 "+13-pt" generic benchmark did NOT transfer to
+     clean RU labels. (b) The **dict-gated corrector is WIRED into `/ocr`** (#104): returns
+     `{"text": raw, "corrected": cleaned}`, pymorphy3 warmed at startup, **unchanged mobile-det-960 engine**
+     (fits 4 GB, no new RAM) → **deployable to the current machine** (deploy pending explicit auth).
+     Backward-compatible (server's `OcrSidecarResponse` ignores unknowns). Build+smoke confirmed **pymorphy3
+     runs on the python-3.14 base**. The `corrected` field is NOT yet consumed by server/app (user chose
+     sidecar-only; the end-to-end server→app wiring is a later slice). Shipped: #102 (name recovery), #103
+     (corrector), #104 (`/ocr` wiring).
