@@ -115,10 +115,12 @@ data class ResolveResponseDto(
 )
 
 /**
- * `POST /teas/ocr` response (slice 1b): the raw text recognized from a scanned packaging photo.
- * Null/blank means the sidecar found nothing legible. Mirrors the server `OcrResponseDto`.
+ * `POST /teas/ocr` response: [text] is the raw recognized packaging text; [corrected] is the
+ * dictionary-gated description cleanup (decision #125). Null/blank means nothing legible was found.
+ * Mirrors the server `OcrResponseDto`; `corrected` is optional so an older server still binds.
  */
 @Serializable
 data class OcrResponseDto(
     val text: String? = null,
+    val corrected: String? = null,
 )

@@ -39,8 +39,8 @@ class OcrClient(
         )
         .build()
 
-    /** Recognizes [image]; returns the raw concatenated text (unsanitized) or null on failure. */
-    fun recognize(image: ByteArray, filename: String): String? {
+    /** Recognizes [image]; returns the sidecar response (raw + dict-corrected text) or null on failure. */
+    fun recognize(image: ByteArray, filename: String): OcrSidecarResponse? {
         // A named ByteArrayResource makes Spring emit a proper multipart file part.
         val filePart = object : ByteArrayResource(image) {
             override fun getFilename() = filename
@@ -53,7 +53,8 @@ class OcrClient(
                 .body(body)
                 .retrieve()
                 .body(OcrSidecarResponse::class.java)
-                ?.text
+                // A response missing `text` is a sidecar malfunction → null → 502 (unchanged behavior).
+                ?.takeIf { it.text != null }
         } catch (ex: RestClientException) {
             log.warn("OCR sidecar call failed: {}", ex.message)
             null
@@ -62,4 +63,4 @@ class OcrClient(
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class OcrSidecarResponse(val text: String?)
+data class OcrSidecarResponse(val text: String?, val corrected: String? = null)

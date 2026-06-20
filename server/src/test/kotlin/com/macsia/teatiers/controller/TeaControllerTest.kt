@@ -3,6 +3,7 @@ package com.macsia.teatiers.controller
 import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.FacetsDto
+import com.macsia.teatiers.dto.OcrResponseDto
 import com.macsia.teatiers.dto.PageDto
 import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.ResolveStatus
@@ -254,15 +255,16 @@ class TeaControllerTest {
     }
 
     @Test
-    fun `ocr returns the recognized text`() {
+    fun `ocr returns the recognized text + corrected`() {
         every { ocrRateLimiter.tryAcquire(any()) } returns true
-        every { ocrService.recognize(any(), any()) } returns "Green tea blend"
+        every { ocrService.recognize(any(), any()) } returns OcrResponseDto("Green tea blend", "Green tea blend")
 
         mockMvc.perform(
             multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
         )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.text").value("Green tea blend"))
+            .andExpect(jsonPath("$.corrected").value("Green tea blend"))
     }
 
     @Test
@@ -340,7 +342,7 @@ class TeaControllerTest {
         // OCR consults only its own limiter — the /resolve window is never touched, so the two
         // endpoints can't deplete each other's budget (decision #103).
         every { ocrRateLimiter.tryAcquire(any()) } returns true
-        every { ocrService.recognize(any(), any()) } returns "Oolong"
+        every { ocrService.recognize(any(), any()) } returns OcrResponseDto("Oolong", "Oolong")
 
         mockMvc.perform(
             multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),

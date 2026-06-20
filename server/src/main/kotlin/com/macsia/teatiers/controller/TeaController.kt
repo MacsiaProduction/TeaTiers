@@ -99,7 +99,7 @@ class TeaController(
         // when it's saturated rather than blocking a Tomcat worker behind it. Released in finally.
         if (!ocrConcurrencyGate.tryAcquire()) throw OcrBusyException()
         return try {
-            OcrResponseDto(ocrService.recognize(file.bytes, file.originalFilename ?: "image"))
+            ocrService.recognize(file.bytes, file.originalFilename ?: "image")
         } finally {
             ocrConcurrencyGate.release()
         }

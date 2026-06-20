@@ -224,7 +224,30 @@ class DefaultCatalogRepositoryTest {
 
         val result = repo.ocr(byteArrayOf(1))
 
-        assertEquals(OcrResult.Recognized(""), result)
+        assertEquals(OcrResult.Recognized("", ""), result)
+    }
+
+    @Test
+    fun `ocr maps text + corrected from the response`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("""{"text":"Дянь Хyн","corrected":"Дянь Хун"}"""),
+        )
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.ocr(byteArrayOf(1))
+
+        assertEquals(OcrResult.Recognized(text = "Дянь Хyн", corrected = "Дянь Хун"), result)
+    }
+
+    @Test
+    fun `ocr falls back corrected to raw text when the server omits it`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"text":"Дянь Хун"}"""))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.ocr(byteArrayOf(1))
+
+        assertEquals(OcrResult.Recognized(text = "Дянь Хун", corrected = "Дянь Хун"), result)
     }
 
     @Test
