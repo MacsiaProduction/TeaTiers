@@ -116,6 +116,45 @@ class DefaultCatalogRepositoryTest {
     }
 
     @Test
+    fun `browse parses a page and carries the next cursor`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(BROWSE_BODY))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.browse(cursor = null)
+
+        assertTrue(result is CatalogBrowseResult.Loaded)
+        result as CatalogBrowseResult.Loaded
+        assertEquals(2, result.teas.size)
+        assertEquals(7L, result.nextCursor)
+        // Browse mode omits `q` and forwards the cursor on a paged request.
+        val recorded = server.takeRequest()
+        assertTrue(recorded.path!!.contains("/teas/search"))
+        assertFalse(recorded.path!!.contains("q="))
+        coVerify(exactly = 1) { dao.upsertAll(any()) }
+    }
+
+    @Test
+    fun `browse forwards the cursor on a paged request`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[],"nextCursor":null}"""))
+        val repo = DefaultCatalogRepository(api, dao)
+
+        val result = repo.browse(cursor = 42L)
+
+        assertEquals(CatalogBrowseResult.Loaded(emptyList(), nextCursor = null), result)
+        assertTrue(server.takeRequest().path!!.contains("cursor=42"))
+    }
+
+    @Test
+    fun `browse maps a server error to Error and a network failure to Offline`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500))
+        val repo = DefaultCatalogRepository(api, dao)
+        assertEquals(CatalogBrowseResult.Error, repo.browse())
+
+        server.shutdown()
+        assertEquals(CatalogBrowseResult.Offline, repo.browse())
+    }
+
+    @Test
     fun `detail returns a parsed detail on a network hit`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(DETAIL_BODY))
         val repo = DefaultCatalogRepository(api, dao)
@@ -294,6 +333,16 @@ class DefaultCatalogRepositoryTest {
             "verificationStatus":"verified","names":[
             {"locale":"en","name":"Dragon Well","primary":false},
             {"locale":"ru","name":"Лунцзин","primary":true}]}],"nextCursor":null}
+            """.trimIndent()
+
+        // Two-item browse page that still has a next cursor (more pages follow).
+        val BROWSE_BODY =
+            """
+            {"items":[
+            {"id":1,"type":"GREEN","originCountry":"CN","brand":null,"verificationStatus":"verified",
+            "names":[{"locale":"ru","name":"Лунцзин","primary":true}]},
+            {"id":7,"type":"OOLONG","originCountry":"CN","brand":null,"verificationStatus":"verified",
+            "names":[{"locale":"ru","name":"Те Гуань Инь","primary":true}]}],"nextCursor":7}
             """.trimIndent()
 
         // Includes an unknown flavor axis ("MINTY") and an out-of-range intensity to exercise the mapper.

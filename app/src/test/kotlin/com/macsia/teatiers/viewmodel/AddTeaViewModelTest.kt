@@ -580,6 +580,36 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `bind with a catalogTeaId pre-picks the catalog tea into the form`() = runTest {
+        // Entered from catalog browse: the form is prefilled from the chosen tea's detail, and the
+        // catalog id rides along so submit skips a redundant re-enrichment.
+        coEvery { catalogRepository.detail(77L) } returns
+            CatalogDetailResult.Loaded(catalogTeaDetail(77L, ru = "Лунцзин", en = "Dragon Well", origin = "CN"))
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.bind(boardId = "b", catalogTeaId = 77L)
+        advanceUntilIdle()
+
+        val form = viewModel.form.value
+        assertEquals("Лунцзин", form.nameRu)
+        assertEquals("Dragon Well", form.nameEn)
+        assertEquals("CN", form.origin)
+        assertEquals(77L, form.catalogTeaId)
+    }
+
+    @Test
+    fun `bind with a catalogTeaId leaves the form empty when the detail fetch fails`() = runTest {
+        coEvery { catalogRepository.detail(77L) } returns CatalogDetailResult.Offline
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.bind(boardId = "b", catalogTeaId = 77L)
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.form.value.nameRu)
+        assertEquals(null, viewModel.form.value.catalogTeaId)
+    }
+
+    @Test
     fun `addManuallyFromQuery carries the trimmed query into the name and arms focus`() = runTest {
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
