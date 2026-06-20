@@ -1,10 +1,14 @@
 package com.macsia.teatiers.service
 
+import com.macsia.teatiers.config.MissLogProperties
 import com.macsia.teatiers.domain.CatalogMiss
 import com.macsia.teatiers.repository.CatalogMissRepository
 import org.springframework.data.domain.Limit
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
+import java.time.LocalDate
 
 /**
  * The demand-driven catalog-growth engine (decision #116, research run 16): record the aggregate,
@@ -18,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class MissLogService(
     private val repository: CatalogMissRepository,
+    private val props: MissLogProperties = MissLogProperties(),
+    private val clock: Clock = Clock.systemUTC(),
 ) {
 
     /** Record one resolve miss for [rawName]. A blank/normalized-empty name is ignored. */
@@ -26,6 +32,20 @@ class MissLogService(
         val norm = normalize(rawName)
         if (norm.isEmpty()) return
         repository.recordMiss(norm)
+    }
+
+    /**
+     * Daily retention sweep (03:41 UTC; offset off the hour and the diagnostics 03:17 sweep to dodge
+     * cron spikes). The query string is free text a user typed, so we don't keep it forever (review
+     * P0-2 / decision #130): drop rows last seen before the retention window AND asked fewer than
+     * [MissLogProperties.minMissCountToKeep] times; popular rows survive as the curation signal.
+     * Returns how many rows were removed.
+     */
+    @Scheduled(cron = "0 41 3 * * *", zone = "UTC")
+    @Transactional
+    fun purgeStale(): Int {
+        val cutoff = LocalDate.now(clock).minusDays(props.retentionDays)
+        return repository.deleteStale(cutoff, props.minMissCountToKeep)
     }
 
     /** Operator review: the [limit] most-requested unresolved teas, highest demand first. */

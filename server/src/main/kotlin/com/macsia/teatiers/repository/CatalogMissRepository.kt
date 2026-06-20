@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.time.LocalDate
 
 /** Persistence for the demand-driven miss log (decision #116). */
 interface CatalogMissRepository : JpaRepository<CatalogMiss, String> {
@@ -28,4 +29,13 @@ interface CatalogMissRepository : JpaRepository<CatalogMiss, String> {
 
     /** Operator review surface: the most-wanted unresolved teas, highest demand first. */
     fun findAllByOrderByMissCountDesc(limit: Limit): List<CatalogMiss>
+
+    /**
+     * Retention sweep (review P0-2): drop stale, low-demand rows — last seen before [cutoff] AND
+     * asked fewer than [minCount] times. Frequently-requested rows survive regardless of age.
+     * Returns how many rows were removed.
+     */
+    @Modifying
+    @Query("DELETE FROM CatalogMiss m WHERE m.lastSeen < :cutoff AND m.missCount < :minCount")
+    fun deleteStale(@Param("cutoff") cutoff: LocalDate, @Param("minCount") minCount: Long): Int
 }

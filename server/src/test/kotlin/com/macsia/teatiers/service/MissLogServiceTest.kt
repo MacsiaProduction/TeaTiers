@@ -1,10 +1,15 @@
 package com.macsia.teatiers.service
 
+import com.macsia.teatiers.config.MissLogProperties
 import com.macsia.teatiers.repository.CatalogMissRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.springframework.data.domain.Limit
@@ -66,5 +71,25 @@ class MissLogServiceTest {
         service.topMisses(99_999)
 
         assertEquals(500, limit.captured.max())
+    }
+
+    @Test
+    fun `purgeStale deletes rows past the retention window and below the keep threshold`() {
+        // Fixed clock so the cutoff is deterministic: 2026-06-21 minus 90 days = 2026-03-23.
+        val clock = Clock.fixed(Instant.parse("2026-06-21T00:00:00Z"), ZoneOffset.UTC)
+        val service = MissLogService(
+            repository,
+            MissLogProperties(retentionDays = 90, minMissCountToKeep = 3),
+            clock,
+        )
+        val cutoff = slot<LocalDate>()
+        val minCount = slot<Long>()
+        every { repository.deleteStale(capture(cutoff), capture(minCount)) } returns 4
+
+        val removed = service.purgeStale()
+
+        assertEquals(4, removed)
+        assertEquals(LocalDate.of(2026, 3, 23), cutoff.captured)
+        assertEquals(3L, minCount.captured) // popular rows (>= 3 misses) survive regardless of age
     }
 }
