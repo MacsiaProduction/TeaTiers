@@ -69,6 +69,14 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun boardCount(): Int = boards.size
 
+    override suspend fun deleteBoardRow(boardId: String) {
+        if (boards.removeAll { it.id == boardId }) {
+            tiers.removeAll { it.boardId == boardId }       // FK cascade
+            placements.removeAll { it.boardId == boardId }  // FK cascade; teas (shared) persist
+            refresh()
+        }
+    }
+
     override suspend fun teaCount(): Int = teas.size
 
     override suspend fun photoCount(): Int = photos.size

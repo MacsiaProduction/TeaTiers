@@ -164,6 +164,15 @@ class TeaBoardRepository @Inject constructor(
     }
 
     /**
+     * Deletes a whole board (tier-list). Its tiers + placements cascade via FK; the shared teas
+     * themselves persist (they live in the collection independent of any board, #42) — deleting a
+     * board removes only its tier arrangement, not the teas. No-op if the board is unknown.
+     */
+    suspend fun deleteBoard(boardId: String) {
+        dao.deleteBoardRow(boardId)
+    }
+
+    /**
      * Adds a placement of [tea] on [boardId]. Resolve-or-create (decisions.md #42): if a
      * matching user-tea already exists by name we reuse it (no overwrite of its fields), else
      * we insert a fresh user-tea. With a known [tierId] the placement joins that tier; an
