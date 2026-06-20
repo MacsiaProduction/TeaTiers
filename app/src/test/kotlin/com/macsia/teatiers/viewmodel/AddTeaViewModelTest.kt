@@ -702,8 +702,10 @@ class AddTeaViewModelTest {
     )
 
     @Test
-    fun `scanLabel surfaces recognized text for review`() = runTest {
-        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай, Сиху")
+    fun `scanLabel surfaces the corrected text for review`() = runTest {
+        // Review prefills the CORRECTED text, not the raw OCR (decision #125).
+        coEvery { catalogRepository.ocr(any()) } returns
+            OcrResult.Recognized(text = "Зелёныи чаи, Сиху", corrected = "Зелёный чай, Сиху")
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.scanLabel(mockk())
@@ -718,7 +720,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `applyScannedText fills sourceText and closes the review`() = runTest {
-        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай")
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай", "Зелёный чай")
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.scanLabel(mockk())
         advanceUntilIdle()
@@ -741,7 +743,7 @@ class AddTeaViewModelTest {
 
     @Test
     fun `a blank recognition stays idle and does not touch sourceText`() = runTest {
-        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("   ")
+        coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("   ", "   ")
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
         viewModel.scanLabel(mockk())

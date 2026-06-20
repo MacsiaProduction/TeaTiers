@@ -34,14 +34,16 @@ class OcrClientTest {
         OcrClient(OcrProperties(sidecarUrl = server.url("/").toString()))
 
     @Test
-    fun `recognize posts a multipart file to the sidecar and returns the text`() {
+    fun `recognize posts a multipart file to the sidecar and returns text + corrected`() {
         server.enqueue(
-            MockResponse().setHeader("Content-Type", "application/json").setBody("""{"text":"Green tea blend"}"""),
+            MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("""{"text":"Green tea blend","corrected":"Green tea blend"}"""),
         )
 
-        val text = clientFor().recognize(byteArrayOf(1, 2, 3), "packaging.jpg")
+        val resp = clientFor().recognize(byteArrayOf(1, 2, 3), "packaging.jpg")
 
-        assertEquals("Green tea blend", text)
+        assertEquals("Green tea blend", resp?.text)
+        assertEquals("Green tea blend", resp?.corrected)
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
         assertEquals("/ocr", recorded.path)

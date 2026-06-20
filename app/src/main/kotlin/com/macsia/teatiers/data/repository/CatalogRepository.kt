@@ -60,8 +60,11 @@ sealed interface ResolveResult {
 
 /** Outcome of `POST /teas/ocr` (slice 1b) — recognizing text from a scanned packaging image. */
 sealed interface OcrResult {
-    /** Recognition ran. [text] may be blank when the sidecar found nothing legible. */
-    data class Recognized(val text: String) : OcrResult
+    /**
+     * Recognition ran. [text] is the raw OCR; [corrected] is the description-safe cleaned text
+     * (decision #125) the UI shows for review. Both may be blank when nothing legible was found.
+     */
+    data class Recognized(val text: String, val corrected: String) : OcrResult
 
     /** Network unreachable. */
     data object Offline : OcrResult
@@ -172,7 +175,9 @@ class DefaultCatalogRepository @Inject constructor(
                 "scan.jpg",
                 imageBytes.toRequestBody("image/jpeg".toMediaType()),
             )
-            OcrResult.Recognized(api.ocr(part).text.orEmpty())
+            val dto = api.ocr(part)
+            val raw = dto.text.orEmpty()
+            OcrResult.Recognized(text = raw, corrected = dto.corrected ?: raw)
         } catch (_: IOException) {
             OcrResult.Offline
         } catch (e: HttpException) {

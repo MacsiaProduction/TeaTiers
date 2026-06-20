@@ -214,11 +214,13 @@ class AddTeaViewModel @Inject constructor(
             }
             when (val result = catalogRepository.ocr(bytes)) {
                 is OcrResult.Recognized ->
-                    if (result.text.isBlank()) {
+                    // Prefill the review with the dictionary-corrected text (decision #125) — a cleaner
+                    // start for the user, which then becomes sourceText -> enrichment context.
+                    if (result.corrected.isBlank()) {
                         eventHost.emit(UiEvent.ShowSnackbar(R.string.ocr_no_text))
                         _scan.value = ScanUiState.Idle
                     } else {
-                        _scan.value = ScanUiState.Review(result.text)
+                        _scan.value = ScanUiState.Review(result.corrected)
                     }
                 OcrResult.Offline -> failScan(R.string.ocr_offline)
                 OcrResult.TooLarge -> failScan(R.string.ocr_image_too_large)

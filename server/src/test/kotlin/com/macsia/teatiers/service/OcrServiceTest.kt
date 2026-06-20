@@ -2,6 +2,7 @@ package com.macsia.teatiers.service
 
 import com.macsia.teatiers.client.OcrClient
 import com.macsia.teatiers.client.OcrProperties
+import com.macsia.teatiers.client.OcrSidecarResponse
 import com.macsia.teatiers.controller.OcrFailedException
 import com.macsia.teatiers.controller.OcrUnavailableException
 import io.mockk.every
@@ -35,18 +36,31 @@ class OcrServiceTest {
     }
 
     @Test
-    fun `recognize sanitizes the raw sidecar text`() {
+    fun `recognize sanitizes both the raw and the corrected sidecar text`() {
         every { client.isEnabled } returns true
         // Leading/trailing + inline whitespace collapsed, blank line dropped (zero-width stripping
         // is covered by OcrSanitizerTest; this just asserts the service delegates to the sanitizer).
-        every { client.recognize(any(), any()) } returns "  Зелёный  чай \n\n Сиху  "
-        assertEquals("Зелёный чай\nСиху", service().recognize(byteArrayOf(1), "x.jpg"))
+        every { client.recognize(any(), any()) } returns
+            OcrSidecarResponse(text = "  Зелёный  чай \n\n Сиху  ", corrected = "  Зелёный чай \n Сиху  ")
+        val r = service().recognize(byteArrayOf(1), "x.jpg")
+        assertEquals("Зелёный чай\nСиху", r.text)
+        assertEquals("Зелёный чай\nСиху", r.corrected)
     }
 
     @Test
-    fun `recognize caps the text to maxTextLength`() {
+    fun `recognize falls back corrected to raw when the sidecar omits it (pre-104)`() {
         every { client.isEnabled } returns true
-        every { client.recognize(any(), any()) } returns "a".repeat(5_000)
-        assertTrue(service(maxLen = 10).recognize(byteArrayOf(1), "x.jpg").length <= 10)
+        every { client.recognize(any(), any()) } returns OcrSidecarResponse(text = "Зелёный чай", corrected = null)
+        assertEquals("Зелёный чай", service().recognize(byteArrayOf(1), "x.jpg").corrected)
+    }
+
+    @Test
+    fun `recognize caps both fields to maxTextLength`() {
+        every { client.isEnabled } returns true
+        every { client.recognize(any(), any()) } returns
+            OcrSidecarResponse(text = "a".repeat(5_000), corrected = "b".repeat(5_000))
+        val r = service(maxLen = 10).recognize(byteArrayOf(1), "x.jpg")
+        assertTrue(r.text.length <= 10)
+        assertTrue(r.corrected.length <= 10)
     }
 }
