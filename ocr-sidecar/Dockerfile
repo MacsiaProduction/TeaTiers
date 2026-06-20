@@ -31,7 +31,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir opencv-python-headless==4.13.0.92
 
 COPY --from=models /opt/ocr-models /opt/ocr-models
-COPY app.py ./
+# The FastAPI app + its sidecar modules: name_match (run 18, name recovery) and description_correct
+# (run 19, dictionary-gated description cleanup). app.py imports description_correct at startup.
+COPY app.py name_match.py description_correct.py ./
 ENV OCR_MODELS_DIR=/opt/ocr-models
 
 USER appuser
