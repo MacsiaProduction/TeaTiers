@@ -38,11 +38,12 @@ def test_pixel_bomb_returns_413(monkeypatch):
     assert r.status_code == 413
 
 
-def test_valid_image_returns_recognized_text(monkeypatch):
+def test_valid_image_returns_recognized_and_corrected_text(monkeypatch):
     monkeypatch.setattr(app_module, "_recognize", lambda data: "Зелёный чай")
     r = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r.status_code == 200
-    assert r.json() == {"text": "Зелёный чай"}
+    # `corrected` is the dict-gated cleanup; clean input passes through unchanged (decision #125).
+    assert r.json() == {"text": "Зелёный чай", "corrected": "Зелёный чай"}
 
 
 def test_within_pixel_budget_passes_small_and_undecodable():
@@ -125,4 +126,4 @@ def test_timeout_recycles_worker_so_the_next_request_is_not_blocked(monkeypatch)
     # Without the recycle this would queue behind the 0.5s wedge and trip its own 0.05s deadline (504).
     r2 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r2.status_code == 200
-    assert r2.json() == {"text": "fast"}
+    assert r2.json() == {"text": "fast", "corrected": "fast"}  # "fast" is Latin -> corrector leaves it
