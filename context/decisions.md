@@ -2471,3 +2471,20 @@ deviated.
      installs:** cut a higher-versionCode release (bump `versionCode`/`versionName` in app/build.gradle.kts),
      then set `teatiers.appupdate.*` on the server (latest-version-code, apk-url, apk-sha256, the cert SHA
      above, mirror-urls) — until then the manifest endpoint 204s and no update is offered.
+
+129. **Data-sourcing rule REVERSED: scraping RU tea sites is now allowed to populate the catalog; research
+     run 20 queued (2026-06-21).** Owner lifted the self-imposed "legally-clean" data rules — **#24** (CC/
+     Wikimedia images only, no web image fetching) and **#45** (no crawling) — for this **personal project**.
+     We may now scrape RU tea sites to grow the catalog. **Clarified a misconception:** the repo's code
+     license (Apache-2.0) does NOT grant scraping rights and is unrelated — scraping rights come from the
+     target sites' ToS/robots + copyright; the **code license stays Apache-2.0** (owner: "reverse the data
+     rule, keep Apache-2.0"). **The one line still enforced — redistribution:** TeaTiers ships a public APK
+     (v0.1.0 out), so the design must keep the **public catalog clean of copyrighted EXPRESSION** — scrape
+     **facts** (names ru/zh/pinyin, type, origin/region, cultivar, vendor) + keep `source`/`source_url`
+     attribution, and let the **existing LLM enrichment generate our own descriptions** (decision #22), NOT
+     ship verbatim vendor prose/photos. Wrote **research run 20** (`research/20-catalog-scraping/prompt.md`):
+     ranked RU sources, scrape/parse + politeness stack, data-model + **dedup against the existing catalog**
+     (#16 key + pg_trgm/`name_norm`), the facts-vs-expression policy, and the operating model (bulk import vs
+     ongoing scraper; coexist with the seed + miss-log #116 + enrichment). Builds on run 16 (catalog-breadth,
+     which assumed no scraping). Awaiting model answers to rate. (Supersedes the no-crawl half of #45 + the
+     no-web-fetch half of #24; the rest of those decisions — e.g. attribution discipline — still stands.)
