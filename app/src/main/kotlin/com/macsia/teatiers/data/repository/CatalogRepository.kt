@@ -29,6 +29,22 @@ sealed interface CatalogSearchResult {
     data object Error : CatalogSearchResult
 }
 
+/**
+ * Outcome of one page of catalog browse (`GET /teas/search` with no `q` — the server lists the
+ * whole catalog cursor-paginated by id, #42 follow-up). [Loaded.nextCursor] is null when the last
+ * page was reached. Browse is online-only: a failure surfaces a typed state for a retry rather than
+ * a stale partial offline copy (unlike search, which falls back to the per-query cache).
+ */
+sealed interface CatalogBrowseResult {
+    data class Loaded(val teas: List<CatalogTea>, val nextCursor: Long?) : CatalogBrowseResult
+
+    /** Network unreachable. */
+    data object Offline : CatalogBrowseResult
+
+    /** The server answered with an error (4xx/5xx). */
+    data object Error : CatalogBrowseResult
+}
+
 /** Outcome of loading one catalog tea's full detail (plan §5, `GET /teas/{id}`). */
 sealed interface CatalogDetailResult {
     data class Loaded(val detail: CatalogTeaDetail) : CatalogDetailResult
@@ -87,6 +103,13 @@ interface CatalogRepository {
     suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): CatalogSearchResult
 
     /**
+     * Browses the whole catalog one page at a time (no query), ordered by id. [cursor] is the
+     * [CatalogBrowseResult.Loaded.nextCursor] from the previous page (null for the first). Hits the
+     * network and caches each page for the offline search fallback; never reads the cache itself.
+     */
+    suspend fun browse(cursor: Long? = null, limit: Int = BROWSE_LIMIT): CatalogBrowseResult
+
+    /**
      * Loads one tea's full detail from the network. Detail is not cached (unlike search): it is only
      * reached on an explicit tap, so a failure surfaces a retry rather than a stale offline copy.
      */
@@ -107,6 +130,9 @@ interface CatalogRepository {
 
     companion object {
         const val DEFAULT_LIMIT = 20
+
+        /** Browse page size; matches the server's per-request cap (TeaCatalogService.MAX_LIMIT). */
+        const val BROWSE_LIMIT = 50
     }
 }
 
@@ -134,6 +160,24 @@ class DefaultCatalogRepository @Inject constructor(
             }
         }
     }
+
+    override suspend fun browse(cursor: Long?, limit: Int): CatalogBrowseResult =
+        withContext(Dispatchers.IO) {
+            try {
+                // No `q` => browse mode; the server paginates by id and returns nextCursor.
+                val page = api.search(query = null, cursor = cursor, limit = limit)
+                val teas = page.items.map { it.toDomain() }
+                if (teas.isNotEmpty()) {
+                    val now = System.currentTimeMillis()
+                    catalogDao.upsertAll(teas.map { it.toCacheEntity(now) })
+                }
+                CatalogBrowseResult.Loaded(teas, page.nextCursor)
+            } catch (_: IOException) {
+                CatalogBrowseResult.Offline
+            } catch (_: HttpException) {
+                CatalogBrowseResult.Error
+            }
+        }
 
     override suspend fun detail(id: Long): CatalogDetailResult = withContext(Dispatchers.IO) {
         try {

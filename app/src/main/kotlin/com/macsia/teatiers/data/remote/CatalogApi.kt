@@ -25,7 +25,9 @@ interface CatalogApi {
 
     @GET("teas/search")
     suspend fun search(
-        @Query("q") query: String,
+        // Nullable: an omitted `q` puts the endpoint in browse mode (server lists the whole
+        // catalog, cursor-paginated by id) — see [CatalogRepository.browse].
+        @Query("q") query: String? = null,
         @Query("locale") locale: String? = null,
         @Query("type") type: String? = null,
         @Query("origin") origin: String? = null,

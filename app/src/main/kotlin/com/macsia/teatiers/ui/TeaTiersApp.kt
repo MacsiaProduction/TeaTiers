@@ -10,6 +10,7 @@ import com.macsia.teatiers.ui.board.AddTeaScreen
 import com.macsia.teatiers.ui.board.AttributionsScreen
 import com.macsia.teatiers.ui.board.BoardScreen
 import com.macsia.teatiers.ui.board.BoardsScreen
+import com.macsia.teatiers.ui.board.BrowseCatalogScreen
 import com.macsia.teatiers.ui.board.MyTeasScreen
 import com.macsia.teatiers.ui.board.SettingsScreen
 import com.macsia.teatiers.ui.board.TeaDetailScreen
@@ -38,7 +39,16 @@ fun TeaTiersApp() {
                 BoardsScreen(
                     onOpenBoard = { navigate(Destination.Board(it)) },
                     onOpenMyTeas = { navigate(Destination.MyTeas) },
+                    onOpenBrowseCatalog = { navigate(Destination.BrowseCatalog) },
                     onOpenSettings = { navigate(Destination.Settings) },
+                )
+
+            Destination.BrowseCatalog ->
+                BrowseCatalogScreen(
+                    onBack = ::pop,
+                    onAddToBoard = { boardId, catalogTeaId ->
+                        navigate(Destination.AddTea(boardId, catalogTeaId))
+                    },
                 )
 
             Destination.MyTeas ->
@@ -77,6 +87,7 @@ fun TeaTiersApp() {
                     boardId = current.boardId,
                     onBack = ::pop,
                     onSaved = ::pop,
+                    catalogTeaId = current.catalogTeaId,
                 )
 
             is Destination.EditTea ->

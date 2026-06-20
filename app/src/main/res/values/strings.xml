@@ -323,4 +323,17 @@
     <string name="board_delete_confirm_title">Удалить подборку?</string>
     <string name="board_delete_confirm_message">Подборка «%1$s» будет удалена. Чаи останутся в вашей коллекции — удаляется только сама подборка.</string>
     <string name="board_delete_confirm_action">Удалить</string>
+
+    <!-- Browse the whole shared catalog (#42 follow-up): list all catalog teas, add one to a board. -->
+    <string name="a11y_browse_catalog_open">Каталог чаёв</string>
+    <string name="browse_catalog_title">Каталог чаёв</string>
+    <string name="browse_catalog_empty">Каталог пока пуст.</string>
+    <string name="browse_catalog_offline">Нет подключения. Не удалось загрузить каталог.</string>
+    <string name="browse_catalog_error">Не удалось загрузить каталог.</string>
+    <string name="browse_catalog_retry">Повторить</string>
+    <string name="browse_catalog_load_more_retry">Загрузить ещё</string>
+    <string name="a11y_browse_add">Добавить «%1$s» в подборку</string>
+    <string name="browse_pick_board_title">Добавить «%1$s» в подборку</string>
+    <string name="browse_pick_board_empty">Сначала создайте подборку на главном экране.</string>
+    <string name="browse_pick_board_cancel">Отмена</string>
 </resources>

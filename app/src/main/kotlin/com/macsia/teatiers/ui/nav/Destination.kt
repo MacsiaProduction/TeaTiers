@@ -18,9 +18,14 @@ sealed interface Destination {
     data object MyTeas : Destination
     data object Settings : Destination
     data object Attributions : Destination
+
+    /** Browse the whole shared catalog (#42 follow-up) — pick a tea to add to a board. */
+    data object BrowseCatalog : Destination
     data class Board(val boardId: String) : Destination
     data class TeaDetail(val teaId: String) : Destination
-    data class AddTea(val boardId: String) : Destination
+
+    /** Add a tea to [boardId]; [catalogTeaId] (set when entered from browse) pre-picks that tea. */
+    data class AddTea(val boardId: String, val catalogTeaId: Long? = null) : Destination
     data class EditTea(val teaId: String) : Destination
     data class TierEditor(val boardId: String) : Destination
 }
@@ -30,9 +35,11 @@ private fun Destination.encode(): String = when (this) {
     Destination.MyTeas -> "my-teas"
     Destination.Settings -> "settings"
     Destination.Attributions -> "attributions"
+    Destination.BrowseCatalog -> "browse-catalog"
     is Destination.Board -> "board:$boardId"
     is Destination.TeaDetail -> "tea:$teaId"
-    is Destination.AddTea -> "add:$boardId"
+    // boardId is a ':'-free uuid slug, so '|' safely separates the optional catalog id.
+    is Destination.AddTea -> "add:$boardId" + (catalogTeaId?.let { "|$it" } ?: "")
     is Destination.EditTea -> "edit-tea:$teaId"
     is Destination.TierEditor -> "tiers:$boardId"
 }
@@ -47,9 +54,15 @@ private fun String.decodeDestination(): Destination {
         "my-teas" -> Destination.MyTeas
         "settings" -> Destination.Settings
         "attributions" -> Destination.Attributions
+        "browse-catalog" -> Destination.BrowseCatalog
         "board" -> arg?.let(Destination::Board) ?: Destination.Boards
         "tea" -> arg?.let(Destination::TeaDetail) ?: Destination.Boards
-        "add" -> arg?.let(Destination::AddTea) ?: Destination.Boards
+        "add" -> arg?.let { a ->
+            // "boardId" or "boardId|catalogId" (browse entry); a malformed id falls back to no pre-pick.
+            val board = a.substringBefore("|")
+            val catalogId = a.substringAfter("|", "").toLongOrNull()
+            Destination.AddTea(board, catalogId)
+        } ?: Destination.Boards
         "edit-tea" -> arg?.let(Destination::EditTea) ?: Destination.Boards
         "tiers" -> arg?.let(Destination::TierEditor) ?: Destination.Boards
         else -> Destination.Boards

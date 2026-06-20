@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -68,6 +69,7 @@ import com.macsia.teatiers.viewmodel.CollectUiEvents
 fun BoardsScreen(
     onOpenBoard: (String) -> Unit,
     onOpenMyTeas: () -> Unit,
+    onOpenBrowseCatalog: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardsViewModel = hiltViewModel(),
@@ -88,6 +90,12 @@ fun BoardsScreen(
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = stringResource(R.string.a11y_my_teas_open),
+                        )
+                    }
+                    IconButton(onClick = onOpenBrowseCatalog) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = stringResource(R.string.a11y_browse_catalog_open),
                         )
                     }
                     IconButton(onClick = onOpenSettings) {

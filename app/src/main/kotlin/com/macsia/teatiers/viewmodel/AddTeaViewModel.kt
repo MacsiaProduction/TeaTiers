@@ -164,7 +164,7 @@ class AddTeaViewModel @Inject constructor(
      * activity's `viewModelStore`). The tea load is async — the form stays empty until the
      * load resolves and we double-check the binding hasn't changed in between.
      */
-    fun bind(boardId: String? = null, teaId: String? = null) {
+    fun bind(boardId: String? = null, teaId: String? = null, catalogTeaId: Long? = null) {
         this.boardId.value = boardId
         _editingTeaId.value = teaId
         _form.value = AddTeaForm()
@@ -179,6 +179,23 @@ class AddTeaViewModel @Inject constructor(
                 if (_editingTeaId.value == teaId) {
                     _form.value = tea?.toForm() ?: AddTeaForm()
                     _placementCount.value = count
+                }
+            }
+        } else if (catalogTeaId != null) {
+            // Entered from catalog browse (#42 follow-up): prefill from the chosen catalog tea, exactly
+            // like picking a search result. The route can only carry the id, so re-fetch its detail. A
+            // failed fetch leaves the form empty + explains via a snackbar (the user can still type the
+            // tea). Guard against a stale re-bind racing this async fetch.
+            viewModelScope.launch {
+                when (val result = catalogRepository.detail(catalogTeaId)) {
+                    is CatalogDetailResult.Loaded ->
+                        if (this@AddTeaViewModel.boardId.value == boardId && _editingTeaId.value == null) {
+                            pickCatalogTea(result.detail.toCatalogTea())
+                        }
+                    CatalogDetailResult.Offline ->
+                        eventHost.emit(UiEvent.ShowSnackbar(R.string.catalog_search_offline))
+                    CatalogDetailResult.Error ->
+                        eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic))
                 }
             }
         }

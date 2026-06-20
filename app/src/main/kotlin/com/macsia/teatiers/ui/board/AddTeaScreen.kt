@@ -92,9 +92,12 @@ fun AddTeaScreen(
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
     teaId: String? = null,
+    catalogTeaId: Long? = null,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(boardId, teaId) { viewModel.bind(boardId = boardId, teaId = teaId) }
+    LaunchedEffect(boardId, teaId, catalogTeaId) {
+        viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId)
+    }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()
     val placementCount by viewModel.placementCount.collectAsStateWithLifecycle()
