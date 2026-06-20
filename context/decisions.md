@@ -2488,3 +2488,35 @@ deviated.
      ongoing scraper; coexist with the seed + miss-log #116 + enrichment). Builds on run 16 (catalog-breadth,
      which assumed no scraping). Awaiting model answers to rate. (Supersedes the no-crawl half of #45 + the
      no-web-fetch half of #24; the rest of those decisions — e.g. attribution discipline — still stands.)
+
+130. **Full architecture & design review (2026-06-21) — release-blockers triaged; hardening prioritized over
+     new features.** A background deep-review audited current `main` (app persistence/backup/OCR/updater/UI/CI,
+     server resolve/enrichment/miss-log/rate-limit/Flyway, the OCR sidecar, deploy + release workflows) against
+     `context/decisions.md` + live code. Verdict: the small-system architecture is right (local-first app,
+     pg_trgm catalog, opt-in OCR, one Compose host — do NOT add k8s/Kafka/a search service/accounts), but
+     v0.1.0 being **public** turns three items into **release-blockers**, not deferred hardening. Full text:
+     [`context/review/2026-06-21-full-architecture-design-review.md`](review/2026-06-21-full-architecture-design-review.md).
+     **Owner triage (2026-06-21): release-blockers FIRST, before more features or the scraping build.** Acting on:
+     - **(P0-1) Room destructive-migration data-loss** — `TeaDatabase` is v6 `exportSchema=false` + `AppModule`
+       unconditionally `fallbackToDestructiveMigration(dropAllTables=true)`; a future schema bump can WIPE a
+       user's only local copy. Fix: freeze v6 as the public baseline, export+commit schemas, remove the prod
+       destructive fallback (debug-only if ever needed), add explicit migrations + `MigrationTestHelper` v6→latest,
+       gate release CI on it.
+     - **(P0-2) Privacy copy ≠ data flows** — in-app text says typed names/descriptions aren't saved to the
+       shared catalog, but the miss-log retains every unresolved typed name (`catalog_miss`, no retention) and
+       the LLM path persists the typed name as a shared `TeaName(source="user")`. Fix: align the copy + publish
+       a short versioned privacy policy, disclose exactly what's sent/retained/why, add miss-log retention,
+       prefer a reviewed candidate queue over auto-promoting a typed name into the shared catalog.
+     - **(P1-1) Canonical tea vs user sample conflated** — `TeaEntity`'s 1:1 `catalogTeaId` can't represent the
+       same tea across vendors/harvests/batches/ages. Fix (design-first): split `CatalogTeaRef` (cached ref
+       facts) from `TeaSample` (user item, optional catalog link, vendor/year/batch, personal names/notes) +
+       `Purchase` + `BoardPlacement`→sample; v6 rows migrate losslessly to one sample each; never copy personal
+       data into the shared catalog. (Pairs with P1-2: require ≥1 localized name, not specifically `nameRu`.)
+     **Deferred for now (owner):** (P0-3) keystore recovery hardening (0644→0600, 2 offline backups, recovery
+     drill) — noted, not this batch; the **scraping pipeline build** (record the run-20 decision, build later).
+     Other findings tracked in the review for later: P1-3 updater trust/copy/size, P1-4 release-CI quality gate +
+     APK attestation, P1-5 backup streaming, P1-7 OCR timeout = killable-process isolation, P1-8 deploy-time
+     digest/signature verification, P1-9 bound rate-limit state (Caffeine), P1-10 single-host failure-domain
+     controls, P2-6 doc-consistency (plan/runbook still bans crawling post-#129; seed is ~100 not ~300). No new
+     research run (review §10: run 20 already covers scraping; the sample/catalog split is a design-directly
+     product decision, not an open research question).
