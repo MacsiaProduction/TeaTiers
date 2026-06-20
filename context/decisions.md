@@ -2443,3 +2443,17 @@ deviated.
      runs on the python-3.14 base**. The `corrected` field is NOT yet consumed by server/app (user chose
      sidecar-only; the end-to-end server→app wiring is a later slice). Shipped: #102 (name recovery), #103
      (corrector), #104 (`/ocr` wiring).
+
+127. **OCR description-correction wired end-to-end + DEPLOYED to prod, verified (2026-06-20).** Merged
+     **#105** (server→app `corrected` wiring): the sidecar's `corrected` text now flows
+     `OcrClient → OcrService(sanitize both) → OcrResponseDto(text, corrected) → app OcrResponseDto →
+     OcrResult.Recognized → AddTeaViewModel prefills the scan Review with the CORRECTED text → on confirm →
+     `sourceText` → the existing enrichment lookup` (the user's "description as web-lookup context"). Optional
+     fields both directions (backward-compatible; falls back to raw). CI pushed new server + sidecar images
+     (main `86c12286`); **deployed via `docker compose pull && up -d server ocr-sidecar`** on the `teatiers`
+     VM (user authorized "implement 1,2"; still the **4 GB box, mobile-det-960 + corrector**, fits — the
+     server detector + 1280 remains deferred to the pelican task). **Verified end-to-end in prod:** `POST
+     https://tea.macsia.fun/api/v1/teas/ocr` returns `{"text","corrected"}` with the correction applied live
+     (`Хyн→Хун`, `KYCTOB→КУСТОВ`); server + sidecar `/health` UP on the new images. The app side (Review
+     prefills corrected) ships in the **next APK build**. Remaining OCR work: the **pelican migration**
+     (separate task — re-A/B the server detector there + the ArgoCD/GitOps question).
