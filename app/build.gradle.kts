@@ -107,6 +107,12 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Export Room schemas so v6 (the public baseline, decision #130 / review P0-1) is committed and
+// future migrations have a JSON to diff + test against. KSP writes app/schemas/<db>/<version>.json.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

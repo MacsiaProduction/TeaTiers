@@ -17,10 +17,13 @@ import androidx.room.RoomDatabase
  * background catalog enrichment (#21/#28). Still destructive on bump (pre-launch).
  *
  * v6 (second-pass review): UNIQUE index on `teas.catalogTeaId` so catalog identity is a schema-level
- * invariant (NULLs stay distinct → custom teas unaffected). Still destructive (pre-launch).
+ * invariant (NULLs stay distinct → custom teas unaffected).
  *
- * exportSchema stays false until we ship to real users — at that point flip it on with
- * room.schemaLocation + a committed JSON baseline so migration tests have something to diff.
+ * **v6 is the public migration baseline (decision #130 / review P0-1).** Now that v0.1.0 ships
+ * publicly, `exportSchema = true` and `app/schemas/.../6.json` is committed so future migrations have
+ * a JSON to diff against, and the prod build NO LONGER destructively migrates ([com.macsia.teatiers.di.AppModule])
+ * — a missing `Migration(6, N)` must fail loudly rather than silently wipe a user's only local copy.
+ * Every version after 6 needs an explicit `Migration` + a `MigrationTestHelper` upgrade test.
  */
 @Database(
     entities = [
@@ -34,7 +37,7 @@ import androidx.room.RoomDatabase
         CatalogCacheEntity::class,
     ],
     version = 6,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class TeaDatabase : RoomDatabase() {
     abstract fun teaDao(): TeaDao
