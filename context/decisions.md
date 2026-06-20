@@ -2457,3 +2457,17 @@ deviated.
      (`Хyн→Хун`, `KYCTOB→КУСТОВ`); server + sidecar `/health` UP on the new images. The app side (Review
      prefills corrected) ships in the **next APK build**. Remaining OCR work: the **pelican migration**
      (separate task — re-A/B the server detector there + the ArgoCD/GitOps question).
+
+128. **First signed APK release — v0.1.0 (2026-06-20).** Cut the first GitHub release: tagged `v0.1.0`
+     (versionCode 1, on main `33e15a5`) → `release.yml` built `assembleRelease`, signed from the 4 keystore
+     secrets (set 2026-06-19), `apksigner verify` passed, and published the release + `teatiers-v0.1.0.apk`
+     (12.76 MB) + `.sha256`. URL: https://github.com/MacsiaProduction/TeaTiers/releases/tag/v0.1.0 . Includes
+     everything merged to date (catalog + enrichment, OCR scan with the description corrector wired
+     end-to-end, GMS-free auto-updater, opt-in ACRA + wipe sentinel). **Release signing-cert SHA-256
+     (NOT a secret — the pinned signer identity for the auto-updater): `a4835edc0addb0c8ed0d3e49d7c700d61ed07636f1520f29e5ad66960b21a43c`** —
+     this is the value for the app-update manifest's `signing-cert-sha256` (decision #119) + the app-side
+     signer-pin (`apkContentsSigners`), and it MUST stay constant across future releases (Android same-signer
+     enforcement on update; losing the keystore breaks auto-update). **To enable in-app auto-update for v0.1.0
+     installs:** cut a higher-versionCode release (bump `versionCode`/`versionName` in app/build.gradle.kts),
+     then set `teatiers.appupdate.*` on the server (latest-version-code, apk-url, apk-sha256, the cert SHA
+     above, mirror-urls) — until then the manifest endpoint 204s and no update is offered.
