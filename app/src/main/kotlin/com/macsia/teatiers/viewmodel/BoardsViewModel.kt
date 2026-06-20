@@ -50,4 +50,12 @@ class BoardsViewModel @Inject constructor(
                 .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
         }
     }
+
+    /** Deletes a board (tier-list). The board's teas persist (shared, #42); only its arrangement goes. */
+    fun deleteBoard(boardId: String) {
+        viewModelScope.launch {
+            runCatching { repository.deleteBoard(boardId) }
+                .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+        }
+    }
 }

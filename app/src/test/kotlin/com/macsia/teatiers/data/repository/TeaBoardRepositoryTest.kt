@@ -72,6 +72,23 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `deleteBoard removes the board but keeps the shared teas`() = runTest(UnconfinedTestDispatcher()) {
+        val dao = FakeTeaDao()
+        val seed = listOf(seededBoard).toSeedEntities()
+        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+        val repository = TeaBoardRepository(dao, FakePhotoStore(), backgroundScope, SampleBoardProvider())
+        advanceUntilIdle()
+        val teasBefore = dao.teaCount()
+        assertEquals(listOf("b"), repository.boards.value.map { it.id })
+
+        repository.deleteBoard("b")
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), repository.boards.value.map { it.id }) // board gone
+        assertEquals(teasBefore, dao.teaCount()) // shared teas (#42) persist — only the board was removed
+    }
+
+    @Test
     fun `addTea places a brand-new tea in a known tier`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()

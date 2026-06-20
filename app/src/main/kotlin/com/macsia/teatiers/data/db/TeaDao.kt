@@ -78,6 +78,11 @@ abstract class TeaDao {
     @Query("SELECT COUNT(*) FROM boards")
     abstract suspend fun boardCount(): Int
 
+    // Delete a whole board (tier-list). Its tiers + placements cascade via FK (onDelete=CASCADE);
+    // shared teas are NOT board-scoped so they persist (only the board's arrangement is removed).
+    @Query("DELETE FROM boards WHERE id = :boardId")
+    abstract suspend fun deleteBoardRow(boardId: String)
+
     // Out-of-Room wipe sentinel (decision #111): numeric-only user-data counts, no content.
     @Query("SELECT COUNT(*) FROM teas")
     abstract suspend fun teaCount(): Int

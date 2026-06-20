@@ -1,6 +1,8 @@
 package com.macsia.teatiers.ui.board
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,10 +18,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -69,6 +74,7 @@ fun BoardsScreen(
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -115,7 +121,11 @@ fun BoardsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(boards, key = { it.id }) { summary ->
-                    BoardSummaryCard(summary = summary, onClick = { onOpenBoard(summary.id) })
+                    BoardSummaryCard(
+                        summary = summary,
+                        onClick = { onOpenBoard(summary.id) },
+                        onDelete = { boardToDelete = summary },
+                    )
                 }
             }
         }
@@ -130,43 +140,84 @@ fun BoardsScreen(
             onDismiss = { showCreateDialog = false },
         )
     }
+
+    boardToDelete?.let { board ->
+        AlertDialog(
+            onDismissRequest = { boardToDelete = null },
+            title = { Text(stringResource(R.string.board_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.board_delete_confirm_message, board.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteBoard(board.id)
+                    boardToDelete = null
+                }) { Text(stringResource(R.string.board_delete_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { boardToDelete = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit) {
+private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
     val countText = pluralStringResource(R.plurals.tea_count, summary.teaCount, summary.teaCount)
-    // TalkBack reads the whole card as a single button instead of three siblings (title +
-    // count + signature swatches). The signature swatches lose their default semantics; the
-    // textual count already conveys "this board has N teas" so the swatches are decorative.
+    // The tappable area (title + count + swatches) is one merged TalkBack node that opens the board;
+    // the trailing overflow is a separate "more options" button (delete lives there).
     val a11yLabel = stringResource(R.string.a11y_board_summary, summary.name, summary.teaCount, countText)
     Surface(
-        onClick = onClick,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) { contentDescription = a11yLabel },
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Text(text = summary.name, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = countText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (summary.signatureTypes.isNotEmpty()) {
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    summary.signatureTypes.forEach { type ->
-                        LiquorSwatch(
-                            type = type,
-                            size = 18.dp,
-                            ringColor = MaterialTheme.colorScheme.surface,
-                            ringWidth = 2.dp,
-                        )
+        Row(verticalAlignment = Alignment.Top) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onClick)
+                    .semantics(mergeDescendants = true) { contentDescription = a11yLabel }
+                    .padding(20.dp),
+            ) {
+                Text(text = summary.name, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = countText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (summary.signatureTypes.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        summary.signatureTypes.forEach { type ->
+                            LiquorSwatch(
+                                type = type,
+                                size = 18.dp,
+                                ringColor = MaterialTheme.colorScheme.surface,
+                                ringWidth = 2.dp,
+                            )
+                        }
                     }
+                }
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.a11y_board_more),
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.board_delete)) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
+                    )
                 }
             }
         }
