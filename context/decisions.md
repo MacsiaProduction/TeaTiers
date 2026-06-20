@@ -2379,3 +2379,48 @@ deviated.
      errors without inventing wrong words (dictionary/spellcheck-gated vs a small local seq2seq corrector),
      Track C using the noisy OCR description as **enrichment context**, Track D recommendation. Output is
      **phased**: cleaned full text first, structuring/enrichment after. Awaiting model answers to rate.
+
+125. **Research run 19 judged → description-OCR plan locked; deployment = pelican node (2026-06-20).** Rated
+     the 6 answers (`research/19-ocr-description-extraction/RATING.md`) via the verify-then-rank workflow.
+     **Winner = opus** (14th win), **gpt co-#2**; deepseek #3, alice #4, gemini #5, **qwen #6** (first judged —
+     *fatally* fabricated that `PP-OCRv5_server_rec` supports Cyrillic; it's CJK+EN+JP only, so that swap would
+     DROP Russian). **Deployment context (user, read via `yc`):** the whole docker stack moves off the current
+     4 GB `teatiers` VM to the **`pelican-node`** = **4 vCPU @100% / 32 GB RAM, CPU-only, AMD `standard-v4a`**
+     (8× the RAM). So **RAM is NOT a constraint** — every model's VM-sizing/₽ section is moot; the binding limits
+     are **per-scan latency (~5 s on 4 vCPU)** + the PaddleOCR-3.x mkldnn OOM pathology. User decisions:
+     **lazy-load the OCR model + unload after idle** (good-citizen on the shared box; configurable, 0 = always-up
+     for future batch); **quality-first (~5 s/scan OK, 2-4 users, concurrency 1)**; photo stays local (#96) but
+     OCR **text** may feed the existing server-side Wikidata + YandexGPT enrichment. **Locked plan (unanimous
+     across top-3):**
+     - **Track A (Sprint 1) — detector + resolution, NOT recognizer.** There is **no server-tier Cyrillic rec**
+       (verified) → keep `eslav_PP-OCRv5_mobile_rec` (7.5 MB, RU/BE/UK/BG, Apache-2.0) as the recognizer; **swap
+       the detector to `PP-OCRv5_server_det`** (84 MB, script-agnostic; det avg 0.662→0.827, ~13-pt e2e gain —
+       the best-substantiated lever); raise `det_limit_side_len` **960→1280** (`limit_type=min`), A/B **1536** by
+       MEASURED CER+latency (the only reason models capped at 1280 was a RAM ceiling that's gone). Keep RapidOCR
+       3.8.4. **Pin models by repo revision + compute sha256 at build** (no trustworthy quoted SHAs;
+       `monkt/paddleocr-onnx` mirror). Resolution-aware **keep-best** preprocessing (EXIF→grayscale→conditional
+       upscale by OCR-confidence→CLAHE 2.0/8×8→light denoise if it helps→deskew |angle|>1.5°; **no hard
+       binarize**; ties to the #114 regression). `opencv-python-headless==4.10.x` / `Pillow>=10.4` / `numpy<2.3`.
+     - **Track B (Sprint 1) — REPLACE the blind confusable normalizer (the `Букет→Вукет` bug) for descriptions**
+       with a **dictionary-gated corrector**: per token, skip protected tokens (URLs/Latin brands/pinyin/units),
+       generate a confusable **lattice** (BOTH `B→{В,Б}`, `y→у`, …) + edit-distance-1, **accept the
+       `pymorphy3`-validated real Russian wordform with highest frequency, else KEEP THE RAW token** (never
+       invent). `pymorphy3` + `pymorphy3-dicts-ru==2.4.417150.4580142` (MIT) as the real-word oracle +
+       `pyspellchecker`/SymSpell freq-rank + a curated **tea-domain lexicon** (гунфу/пуэр/улун/Дянь Хун/…) +
+       proper-noun whitelist. Fast (<10 ms), tens of MB. The run-18 `confusable_normalize` stays ONLY in the
+       name-match path (#123). **Defer the seq2seq corrector** (`sage-fredt5-distilled-95m`) — no RU-OCR-error
+       training data; hallucinates cultivar names.
+     - **Track C (Sprint 2) — OCR text → enrichment (text-only, #96-safe).** Extract signals via regex+gazetteers
+       (type/origin/region/vendor/flavour/brewing) → query **Wikidata FIRST on high-confidence entities** (not
+       the raw garble; with translit variants) → fall back to the existing **YandexGPT** with a structured payload
+       (userTypedName, correctedDescription, rawDescription, extractedSignals, lowConfidenceTokens) + an explicit
+       "this is noisy OCR" instruction → **review-before-save** prefill with provenance (QID vs LLM-inferred);
+       never auto-commit. Typed `/teas/ocr` response contract (gpt).
+     - **Opt-in cloud:** default OFF (#96); optional per-image-consent toggle ONLY if measured CER >~20%, **name
+       only**, never the description/photo by default.
+     - **MEASURE, don't claim:** every model's CER (6–35%) is an **unvalidated projection** — re-measure on the
+       n=10 (→ n≥30) real photos after each change. **Discard:** qwen's server-rec-supports-Cyrillic (would drop
+       RU) + invented filenames; gemini's EasyOCR migration (built on a wrong `cyrillic_g2` size — it's ~15.3 MB,
+       not 215/120 MB — and on `det_limit_side_len`, not an EasyOCR param) + code bugs; all VM-size/₽ figures
+       (moot on 32 GB); deepseek's stale `rapidocr==3.3.0`; any quoted model SHA. Surya is GPU-oriented +
+       OpenRAIL-M commercial-restricted — out.
