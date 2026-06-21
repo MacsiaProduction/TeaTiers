@@ -5,12 +5,16 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.macsia.teatiers.domain.ImportRun
 import com.macsia.teatiers.domain.NormalizedCandidate
 import com.macsia.teatiers.domain.SourceRecord
+import com.macsia.teatiers.domain.SourceRecordRevision
+import com.macsia.teatiers.domain.SourceRecordUrlHistory
 import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.SourceObservation
 import com.macsia.teatiers.repository.ImportRunRepository
 import com.macsia.teatiers.repository.NormalizedCandidateRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
+import com.macsia.teatiers.repository.SourceRecordRevisionRepository
+import com.macsia.teatiers.repository.SourceRecordUrlHistoryRepository
 import com.macsia.teatiers.repository.SourceSiteRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,6 +32,8 @@ class CatalogImportService(
     private val sourceSiteRepository: SourceSiteRepository,
     private val importRunRepository: ImportRunRepository,
     private val sourceRecordRepository: SourceRecordRepository,
+    private val revisionRepository: SourceRecordRevisionRepository,
+    private val urlHistoryRepository: SourceRecordUrlHistoryRepository,
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val factsOnlyGuard: FactsOnlyGuard,
 ) {
@@ -70,9 +76,10 @@ class CatalogImportService(
     }
 
     /**
-     * Stage one observation. Idempotent: re-ingesting the same (site, external_id/canonical_url) updates
-     * the existing source_record; if the facts hash changed it is re-queued (status='reparse_pending'),
-     * otherwise it is a no-op beyond touching last_seen. Returns the (created or updated) source_record.
+     * Stage one observation. Identity is reconciled across slug renames / newly-discovered external ids
+     * (decision #137-C5/SCR-P0-5). Each distinct facts hash becomes an immutable revision (#137-C5): a new
+     * revision re-queues review (status='reparse_pending') so a correction flows even after an earlier
+     * approval; identical facts are a no-op beyond touching last_seen. Returns the source_record.
      */
     @Transactional
     fun ingest(importRunId: Long, obs: SourceObservation): SourceRecord {
@@ -100,39 +107,111 @@ class CatalogImportService(
         val hash = sha256(factsJson)
         val siteId = requireNotNull(site.id)
 
-        val existing = obs.externalId?.let { sourceRecordRepository.findBySourceSiteIdAndExternalId(siteId, it) }
-            ?: sourceRecordRepository.findBySourceSiteIdAndCanonicalUrl(siteId, obs.canonicalUrl)
-
-        val record = if (existing == null) {
-            sourceRecordRepository.save(
-                SourceRecord(
-                    sourceSiteId = siteId,
-                    canonicalUrl = obs.canonicalUrl,
-                    externalId = obs.externalId,
-                    importRunId = importRunId,
-                    contentHash = hash,
-                    parserVersion = obs.parserVersion,
-                    retrievedAt = obs.retrievedAt,
-                    rawFacts = factsJson,
-                    status = "parsed",
-                ),
-            )
-        } else {
-            existing.lastSeenAt = Instant.now()
-            if (existing.contentHash != hash) {
-                existing.contentHash = hash
-                existing.rawFacts = factsJson
-                existing.parserVersion = obs.parserVersion
-                existing.retrievedAt = obs.retrievedAt
-                existing.importRunId = importRunId
-                // Facts changed -> re-queue for review even if previously linked, so the correction flows.
-                existing.status = "reparse_pending"
-            }
-            sourceRecordRepository.save(existing)
-        }
-
+        val record = sourceRecordRepository.saveAndFlush(reconcileSourceRecord(siteId, obs, importRunId, factsJson, hash))
+        linkCurrentRevision(record, obs, factsJson, hash, importRunId)
         rebuildCandidate(record, obs.facts)
         return record
+    }
+
+    /**
+     * Resolve the stable source_record for this observation, reconciling identity (decision #137-C5/
+     * SCR-P0-5): a known external id at a new URL is a slug rename (URL updated, the old one archived); a
+     * known URL with a newly-discovered external id attaches that id; an external id / URL that points at a
+     * DIFFERENT record is an identity collision surfaced for the operator, never silently overwritten.
+     */
+    private fun reconcileSourceRecord(
+        siteId: Long,
+        obs: SourceObservation,
+        importRunId: Long,
+        factsJson: String,
+        hash: String,
+    ): SourceRecord {
+        val byExt = obs.externalId?.let { sourceRecordRepository.findBySourceSiteIdAndExternalId(siteId, it) }
+        val byUrl = sourceRecordRepository.findBySourceSiteIdAndCanonicalUrl(siteId, obs.canonicalUrl)
+
+        return when {
+            byExt != null -> {
+                byExt.lastSeenAt = Instant.now()
+                if (byExt.canonicalUrl != obs.canonicalUrl) {
+                    if (byUrl != null && byUrl.id != byExt.id) {
+                        throw SourceIdentityConflictException(
+                            "external id '${obs.externalId}' -> record ${byExt.id}, but url '${obs.canonicalUrl}' " +
+                                "already -> record ${byUrl.id}",
+                        )
+                    }
+                    urlHistoryRepository.save(
+                        SourceRecordUrlHistory(sourceRecordId = requireNotNull(byExt.id), canonicalUrl = byExt.canonicalUrl),
+                    )
+                    byExt.canonicalUrl = obs.canonicalUrl
+                }
+                byExt
+            }
+
+            byUrl != null -> {
+                byUrl.lastSeenAt = Instant.now()
+                obs.externalId?.let { ext ->
+                    when (byUrl.externalId) {
+                        null -> byUrl.externalId = ext // newly-discovered stable id; byExt was null -> no collision
+                        ext -> Unit
+                        else -> throw SourceIdentityConflictException(
+                            "url '${obs.canonicalUrl}' -> record ${byUrl.id} already has external id " +
+                                "'${byUrl.externalId}', not '$ext'",
+                        )
+                    }
+                }
+                byUrl
+            }
+
+            else -> SourceRecord(
+                sourceSiteId = siteId,
+                canonicalUrl = obs.canonicalUrl,
+                externalId = obs.externalId,
+                importRunId = importRunId,
+                contentHash = hash,
+                parserVersion = obs.parserVersion,
+                retrievedAt = obs.retrievedAt,
+                rawFacts = factsJson,
+                status = "parsed",
+            )
+        }
+    }
+
+    /**
+     * Find-or-create the immutable revision for these facts and make it current (decision #137-C5).
+     * Identical facts already current = no-op. A new (or reverted-to) revision re-queues review and
+     * denormalizes onto the record. The very first revision keeps 'parsed'; any later change is a
+     * 'reparse_pending' correction that re-enters the review queue.
+     */
+    private fun linkCurrentRevision(
+        record: SourceRecord,
+        obs: SourceObservation,
+        factsJson: String,
+        hash: String,
+        importRunId: Long,
+    ) {
+        val recordId = requireNotNull(record.id)
+        val existingRev = revisionRepository.findBySourceRecordIdAndContentHash(recordId, hash)
+        if (existingRev != null && record.currentRevisionId == existingRev.id) return // unchanged re-import
+
+        val wasFirst = record.currentRevisionId == null
+        val revision = existingRev ?: revisionRepository.save(
+            SourceRecordRevision(
+                sourceRecordId = recordId,
+                contentHash = hash,
+                parserVersion = obs.parserVersion,
+                retrievedAt = obs.retrievedAt,
+                rawFacts = factsJson,
+                importRunId = importRunId,
+            ),
+        )
+        record.currentRevisionId = revision.id
+        record.contentHash = hash
+        record.rawFacts = factsJson
+        record.parserVersion = obs.parserVersion
+        record.retrievedAt = obs.retrievedAt
+        record.importRunId = importRunId
+        record.status = if (wasFirst) "parsed" else "reparse_pending"
+        sourceRecordRepository.save(record)
     }
 
     /** Mark a run finished. Rejects an unknown terminal status and a missing run (decision #137-C4). */
@@ -203,6 +282,9 @@ class RobotsGateException(val sourceCode: String, val decision: String) :
 
 /** A run/observation invariant was violated (missing/finished/cross-site/parser-mismatch run, etc.). */
 class RunStateException(message: String) : RuntimeException(message)
+
+/** Two source identities (external id vs canonical url) point at different records (decision #137-C5). */
+class SourceIdentityConflictException(message: String) : RuntimeException(message)
 
 /** No source_site is registered under the given code. */
 class UnknownSourceSiteException(val sourceCode: String) :

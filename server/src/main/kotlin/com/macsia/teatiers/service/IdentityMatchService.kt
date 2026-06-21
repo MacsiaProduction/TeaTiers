@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.NormalizedCandidate
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.NameMatchCandidate
 import com.macsia.teatiers.repository.NormalizedCandidateRepository
+import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.TeaIdentityAliasRepository
 import com.macsia.teatiers.repository.TeaRepository
 import org.springframework.stereotype.Service
@@ -33,25 +34,30 @@ class IdentityMatchService(
     private val teaIdentityAliasRepository: TeaIdentityAliasRepository,
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val matchDecisionRepository: MatchDecisionRepository,
+    private val sourceRecordRepository: SourceRecordRepository,
 ) {
 
     data class MatchProposal(val tier: String, val candidateTeaId: Long?, val score: Double?, val kind: String)
 
     /**
-     * Produce and persist the best pending proposal for a source record's normalized candidate. Idempotent
-     * per source record: an existing PENDING decision is updated in place rather than stacking a second one
-     * (so a reparse re-proposal can't later be double-approved into duplicate teas). A re-propose is a no-op
-     * once the record has an already-decided (approved/rejected) decision -- a fresh review needs that
-     * decision revoked first.
+     * Produce and persist the best pending proposal for a source record's CURRENT revision (decision
+     * #137-C5). A decision already made (approved/rejected) for the current revision is returned unchanged
+     * (idempotent). But a NEW revision -- a corrected re-import after an earlier approval -- gets a FRESH
+     * pending decision bound to that revision, so corrections never stall at 'reparse_pending'. There is at
+     * most one open pending per record (enforced by a DB partial-unique); it is re-pointed in place.
      */
     @Transactional
     fun proposeFor(sourceRecordId: Long, importRunId: Long? = null): MatchDecision {
+        val record = sourceRecordRepository.findById(sourceRecordId).orElse(null)
+            ?: error("no source_record $sourceRecordId")
+        val currentRevisionId = requireNotNull(record.currentRevisionId) {
+            "source_record $sourceRecordId has no current revision; ingest it first"
+        }
         val candidate = normalizedCandidateRepository.findBySourceRecordId(sourceRecordId)
             ?: error("no normalized_candidate for source_record $sourceRecordId; ingest it first")
         val decisions = matchDecisionRepository.findBySourceRecordId(sourceRecordId)
-        // Already resolved -> return that decision; never stack a new pending one behind an approval
-        // (a re-propose after approval would otherwise orphan an un-approvable pending row in the queue).
-        decisions.firstOrNull { it.decision == "approved_new" || it.decision == "approved_merge" }
+        // A decision already made for THIS exact revision -> return it; a later revision still re-reviews.
+        decisions.firstOrNull { it.sourceRecordRevisionId == currentRevisionId && it.decision in DECIDED }
             ?.let { return it }
 
         val proposal = bestProposal(candidate)
@@ -63,6 +69,7 @@ class IdentityMatchService(
             matchTier = proposal.tier,
             proposedKind = proposal.kind,
         )
+        decision.sourceRecordRevisionId = currentRevisionId
         decision.matchTier = proposal.tier
         decision.proposedKind = proposal.kind
         decision.normalizedCandidateId = candidate.id
@@ -118,6 +125,8 @@ class IdentityMatchService(
     }
 
     private companion object {
+        /** Terminal decision states: a re-propose for the same revision returns the existing one. */
+        val DECIDED = setOf("approved_new", "approved_merge", "rejected")
         const val EXACT_SCORE = 0.95
         const val TRANSLIT_EXACT_SCORE = 0.9
         // >= 0.3 to stay consistent with the pg_trgm `%` index prefilter; calibrated later on a labeled corpus.

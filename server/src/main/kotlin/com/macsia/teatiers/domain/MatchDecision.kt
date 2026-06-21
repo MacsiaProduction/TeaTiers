@@ -20,6 +20,11 @@ class MatchDecision(
     @Column(name = "source_record_id", nullable = false)
     var sourceRecordId: Long,
 
+    // The exact immutable revision this decision reviewed (V10, decision #137-C5). Approval is rejected if
+    // it no longer matches the record's current revision (content changed since review).
+    @Column(name = "source_record_revision_id")
+    var sourceRecordRevisionId: Long? = null,
+
     @Column(name = "match_tier", nullable = false)
     var matchTier: String,
 
