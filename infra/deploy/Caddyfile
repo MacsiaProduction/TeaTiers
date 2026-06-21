@@ -25,12 +25,17 @@
 		max_size 10MB
 	}
 
-	# X-Forwarded-For spoofing note (decision #98): the backend keys its per-client /resolve rate
-	# limit off the first XFF hop. Caddy v2 with NO `trusted_proxies` set (our case — Caddy is the
-	# edge) IGNORES client-supplied X-Forwarded-* and sets the real client IP, so the header is not
-	# spoofable. The backend is also only reachable through Caddy (8080 unpublished in prod). If a
-	# CDN is ever put in front of Caddy, add `trusted_proxies` for that CDN's ranges.
+	# X-Forwarded-For (decision #98, re-verified #134): the backend keys its per-client rate limits off
+	# the first XFF hop. Caddy v2 (2.7+) with NO `trusted_proxies` already OVERWRITES a client-supplied
+	# X-Forwarded-For with the real client IP — VM-verified on caddy 2.11.4 that a spoofed value is
+	# dropped, not appended (review N2 was a false positive, assuming pre-2.7 append behavior). The
+	# `header_up` below pins that explicitly so the guarantee never depends on a Caddy-version default
+	# (and survives a downgrade). The backend is also only reachable through Caddy (8080 unpublished in
+	# prod). If a CDN is ever put in front of Caddy, add `trusted_proxies` for it and revisit this.
 	reverse_proxy server:8080 {
+		# Authoritatively set X-Forwarded-For to the real direct-client IP, dropping any client-supplied
+		# value, so the per-client rate-limit key can't be spoofed (review N2 / decision #134).
+		header_up X-Forwarded-For {http.request.remote.host}
 		# Bound how long Caddy waits on the backend so a stuck upstream can't pin edge connections.
 		# 30 s response header timeout covers the slowest synchronous path (a Wikidata resolve does
 		# up to 2 attempts × ~11 s); LLM enrichment is dispatched in the background, not awaited.
