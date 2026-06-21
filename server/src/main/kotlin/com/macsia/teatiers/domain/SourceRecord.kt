@@ -59,6 +59,11 @@ class SourceRecord(
     @Column(name = "tea_id")
     var teaId: Long? = null,
 
+    // The latest immutable revision of this record's facts (V10, decision #137-C5). Decisions bind to a
+    // revision; this points at the one the next review/approval should act on.
+    @Column(name = "current_revision_id")
+    var currentRevisionId: Long? = null,
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

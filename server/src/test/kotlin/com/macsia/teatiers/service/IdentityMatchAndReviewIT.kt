@@ -115,9 +115,16 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         assertEquals("scrape", tea.source)
         assertEquals("unverified", tea.verificationStatus, "a scrape can NEVER be verified")
         assertEquals("active", tea.status)
-        // provenance + aliases + legacy map were all written
+        // C6: provenance is value-bearing -- a selected claim carries the actual value, not just a field name.
+        val originClaim = provenanceRepository.findByTeaId(teaId).firstOrNull { it.fieldName == "origin_country" && it.selected }
+        assertEquals("CN", assertNotNull(originClaim).claimedValue, "provenance records the claimed value")
         assertTrue(provenanceRepository.findByTeaId(teaId).any { it.fieldName == "name:ru" })
-        assertTrue(aliasRepository.findByTeaId(teaId).all { !it.verified }, "scraped aliases are unverified")
+        // C6: approving the identity PROMOTES the scraped names to human-confirmed aliases (reused as Tier 0).
+        val aliases = aliasRepository.findByTeaId(teaId)
+        assertTrue(
+            aliases.isNotEmpty() && aliases.all { it.verified && it.origin == "human_confirmed" },
+            "approved scraped names become human-confirmed verified aliases",
+        )
         assertNotNull(legacyIdMap.findById(teaId).orElse(null))
         // source record is now linked, not floating
         val record = sourceRecordRepository.findById(decision.sourceRecordId).orElseThrow()

@@ -18,18 +18,18 @@ Baseline at index creation: `21fda80`. Update the Status/Evidence columns as PRs
 | FND-P0-1 / SCR-P0-8 | Stable public id not reproducible from seed; numeric detail bypasses legacy map; merged/retracted leak into search | C1, C3 | DONE | branch `harden/scrape-foundation-137-p0` — frozen seed UUIDs + `detailByLegacyId` + visibility predicate + `recordOnce` conflict guard |
 | AND-P0-1 | v7 Android ref identity must be UUID, not `Long` | C2 | DONE (design) | `context/design/tea-sample-split-v7.md` amendment 2026-06-21; code at v7 impl time |
 | FND-P0-2 / SCR-P0-2,3 | Robots/run-ownership/dry-run are metadata, not enforced gates | C4 | DONE | branch `harden/scrape-foundation-137-p0` — robots-gated `startRun`, run/site/parser/state-validated locked `ingest`, dry/blocked/failed apply gate, validated `finishRun` |
-| FND-P0-3 / SCR-P0-4 | Observation revisions stop flowing after first approval | C5 | OPEN | server PR — immutable revisions keyed by content hash; revision-bound decisions |
-| SCR-P0-5 | Source identity (slug rename / new external id / redirect) not reconciled | C5 | OPEN | same PR as FND-P0-3 — URL alias/history + collision check |
-| FND-P0-4 / SCR-P0-6,7 | Merge omits scalar provenance; provenance has no value; approved aliases stay unverified | C6 | OPEN | server PR — field-claim model + same-tx selected value + `addAuthoritative` promotion |
+| FND-P0-3 / SCR-P0-4 | Observation revisions stop flowing after first approval | C5 | DONE | branch `harden/scrape-foundation-137-c5c6` — immutable `source_record_revision` (V10), revision-bound decisions, correction flow, stale-approval rejection |
+| SCR-P0-5 | Source identity (slug rename / new external id / redirect) not reconciled | C5 | DONE | branch `harden/scrape-foundation-137-c5c6` — slug-rename URL update + `source_record_url_history` + external-id attach + collision detection |
+| FND-P0-4 / SCR-P0-6,7 | Merge omits scalar provenance; provenance has no value; approved aliases stay unverified | C6 | DONE | branch `harden/scrape-foundation-137-c5c6` — value-bearing claim model + selected/conflict claims + same-tx write + human-confirmed alias promotion |
 | FND-P0-5 / SCR-P0-9 | Operator HTTP surface unauthenticated when enabled | C7 | DONE | branch `harden/scrape-foundation-137-p0` — removed `IngestReviewController`; local review CLI + route-absence IT |
 
 ## P1 — same workstream, before second source / publication scale
 
 | ID | Finding (short) | Status | Closing PR / evidence |
 |---|---|:--:|---|
-| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced | OPEN | matcher returns ranked candidate set + conflict flags |
+| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced; can propose an inactive target | PARTIAL | apply-time tombstone guard landed (`InactiveMergeTargetException`, branch `…-c5c6`); ranked candidate set + conflict flags + `status='active'` on the match queries remain (P1 PR) |
 | FND-P1-2 / SCR-P1-3 | Vendor/brand semantics: `vendor` ignored; `brand` may land on canonical tea | OPEN | keep vendor on observation; brand only via explicit decision |
-| FND-P1-3 / SCR — | DB constraints don't support concurrent idempotency (no unique `normalized_candidate.source_record_id`, no one-pending-per-revision, no provenance uniqueness; no row locks) | PARTIAL | run row-lock landed with C4 (`findByIdForUpdate`); Flyway unique/partial constraints + decision CAS remain (next PR, with C5/C6) |
+| FND-P1-3 / SCR — | DB constraints don't support concurrent idempotency (no unique `normalized_candidate.source_record_id`, no one-pending-per-revision, no provenance uniqueness; no row locks) | DONE | run row-lock (C4) + V10 unique `normalized_candidate.source_record_id`, partial-unique one-pending-per-record, partial-unique one-selected-scalar-claim-per-field (C5/C6) |
 | FND-P1-4 / SCR-P1-2 | Evidence/input validation incomplete; `raw_evidence` never written; unknown `type` silently `OTHER`; approval doesn't re-run guard | OPEN | strict schema + URI/host validation + type mapping queue + evidence persist |
 | FND-P1-5 | Public lifecycle additive, not integrated (one visibility predicate everywhere) | DONE | folded into C3 (branch `harden/scrape-foundation-137-p0`) |
 | AND-P1-1 | Sample/reference split is the next Android migration (Room v6→v7) | DEFERRED | gated behind C1/C2 server work + amended v7 design |
