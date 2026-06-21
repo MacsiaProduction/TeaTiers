@@ -46,7 +46,7 @@ class PhotoRepositoryTest {
         val dao = FakeTeaDao()
         val seed = listOf(seedBoard).toSeedEntities()
         dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
-        return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider())
+        return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
     }
 
     private fun fakeUri(value: String): Uri = mockk<Uri>().also {

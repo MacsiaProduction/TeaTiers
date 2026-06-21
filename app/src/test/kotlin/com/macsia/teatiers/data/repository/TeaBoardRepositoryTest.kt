@@ -50,11 +50,34 @@ class TeaBoardRepositoryTest {
     private suspend fun TestScope.repositoryWithSeed(
         boards: List<Board> = listOf(seededBoard),
         photoStore: PhotoStore = FakePhotoStore(),
+        // Already onboarded: init must not touch the pre-seeded DAO.
+        onboarding: OnboardingState = FakeOnboardingState(seeded = true),
     ): TeaBoardRepository {
         val dao = FakeTeaDao()
         val seed = boards.toSeedEntities()
         dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
-        return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider())
+        return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider(), onboarding)
+    }
+
+    @Test
+    fun `init seeds sample boards on the first run and marks onboarded`() = runTest(UnconfinedTestDispatcher()) {
+        val onboarding = FakeOnboardingState(seeded = false)
+        val repository = TeaBoardRepository(FakeTeaDao(), FakePhotoStore(), backgroundScope, SampleBoardProvider(), onboarding)
+        advanceUntilIdle()
+
+        assertTrue(repository.boards.value.isNotEmpty(), "first run must seed sample boards")
+        assertTrue(onboarding.seeded, "first-run seed must set the onboarding marker")
+    }
+
+    @Test
+    fun `init does not reseed sample boards into an emptied DB once onboarded`() = runTest(UnconfinedTestDispatcher()) {
+        // The user deleted their last board (empty DB) but is already onboarded — no reseed (review §5).
+        val repository = TeaBoardRepository(
+            FakeTeaDao(), FakePhotoStore(), backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true),
+        )
+        advanceUntilIdle()
+
+        assertTrue(repository.boards.value.isEmpty(), "an onboarded user's emptied DB must not be reseeded")
     }
 
     @Test
@@ -76,7 +99,7 @@ class TeaBoardRepositoryTest {
         val dao = FakeTeaDao()
         val seed = listOf(seededBoard).toSeedEntities()
         dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
-        val repository = TeaBoardRepository(dao, FakePhotoStore(), backgroundScope, SampleBoardProvider())
+        val repository = TeaBoardRepository(dao, FakePhotoStore(), backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
         advanceUntilIdle()
         val teasBefore = dao.teaCount()
         assertEquals(listOf("b"), repository.boards.value.map { it.id })
@@ -523,7 +546,7 @@ class TeaBoardRepositoryTest {
                 onDisk += "/fake/orphan.jpg"
             }
 
-            TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider())
+            TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
             advanceUntilIdle()
 
             assertEquals(setOf(knownPath), photoStore.reconcileCalls.last())
