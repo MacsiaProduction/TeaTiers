@@ -3,6 +3,7 @@ package com.macsia.teatiers.data.backup
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.FlavorEntity
 import com.macsia.teatiers.data.db.PhotoEntity
@@ -16,15 +17,21 @@ import com.macsia.teatiers.data.repository.FakePhotoStore
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -36,10 +43,24 @@ import java.util.zip.ZipOutputStream
  */
 class BackupManagerTest {
 
+    @TempDir
+    lateinit var cacheDir: File
+
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
+
+    // android.util.Log is unmocked on the JVM; stub it so the reject/failure log paths don't throw.
+    @BeforeEach
+    fun mockAndroidLog() {
+        mockkStatic(Log::class)
+        every { Log.w(any<String>(), any<String>()) } returns 0
+        every { Log.w(any<String>(), any<String>(), any()) } returns 0
+    }
+
+    @AfterEach
+    fun unmockAndroidLog() = unmockkStatic(Log::class)
 
     private fun snapshot() = SeedEntities(
         boards = listOf(BoardEntity("b1", "Daily", 0)),
@@ -59,11 +80,12 @@ class BackupManagerTest {
         ),
     )
 
-    /** A valid backup zip carrying the snapshot + one bundled file photo. */
-    private fun archiveBytes(): ByteArray {
+    /** A valid backup zip carrying the snapshot + the [photos] bundled file entries (name -> bytes). */
+    private fun archiveBytes(photos: Map<String, ByteArray> = mapOf("ph1.png" to byteArrayOf(1, 2, 3))): ByteArray {
         val bundle = snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0")
         val out = ByteArrayOutputStream()
-        BackupArchive.write(out, json.encodeToString(bundle), mapOf("ph1.png" to byteArrayOf(1, 2, 3)))
+        val sources = photos.map { (name, bytes) -> BackupArchive.PhotoSource(name) { bytes.inputStream() } }
+        BackupArchive.write(out, json.encodeToString(bundle), sources)
         return out.toByteArray()
     }
 
@@ -73,7 +95,10 @@ class BackupManagerTest {
             every { openAssetFileDescriptor(uri, "r") } returns null // skip the cheap size guard
             every { openInputStream(uri) } returns bytes.inputStream()
         }
-        val context = mockk<Context> { every { contentResolver } returns resolver }
+        val context = mockk<Context> {
+            every { contentResolver } returns resolver
+            every { cacheDir } returns this@BackupManagerTest.cacheDir // import streams into a staging dir here
+        }
         return BackupManager(context, dao, photoStore) to uri
     }
 
@@ -122,5 +147,21 @@ class BackupManagerTest {
         assertTrue(result is BackupResult.InvalidFile, "expected InvalidFile, got $result")
         coVerify(exactly = 0) { dao.replaceAll(any()) }
         assertTrue(photoStore.reconcileCalls.isEmpty(), "a rejected import must not sweep photos")
+    }
+
+    @Test
+    fun `import rejects a backup that omits a declared photo and leaves data untouched`() = runTest {
+        // The snapshot's ph1 declares the bundled file "ph1.png"; build an archive that OMITS it.
+        // Atomic restore (review P1-5): a missing declared photo rejects the WHOLE import — the old
+        // code silently dropped it and half-restored the tea without its photo.
+        val dao = mockk<TeaDao>(relaxed = true)
+        val photoStore = FakePhotoStore()
+        val (manager, uri) = managerReading(archiveBytes(photos = emptyMap()), dao, photoStore)
+
+        val result = manager.importFrom(uri)
+
+        assertTrue(result is BackupResult.InvalidFile, "expected InvalidFile for a missing photo, got $result")
+        coVerify(exactly = 0) { dao.replaceAll(any()) }
+        assertTrue(photoStore.reconcileCalls.isEmpty(), "a rejected import must not touch the live photo store")
     }
 }
