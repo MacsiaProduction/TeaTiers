@@ -59,6 +59,7 @@ class TeaBoardRepository @Inject constructor(
     private val photoStore: PhotoStore,
     @AppScope private val scope: CoroutineScope,
     seed: SampleBoardProvider,
+    onboarding: OnboardingState,
 ) {
 
     /**
@@ -86,17 +87,25 @@ class TeaBoardRepository @Inject constructor(
 
     init {
         scope.launch {
-            if (dao.boardCount() == 0) {
-                val entities = seed.boards().toSeedEntities()
-                dao.seed(
-                    entities.boards,
-                    entities.tiers,
-                    entities.teas,
-                    entities.placements,
-                    entities.flavors,
-                    entities.purchases,
-                    entities.photos,
-                )
+            // Seed sample boards only on the TRUE first run — gated on a persistent, out-of-Room
+            // marker (review §5). Without it, deleting the LAST board (or restoring an empty backup)
+            // leaves boardCount()==0 and the next launch would reseed samples over the user's
+            // deliberate empty state. The marker is set after the first init either way, so an
+            // existing user (boards already present) is never reseeded.
+            if (!onboarding.isSeeded()) {
+                if (dao.boardCount() == 0) {
+                    val entities = seed.boards().toSeedEntities()
+                    dao.seed(
+                        entities.boards,
+                        entities.tiers,
+                        entities.teas,
+                        entities.placements,
+                        entities.flavors,
+                        entities.purchases,
+                        entities.photos,
+                    )
+                }
+                onboarding.markSeeded()
             }
             // App-open orphan sweep (review 2026-06-18): drop any photo file that no DB row
             // references — e.g. left by a crash between copy-in and row-insert, or an older import

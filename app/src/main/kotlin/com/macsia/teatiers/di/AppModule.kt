@@ -20,6 +20,8 @@ import com.macsia.teatiers.data.photos.AndroidImageReader
 import com.macsia.teatiers.data.photos.AndroidPhotoStore
 import com.macsia.teatiers.data.photos.ImageReader
 import com.macsia.teatiers.data.photos.PhotoStore
+import com.macsia.teatiers.data.repository.DataStoreOnboardingState
+import com.macsia.teatiers.data.repository.OnboardingState
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -117,4 +119,8 @@ abstract class PhotoStoreModule {
     @Binds
     @Singleton
     abstract fun bindImageReader(impl: AndroidImageReader): ImageReader
+
+    @Binds
+    @Singleton
+    abstract fun bindOnboardingState(impl: DataStoreOnboardingState): OnboardingState
 }
