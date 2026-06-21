@@ -7,6 +7,18 @@ import kotlin.test.assertTrue
 class FixedWindowRateLimiterTest {
 
     @Test
+    fun `tracked client state stays bounded under a flood of distinct ids (review P1-9)`() {
+        // The old map could grow without bound within one active window; Caffeine's maximumSize caps it.
+        val max = 50L
+        val limiter = FixedWindowRateLimiter(ratePerMinute = 1, maxTrackedClients = max)
+            .apply { nowMillis = { 1_000L } }
+
+        repeat(5_000) { limiter.tryAcquire("ip-$it") }
+
+        assertTrue(limiter.trackedClients() <= max, "tracked clients must stay within maximumSize")
+    }
+
+    @Test
     fun `allows up to the configured limit then blocks within a window`() {
         val limiter = FixedWindowRateLimiter(ratePerMinute = 3).apply { nowMillis = { 1_000L } }
 
