@@ -249,6 +249,31 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `re-bind with the same entry token preserves the in-progress form (N5)`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b", entryToken = "tok-1")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао", notes = "в процессе") }
+
+        // A rotation re-fires bind() with the SAME token (the ViewModel survived) — must not wipe it.
+        viewModel.bind(boardId = "b", entryToken = "tok-1")
+
+        assertEquals("Да Хун Пао", viewModel.form.value.nameRu)
+        assertEquals("в процессе", viewModel.form.value.notes)
+    }
+
+    @Test
+    fun `re-bind with a new entry token resets the form (N5)`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b", entryToken = "tok-1")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+
+        // A genuinely new Add entry brings a fresh token and starts clean.
+        viewModel.bind(boardId = "b", entryToken = "tok-2")
+
+        assertEquals("", viewModel.form.value.nameRu)
+    }
+
+    @Test
     fun `bind in edit mode prefills the form from the user-tea`() = runTest {
         val tea = Tea(
             id = "t1",
