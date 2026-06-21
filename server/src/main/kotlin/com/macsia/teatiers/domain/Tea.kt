@@ -13,6 +13,7 @@ import jakarta.persistence.OneToMany
 import jakarta.persistence.OrderBy
 import jakarta.persistence.Table
 import java.time.Instant
+import java.util.UUID
 
 /**
  * A shared-catalog tea (plan.md section 4a). Names, descriptions, and flavor rows hang off
@@ -75,6 +76,22 @@ class Tea(
 
     @Column(name = "enrichment_error")
     var enrichmentError: String? = null,
+
+    // Stable client-facing identity (V7, decision #136). The API exposes this, never the BIGINT id, so a
+    // reseed / DB rebuild can never re-number a tea the app already cached. DB-generated for rows created
+    // by raw SQL/backfill; this default covers rows created via JPA. Immutable once assigned.
+    @Column(name = "public_id", nullable = false, updatable = false)
+    var publicId: UUID = UUID.randomUUID(),
+
+    // Soft-rollback lifecycle: 'active' | 'retracted' (tombstone) | 'merged' (folded into mergedIntoPublicId).
+    @Column(name = "status", nullable = false)
+    var status: String = "active",
+
+    @Column(name = "retracted_at")
+    var retractedAt: Instant? = null,
+
+    @Column(name = "merged_into_public_id")
+    var mergedIntoPublicId: UUID? = null,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

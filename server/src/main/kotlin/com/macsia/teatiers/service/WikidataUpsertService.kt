@@ -4,6 +4,7 @@ import com.macsia.teatiers.client.WikidataTea
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaDescription
 import com.macsia.teatiers.domain.TeaName
+import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import java.time.Instant
 import org.springframework.stereotype.Service
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class WikidataUpsertService(
     private val teaRepository: TeaRepository,
+    private val legacyIdMapRepository: TeaLegacyIdMapRepository,
 ) {
 
     data class CreateResult(val id: Long, val created: Boolean)
@@ -31,6 +33,8 @@ class WikidataUpsertService(
         // saveAndFlush so a concurrent insert's unique violation throws here (inside this tx) rather
         // than at an outer commit, letting the caller fall back to a read.
         val saved = teaRepository.saveAndFlush(buildTea(match, dedupKey))
+        // Pin the issued numeric id to the stable public_id so a later DB rebuild can't orphan it (V7).
+        legacyIdMapRepository.recordOnce(requireNotNull(saved.id), saved.publicId)
         return CreateResult(requireNotNull(saved.id), true)
     }
 

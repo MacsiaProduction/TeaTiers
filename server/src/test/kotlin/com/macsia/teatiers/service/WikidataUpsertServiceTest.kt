@@ -15,7 +15,8 @@ import kotlin.test.assertTrue
 class WikidataUpsertServiceTest {
 
     private val repository = mockk<com.macsia.teatiers.repository.TeaRepository>()
-    private val service = WikidataUpsertService(repository)
+    private val legacyIdMap = mockk<com.macsia.teatiers.repository.TeaLegacyIdMapRepository>(relaxed = true)
+    private val service = WikidataUpsertService(repository, legacyIdMap)
 
     private val longjing = WikidataTea(
         qid = "Q1069130",

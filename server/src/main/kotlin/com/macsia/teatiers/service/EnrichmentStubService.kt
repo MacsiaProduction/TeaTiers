@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.TeaDescription
 import com.macsia.teatiers.domain.TeaFlavor
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import java.time.Instant
 import org.springframework.stereotype.Service
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class EnrichmentStubService(
     private val teaRepository: TeaRepository,
+    private val legacyIdMapRepository: TeaLegacyIdMapRepository,
 ) {
 
     data class StubResult(val id: Long, val created: Boolean, val state: String?)
@@ -44,6 +46,8 @@ class EnrichmentStubService(
         tea.addName(TeaName(locale = localeFor(name, requestLocale), name = name, isPrimary = true, source = SOURCE_USER))
         // saveAndFlush so a concurrent miss's dedup-key violation throws here (caller re-reads).
         val saved = teaRepository.saveAndFlush(tea)
+        // Pin the issued numeric id to the stable public_id so a later DB rebuild can't orphan it (V7).
+        legacyIdMapRepository.recordOnce(requireNotNull(saved.id), saved.publicId)
         return StubResult(requireNotNull(saved.id), created = true, state = STATE_PENDING)
     }
 

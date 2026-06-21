@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import java.util.UUID
 import java.util.concurrent.Semaphore
 
 /** Catalog API (plan.md sections 5-6): read-only search/detail + the `/resolve` enrich-on-miss flow. */
@@ -67,6 +68,15 @@ class TeaController(
     @GetMapping("/{id}")
     fun detail(@PathVariable id: Long): TeaDetailDto =
         service.detail(id) ?: throw TeaNotFoundException(id)
+
+    /**
+     * Detail by the stable public id (V7, decision #136) — the id new clients cache. A merged tea
+     * resolves to its survivor; a retracted tea returns its tombstone (status='retracted'), never a 404.
+     * Only a public_id that was never issued 404s.
+     */
+    @GetMapping("/by-public-id/{publicId}")
+    fun detailByPublicId(@PathVariable publicId: UUID): TeaDetailDto =
+        service.detailByPublicId(publicId) ?: throw TeaPublicNotFoundException(publicId)
 
     /**
      * Resolves a typed tea name to a catalog row: Wikidata on a cache miss, then a background LLM
@@ -121,6 +131,10 @@ class TeaController(
 
 class TeaNotFoundException(val teaId: Long) :
     RuntimeException("No tea with id $teaId")
+
+/** No tea was ever issued the given public id — `/teas/by-public-id/{publicId}` returns 404. */
+class TeaPublicNotFoundException(val publicId: UUID) :
+    RuntimeException("No tea with public id $publicId")
 
 /** Per-client window budget exhausted on `/resolve` or `/ocr` — maps to 429. */
 class RateLimitException :

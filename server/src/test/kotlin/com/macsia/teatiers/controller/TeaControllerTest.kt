@@ -22,6 +22,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import org.junit.jupiter.api.BeforeEach
+import java.util.UUID
 import java.util.concurrent.Semaphore
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
@@ -117,6 +118,7 @@ class TeaControllerTest {
             items = listOf(
                 TeaSummaryDto(
                     id = 7,
+                    publicId = UUID.randomUUID(),
                     type = TeaType.GREEN,
                     originCountry = "CN",
                     brand = null,
@@ -139,6 +141,9 @@ class TeaControllerTest {
     fun `detail returns the tea`() {
         every { service.detail(7) } returns TeaDetailDto(
             id = 7,
+            publicId = UUID.randomUUID(),
+            status = "active",
+            supersededByPublicId = null,
             wikidataQid = "Q474971",
             type = TeaType.GREEN,
             originCountry = "CN",
@@ -206,7 +211,8 @@ class TeaControllerTest {
         every { resolveService.resolve("Longjing", "en", null) } returns ResolveResponseDto(
             status = ResolveStatus.ENRICHED,
             tea = TeaDetailDto(
-                id = 11, wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
+                id = 11, publicId = UUID.randomUUID(), status = "active", supersededByPublicId = null,
+                wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
                 region = null, cultivar = null, oxidationMin = null, oxidationMax = null, brand = null,
                 image = null, images = emptyList(), names = listOf(TeaNameDto("en", "Longjing tea", true)),
                 descriptions = emptyList(), flavors = emptyList(),

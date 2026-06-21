@@ -12,6 +12,7 @@ import com.macsia.teatiers.repository.TeaRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.springframework.dao.DataIntegrityViolationException
@@ -36,7 +37,8 @@ class ResolveServiceTest {
     private val longjing = WikidataTea("Q1069130", TeaType.GREEN, "CN", "Longjing tea", "Лунцзин", "龙井茶", null)
 
     private fun detail(id: Long, state: String? = null) = TeaDetailDto(
-        id = id, wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
+        id = id, publicId = UUID.randomUUID(), status = "active", supersededByPublicId = null,
+        wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
         cultivar = null, oxidationMin = null, oxidationMax = null, brand = null, image = null,
         images = emptyList(),
         names = listOf(TeaNameDto("en", "Longjing tea", true)), descriptions = emptyList(),

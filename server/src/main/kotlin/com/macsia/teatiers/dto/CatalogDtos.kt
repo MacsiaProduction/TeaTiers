@@ -2,6 +2,7 @@ package com.macsia.teatiers.dto
 
 import com.macsia.teatiers.domain.FlavorDimension
 import com.macsia.teatiers.domain.TeaType
+import java.util.UUID
 
 /** One localized name (or alias) of a tea. */
 data class TeaNameDto(
@@ -10,9 +11,14 @@ data class TeaNameDto(
     val isPrimary: Boolean,
 )
 
-/** Compact tea representation for search results: id + all names + light metadata. */
+/**
+ * Compact tea representation for search results. `publicId` (V7, decision #136) is the stable
+ * client-facing id new clients should cache; `id` (the BIGINT) stays for back-compat with the shipped
+ * APK and is resolvable via `tea_legacy_id_map` after a DB rebuild.
+ */
 data class TeaSummaryDto(
     val id: Long,
+    val publicId: UUID,
     val type: TeaType,
     val originCountry: String?,
     val brand: String?,
@@ -54,6 +60,12 @@ data class TeaProvenanceDto(
 /** Full catalog detail for a single tea. */
 data class TeaDetailDto(
     val id: Long,
+    val publicId: UUID,
+    // Soft-rollback lifecycle (V7): 'active' | 'retracted' (tombstone) | 'merged'. When a client resolves a
+    // merged tea by its old public_id the API returns the survivor's detail, so this is normally 'active'.
+    val status: String,
+    // Set when this tea was merged into another; the survivor's public_id the client should re-cache.
+    val supersededByPublicId: UUID?,
     val wikidataQid: String?,
     val type: TeaType,
     val originCountry: String?,

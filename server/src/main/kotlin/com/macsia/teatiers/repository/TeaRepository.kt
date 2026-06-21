@@ -5,8 +5,12 @@ import com.macsia.teatiers.domain.TeaType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.util.UUID
 
 interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
+
+    /** Stable client-facing lookup (V7, decision #136); the API resolves by public_id, not the BIGINT id. */
+    fun findByPublicId(publicId: UUID): Tea?
 
     /** Cross-source identity lookup; used by the seed/enrich upsert to avoid duplicate rows. */
     fun findByWikidataQid(wikidataQid: String): Tea?

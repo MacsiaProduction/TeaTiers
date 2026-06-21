@@ -15,6 +15,7 @@ import com.macsia.teatiers.dto.TeaSummaryDto
 import com.macsia.teatiers.repository.TeaRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 @Transactional(readOnly = true)
@@ -56,6 +57,22 @@ class TeaCatalogService(
 
     fun detail(id: Long): TeaDetailDto? = teaRepository.findById(id).map { it.toDetail() }.orElse(null)
 
+    /**
+     * Resolve by the stable public id (V7, decision #136). A 'merged' tea resolves to its survivor (the
+     * client should re-cache the survivor's public_id); a 'retracted' tea returns its own tombstone detail
+     * (status = 'retracted') rather than a 404, so a client holding the id can show "unavailable" instead of
+     * silently losing the reference. Returns null only for a public_id that was never issued.
+     */
+    fun detailByPublicId(publicId: UUID): TeaDetailDto? {
+        val tea = teaRepository.findByPublicId(publicId) ?: return null
+        if (tea.status == "merged") {
+            val survivor = tea.mergedIntoPublicId?.let { teaRepository.findByPublicId(it) }
+            // Fall back to the merged row's own tombstone if the survivor is somehow missing.
+            return (survivor ?: tea).toDetail()
+        }
+        return tea.toDetail()
+    }
+
     fun facets(): FacetsDto = FacetsDto(
         types = teaRepository.distinctTypes(),
         origins = teaRepository.distinctOrigins(),
@@ -63,6 +80,7 @@ class TeaCatalogService(
 
     private fun Tea.toSummary() = TeaSummaryDto(
         id = requireNotNull(id),
+        publicId = publicId,
         type = type,
         originCountry = originCountry,
         brand = brand,
@@ -72,6 +90,9 @@ class TeaCatalogService(
 
     private fun Tea.toDetail() = TeaDetailDto(
         id = requireNotNull(id),
+        publicId = publicId,
+        status = status,
+        supersededByPublicId = mergedIntoPublicId,
         wikidataQid = wikidataQid,
         type = type,
         originCountry = originCountry,

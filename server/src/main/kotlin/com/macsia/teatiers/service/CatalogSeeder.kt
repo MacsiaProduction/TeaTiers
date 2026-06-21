@@ -7,6 +7,7 @@ import com.macsia.teatiers.domain.TeaDescription
 import com.macsia.teatiers.domain.TeaFlavor
 import com.macsia.teatiers.domain.TeaImage
 import com.macsia.teatiers.domain.TeaName
+import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ClassPathResource
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 class CatalogSeeder(
     private val teaRepository: TeaRepository,
+    private val legacyIdMapRepository: TeaLegacyIdMapRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -36,7 +38,9 @@ class CatalogSeeder(
         for (seed in bundle.teas) {
             val dedupKey = seed.dedupKey()
             if (teaRepository.findByDedupKey(dedupKey) != null) continue
-            teaRepository.save(seed.toEntity(dedupKey))
+            // saveAndFlush so the row (and its public_id) exists before the legacy-map FK insert.
+            val saved = teaRepository.saveAndFlush(seed.toEntity(dedupKey))
+            legacyIdMapRepository.recordOnce(requireNotNull(saved.id), saved.publicId)
             inserted++
         }
         if (inserted > 0) {
