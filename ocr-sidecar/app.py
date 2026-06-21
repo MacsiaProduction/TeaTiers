@@ -8,17 +8,18 @@ raw concatenated text. Reachable only on the private compose network — never p
 
 Engine = the slice-1b-measured config (decision #105): eslav PP-OCRv5 mobile rec + PP-OCRv5 mobile
 det, angle-cls OFF, ONNX intra=2/inter=1, no CPU mem-arena, det downscale limit 960. Models are
-baked into the image and loaded from $OCR_MODELS_DIR (no runtime egress). Concurrency is capped at
-1 (a single-thread executor) so CPU/RSS stay bounded on the 4 GB VM. The image bytes and the
-recognized text are NEVER logged.
+baked into the image and loaded from $OCR_MODELS_DIR (no runtime egress). Inference runs in a single
+worker SUBPROCESS (max_workers=1) so CPU/RSS stay bounded AND a wedged inference can be killed on the
+deadline (review P1-7). The image bytes and the recognized text are NEVER logged.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import multiprocessing
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -59,16 +60,19 @@ MULTIPART_SLACK_BYTES = 64 * 1024
 # image could OOM the container — PaddleOCR issue #16168).
 UPSCALE_SHORT_BELOW = int(os.environ.get("OCR_UPSCALE_SHORT_BELOW", "500"))
 UPSCALE_TARGET_SHORT = int(os.environ.get("OCR_UPSCALE_TARGET_SHORT", "960"))
-# Hard wall-clock deadline on a single inference. On expiry the request fails 504; the worker thread
-# itself can't be killed, so the still-running inference would otherwise wedge the single-worker pool
-# and 504 every request queued behind it — hence on timeout we RECYCLE the executor (a fresh worker
-# for the next request; the wedged thread finishes on the abandoned pool and is discarded, costing
-# one transient in-flight inference's RAM, which the byte/pixel caps bound).
+# Hard wall-clock deadline on a single inference. On expiry the request fails 504 AND the worker
+# subprocess is SIGKILLed (a wedged native ONNX call can't be interrupted in-process), then a fresh
+# worker is spawned — so the stuck work actually dies instead of leaking a thread that pins CPU/RAM
+# until the next request (review P1-7). The next request pays one worker-respawn warmup.
 INFERENCE_DEADLINE_S = float(os.environ.get("OCR_INFERENCE_DEADLINE_S", "15"))
 
-# Concurrency cap = 1: a single worker serializes inference so peak CPU/RSS stay bounded.
-_executor = ThreadPoolExecutor(max_workers=1)
-_engine = None
+# Inference runs in a SINGLE worker SUBPROCESS so a timed-out call is killable (a thread is not).
+# `spawn` keeps the worker independent of the parent's threads; the executor is created in `lifespan`
+# (NOT at import) so a spawned worker re-importing this module can't recursively create its own pool.
+_MP = multiprocessing.get_context("spawn")
+_executor: ProcessPoolExecutor | None = None
+_engine = None  # built per-worker by `_init_worker`; the parent process never holds the model
+_ready = False  # parent-side readiness (the parent's `_engine` stays None now that inference forked out)
 
 
 def _build_engine():
@@ -94,6 +98,30 @@ def _build_engine():
             "EngineConfig.onnxruntime.enable_cpu_mem_arena": False,
         }
     )
+
+
+def _init_worker() -> None:
+    """ProcessPoolExecutor initializer — runs ONCE per worker process. Builds + warms the engine (and
+    the corrector's lazy pymorphy3 dictionary) so the worker is ready before its first real request.
+    A missing model here raises, which surfaces as a BrokenProcessPool on the first submit."""
+    global _engine
+    _engine = _build_engine()
+    _engine(np.full((48, 160, 3), 255, dtype=np.uint8))  # warm the ONNX graph
+    correct_description("тест")  # warm the corrector's lazily-loaded Russian dictionary
+
+
+def _new_executor() -> ProcessPoolExecutor:
+    """A fresh single-worker process pool. The worker spawns lazily on the first submitted task."""
+    return ProcessPoolExecutor(max_workers=1, mp_context=_MP, initializer=_init_worker)
+
+
+def _kill_executor(ex: ProcessPoolExecutor) -> None:
+    """SIGKILL the worker process(es) so a wedged inference actually dies, then tear the pool down.
+    `shutdown()` alone would WAIT for the running task (it can't cancel a native call), so we kill the
+    processes first. The pool is discarded afterwards — a new one is created by the caller."""
+    for proc in list(getattr(ex, "_processes", {}).values()):
+        proc.kill()
+    ex.shutdown(wait=False, cancel_futures=True)
 
 
 def within_pixel_budget(image_bytes: bytes) -> bool:
@@ -131,7 +159,7 @@ def _maybe_upscale(img: Image.Image) -> Image.Image:
 
 
 def _recognize(image_bytes: bytes) -> str:
-    """Runs on the single-worker executor. Returns the concatenated recognized text (length-capped)."""
+    """Runs on the worker subprocess. Returns the concatenated recognized text (length-capped)."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img = _maybe_upscale(img)
     arr = np.array(img)
@@ -143,28 +171,36 @@ def _recognize(image_bytes: bytes) -> str:
 
 
 def _recognize_and_correct(image_bytes: bytes) -> dict[str, str]:
-    """Recognize then dictionary-gate-correct (decision #125 Track B), both on the worker thread so the
-    whole thing is bounded by the one deadline. `text` is the raw OCR; `corrected` is the
-    description-safe cleaned text (homoglyphs fixed to real RU words, un-validatable tokens kept raw)."""
+    """Recognize then dictionary-gate-correct (decision #125 Track B), both on the worker so the whole
+    thing is bounded by the one deadline. `text` is the raw OCR; `corrected` is the description-safe
+    cleaned text (homoglyphs fixed to real RU words, un-validatable tokens kept raw)."""
     raw = _recognize(image_bytes)
     return {"text": raw, "corrected": correct_description(raw)}
 
 
+def _warmup_probe() -> bool:
+    """Runs in the worker after `_init_worker` — forces the worker to spawn + build its engine and
+    confirms it is live, so the first real request doesn't pay graph-init."""
+    return _engine is not None
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global _engine
+    global _executor, _ready
     for p in (REC_MODEL, DET_MODEL, CLS_MODEL):
         if not os.path.exists(p):
             raise RuntimeError(f"OCR model missing: {p} (was the image built with fetch_models.sh?)")
-    log.info("Loading RapidOCR (eslav PP-OCRv5 rec + mobile det, cls off)…")
-    _engine = _build_engine()
-    # Warm up so the first real request doesn't pay the graph-init cost (the ONNX graph + pymorphy3's
-    # Russian dictionary, which the corrector loads lazily on first use).
-    white = np.full((48, 160, 3), 255, dtype=np.uint8)
-    await asyncio.get_event_loop().run_in_executor(_executor, lambda: _engine(white))
-    await asyncio.get_event_loop().run_in_executor(_executor, correct_description, "тест")
+    log.info("Starting OCR worker (eslav PP-OCRv5 rec + mobile det, cls off)…")
+    _executor = _new_executor()
+    # Force the worker to spawn + build/warm its engine + the corrector dictionary before we serve.
+    ok = await asyncio.get_event_loop().run_in_executor(_executor, _warmup_probe)
+    if not ok:
+        raise RuntimeError("OCR worker failed to initialize the engine")
+    _ready = True
     log.info("OCR engine ready.")
     yield
+    if _executor is not None:
+        _executor.shutdown(wait=False, cancel_futures=True)
 
 
 app = FastAPI(title="TeaTiers OCR sidecar", lifespan=lifespan)
@@ -172,7 +208,7 @@ app = FastAPI(title="TeaTiers OCR sidecar", lifespan=lifespan)
 
 @app.get("/health")
 async def health() -> JSONResponse:
-    return JSONResponse({"status": "ok" if _engine is not None else "loading"})
+    return JSONResponse({"status": "ok" if _ready else "loading"})
 
 
 @app.post("/ocr")
@@ -205,13 +241,16 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
             timeout=INFERENCE_DEADLINE_S,
         )
     except asyncio.TimeoutError:
-        # The wedged worker thread can't be killed; recycle the pool so the NEXT request gets a clean
-        # worker instead of queueing behind the still-running inference (which finishes on the
-        # abandoned executor and is then discarded).
-        log.warning("OCR timed out after %ss (%d bytes); recycling worker", INFERENCE_DEADLINE_S, len(data))
+        # The wedged inference can't be interrupted in-process; SIGKILL its worker so it actually dies
+        # (no leaked thread pinning CPU/RAM), and swap in a fresh pool for the next request. Only when
+        # there IS a dedicated pool — `_executor` is None until `lifespan` runs (and in unit tests,
+        # which exercise the request contract on the default in-process executor), where there is no
+        # worker process to kill.
+        log.warning("OCR timed out after %ss (%d bytes); killing + respawning the worker", INFERENCE_DEADLINE_S, len(data))
         stale = _executor
-        _executor = ThreadPoolExecutor(max_workers=1)
-        stale.shutdown(wait=False)
+        if stale is not None:
+            _executor = _new_executor()
+            _kill_executor(stale)
         raise HTTPException(status_code=504, detail="recognition timed out")
     except Exception:
         log.exception("OCR recognition failed (%d bytes)", len(data))
