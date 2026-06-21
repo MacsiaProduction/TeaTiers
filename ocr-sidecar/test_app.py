@@ -104,9 +104,11 @@ def test_inference_deadline_returns_504(monkeypatch):
     assert r.status_code == 504
 
 
-def test_timeout_recycles_worker_so_the_next_request_is_not_blocked(monkeypatch):
-    # A wedged first request must not pin the single worker: after its 504 the executor is recycled,
-    # so a following request runs on a fresh worker instead of queueing behind the stuck inference.
+def test_timeout_after_a_wedged_request_the_service_stays_responsive(monkeypatch):
+    # Request-contract guard: a wedged first request 504s and the NEXT request still succeeds — the
+    # timeout never wedges the endpoint. (Inference runs in a killable worker subprocess in prod, so
+    # the wedged worker is SIGKILLed; these tests run without lifespan on the default in-process
+    # executor, and the kill/respawn itself is verified by the sidecar's VM smoke + mechanism test.)
     import time as _time
 
     calls = {"n": 0}
@@ -123,7 +125,7 @@ def test_timeout_recycles_worker_so_the_next_request_is_not_blocked(monkeypatch)
 
     r1 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r1.status_code == 504
-    # Without the recycle this would queue behind the 0.5s wedge and trip its own 0.05s deadline (504).
+    # The next request is served normally — the prior timeout left the endpoint healthy.
     r2 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r2.status_code == 200
     assert r2.json() == {"text": "fast", "corrected": "fast"}  # "fast" is Latin -> corrector leaves it
