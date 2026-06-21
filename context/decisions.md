@@ -2584,3 +2584,36 @@ deviated.
      (`Migration(6,7)` + entity split + enrichment-patch redesign + `addAnotherSample`); PR5 backup format-v2 +
      up-converter + validate-before-wipe; PR6 catalog-refresh-by-id writer (co-req — fills migrated stubs).
      **Build DEFERRED** (owner: "design doc + locked decision" this round).
+
+133. **Three fresh independent reviews triaged; P1 hardening batch + run 21 (corrected scraping) queued
+     (2026-06-21).** Background reviewers produced 3 new files in `context/review/`: a **post-fix
+     current-state refresh**, a **catalog-scraping-plan review** (critiques #131), and a **third-pass
+     synthesis-adversarial** that re-verified 8 component reviewers + both Codex passes against live HEAD.
+     Verdict: the landed June-21 fixes (P0-1/P0-2, Caffeine limiter, killable OCR worker, backup hardening,
+     v7 design) are real and verify; **no new P0**. **Fixed immediately:** **N1** — a regression P1-5 (#113)
+     introduced where a single stale photo path made a backup un-restorable (export declared a photo it
+     filtered out of the zip → the strict importer rejected the whole archive); export is now self-consistent
+     (PR #114). **Owner triage — fix these 4 P1s before scraping:**
+     - **N2** — the rate limiter is **bypassable**: decision #98's "Caddy ignores client `X-Forwarded-For`"
+       is FALSE (Caddy v2 `reverse_proxy` *appends*; the backend reads the first hop `substringBefore(',')`,
+       attacker-controlled). Make Caddy authoritative (`header_up X-Forwarded-For {remote_host}` overwrite) or
+       Spring `ForwardedHeaderFilter`; **reopen #98**.
+     - **sample-reseed** — deleting the LAST board reseeds sample data on next start (`TeaBoardRepository`
+       gates only on `boardCount()==0`); add an onboarding marker. (Hole in the delete-board feature.)
+     - **N6** — under OCR concurrency (4 in-flight vs 1 worker) a timeout kills the shared pool and siblings
+       get an uncaught `CancelledError`, `BrokenProcessPool` is never rebuilt, `/health` stays green. Adopt
+       **Pebble `ProcessPool`** (per-future cancel + auto-restart). Refines the single-request P1-7 fix.
+     - **N5** — the Add/Edit form is wiped on rotation/process-death (`bind()` unconditionally resets); guard
+       `bind()` + `SavedStateHandle`.
+     **Deferred (LLM-gated, latent until `TEATIERS_LLM_API_KEY` is set):** N3 (raw user name → prompt), N4
+     (PENDING/FAILED stubs publicly searchable), ENR-1 (PENDING-orphan sweep). **Deferred (P1/P2 backlog):**
+     INFRA-1/N7 (prod compose delivers no feature config — diagnostics/LLM/updater inert on the live box),
+     F3 (ImageReader byte cap), Trivy/Grype container scan, release-gate tag/version binding + APK attestation,
+     N8/N9/N10/N11, cert pinning. Full list: `context/review/2026-06-21-third-pass-synthesis-adversarial.md §9`.
+     **Scraping (owner: research-run-first → pilot):** despite both reviews calling a fresh run "not warranted"
+     (implementation decisions, not research), the owner chose a corrected research run. Wrote **run 21**
+     (`research/21-catalog-scraping-foundation/prompt.md`): the buildable identity+import foundation
+     (cross-script canonical identity, source-record staging keyed on `(source, external_id)`, the real upsert
+     path, the `tea.source` CHECK migration, per-field provenance, stable-public-id + soft-rollback preserving
+     the shipped `catalogTeaId`, ToS/per-run-robots gate, facts-only, OSS reuse). Then the httpx+selectolax
+     pilot. Supersedes the unbuildable import machinery of #131 (source/policy choices stand).
