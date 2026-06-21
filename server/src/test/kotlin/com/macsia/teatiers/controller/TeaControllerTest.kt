@@ -139,7 +139,8 @@ class TeaControllerTest {
 
     @Test
     fun `detail returns the tea`() {
-        every { service.detail(7) } returns TeaDetailDto(
+        // The numeric route resolves through the legacy map (decision #137-C1).
+        every { service.detailByLegacyId(7) } returns TeaDetailDto(
             id = 7,
             publicId = UUID.randomUUID(),
             status = "active",
@@ -176,7 +177,7 @@ class TeaControllerTest {
 
     @Test
     fun `detail returns 404 problem json for a missing tea`() {
-        every { service.detail(999) } returns null
+        every { service.detailByLegacyId(999) } returns null
 
         mockMvc.perform(get("/api/v1/teas/999"))
             .andExpect(status().isNotFound())

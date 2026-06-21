@@ -40,6 +40,14 @@ class TeaSearchRepositoryImpl(
         val name = tea.join<Tea, TeaName>("names")
 
         val predicates = buildList {
+            // Visibility (decision #137-C3): browse never returns merged/retracted rows or PENDING/FAILED stubs.
+            add(cb.equal(tea.get<String>("status"), "active"))
+            add(
+                cb.or(
+                    cb.isNull(tea.get<String>("enrichmentState")),
+                    cb.not(tea.get<String>("enrichmentState").`in`(NON_BROWSABLE_ENRICHMENT_STATES)),
+                ),
+            )
             locale?.takeIf { it.isNotBlank() }?.let { add(cb.equal(name.get<String>("locale"), it)) }
             type?.let { add(cb.equal(tea.get<TeaType>("type"), it)) }
             origin?.takeIf { it.isNotBlank() }?.let { add(cb.equal(tea.get<String>("originCountry"), it)) }
@@ -83,6 +91,8 @@ class TeaSearchRepositoryImpl(
                 from tea t join tea_name n on n.tea_id = t.id
                 where (lower(f_unaccent(:q)) <% n.name_norm
                        or strpos(n.name_norm, lower(f_unaccent(:q))) > 0)
+                  and t.status = 'active'
+                  and (t.enrichment_state is null or t.enrichment_state not in ('PENDING', 'FAILED'))
                 """.trimIndent(),
             )
             if (locale != null) append("\n  and n.locale = :locale")
@@ -118,5 +128,8 @@ class TeaSearchRepositoryImpl(
          * 0.333, so 0.3 keeps full recall; raising it drops that class. See TeaSearchFuzzyIT.
          */
         const val WORD_SIMILARITY_THRESHOLD = 0.3
+
+        /** Enrichment lifecycle states that keep a stub out of browse/search (decision #137-C3). */
+        val NON_BROWSABLE_ENRICHMENT_STATES = listOf("PENDING", "FAILED")
     }
 }

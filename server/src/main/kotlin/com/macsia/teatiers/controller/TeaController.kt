@@ -65,9 +65,14 @@ class TeaController(
     @GetMapping("/facets")
     fun facets(): FacetsDto = service.facets()
 
+    /**
+     * Detail by the legacy numeric id (compat for apps shipped before the public_id cutover, decision
+     * #137-C1). Resolves through the immutable legacy map, so a renumbering rebuild never returns a
+     * different tea; an id that was never issued 404s. New clients should use `/by-public-id/{uuid}`.
+     */
     @GetMapping("/{id}")
     fun detail(@PathVariable id: Long): TeaDetailDto =
-        service.detail(id) ?: throw TeaNotFoundException(id)
+        service.detailByLegacyId(id) ?: throw TeaNotFoundException(id)
 
     /**
      * Detail by the stable public id (V7, decision #136) — the id new clients cache. A merged tea
