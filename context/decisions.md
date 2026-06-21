@@ -2645,3 +2645,64 @@ deviated.
      concurrent `/ocr` with a 0.01 s deadline → **all 504, zero 500, no `CancelledError`**, container healthy;
      pytest 13/13; happy path 200. (Deferred polish: a worker-probing `/health` — low value given the rebuild
      + the boot model-file check already prevent the "permanently wedged" case.)
+136. **Run 21 judged (winner opus, co-winner gpt) → the buildable scrape→catalog FOUNDATION is locked;
+     supersedes the unbuildable import/identity machinery of #131 (2026-06-21).** Six models answered
+     `research/21-catalog-scraping-foundation/prompt.md`; opus + gpt converged and won, the other four each
+     re-introduced an anti-pattern the code review flagged (RATING.md). **Owner choices for the build:**
+     (a) implement the **full foundation** now, not just the unblock; (b) **introduce `public_id UUID` now**
+     and switch the public API to it (+ a legacy-id map for the shipped APK); (c) proceed despite the open
+     N5/N6 P1s from #133 (deferred, not blocking); (d) rate + lock first (this entry). **The locked design
+     (synthesis of opus's structure + gpt's rigor):**
+     - **Three keys are SEPARATE** (the #131 conflation, now fixed): (1) **source-record identity** =
+       `(source, external_id / canonical_url)` drives **re-import idempotency**; (2) **canonical-entity
+       identity** = cross-script resolution (`Да Хун Пао`/`Da Hong Pao`/`大红袍` → one tea) is **human-confirmed**
+       in the pilot; (3) **per-field provenance** = which source gave each fact (one `tea.source` column can't).
+     - **No auto-merge / no auto-create in the pilot.** Tier 0 authoritative = curated + human-confirmed
+       aliases (establishes identity); Tier 1 exact `name_norm`, Tier 2 pg_trgm, Tier 3 pypinyin(Hanzi→pinyin)
+       + a curated **Palladius↔pinyin** table — all **enqueue for review only**. `pypinyin` cannot bridge
+       Cyrillic (curated table does). Thresholds are calibrated later on a labeled corpus; until then every
+       fuzzy/translit candidate is review-only. The scraped-name normalizer MUST replicate the server's
+       `lower(f_unaccent(...))` or pg_trgm silently misses (gpt). **Brand/vendor does NOT auto-collapse** —
+       "Vendor X Da Hong Pao" never auto-merges into a generic "Da Hong Pao" (gpt).
+     - **Schema migrations (Flyway, next free integer V7+):** `tea.source` CHECK `+= 'scrape'` (it physically
+       rejects scrape rows today, `V1__catalog_schema.sql:28`) and `'mixed'` for multi-source rows;
+       `tea.public_id UUID UNIQUE` (default `gen_random_uuid()` — **NOT** PG18 `uuidv7()`, the box is
+       `postgres:16-alpine`) + `status ∈ {active,retracted,merged}` + `merged_into_public_id` + `tea_legacy_id_map`
+       (legacy BIGINT → public_id) for soft-rollback that never renumbers/hard-deletes/reuses an id;
+       a `tea_field_provenance` table (per-field source/url/license/confidence); a `tea_identity_alias` table
+       (curated + human-confirmed cross-script aliases, `verified` gate); an `ingest_*` staging namespace kept
+       separate from the public `tea*` tables (`source_site` w/ ToS sign-off + per-run robots snapshot,
+       `import_run`, `raw_evidence` immutable, `source_record` w/ `(source, external_id/canonical_url)` unique
+       idempotency indexes, `normalized_candidate`, `match_decision` review queue).
+     - **Real upsert path (the server has NONE — `CatalogSeeder` is insert-or-skip):** a NEW explicit importer
+       + facts-only DTO with **no `source`/`verification_status` defaults**, **rejecting `'verified'`** (a scrape
+       can never self-certify). Source-record `ON CONFLICT (source, canonical_url)` upsert (re-queues review on a
+       changed `content_hash`); the canonical write is `approved_new` INSERT or `approved_merge` UPDATE, only
+       after human approval. Idempotency keyed on the **source record**, never on `dedup_key` (that #131 bug
+       silently no-ops corrections); `dedup_key` stays a weak internal hint.
+     - **Stable public id + API:** the API exposes `public_id`; `catalog.detail` keys on it; legacy numeric id
+       resolves via `tea_legacy_id_map` during a compat window; merged → survivor (`supersededBy`), retracted →
+       compact tombstone, never a 404 for a previously-issued id. Feeds the deferred v7 `CatalogTeaRef` (#132),
+       which caches `public_id`. Deterministic seed/restore reproduces ids (`OVERRIDING SYSTEM VALUE` + sequence
+       reset, gpt).
+     - **Facts-only + gates:** scrape ru/zh/pinyin names, type, origin/region, cultivar, oxidation, brand only;
+       **never** ship vendor prose/reviews/photos; the #22 LLM tier writes our OWN blurb (output `source='ai'`).
+       Build-time/CI guard: no `tea_description.source='scrape'`, no unlicensed/scraped `tea_image`, no raw
+       evidence serialized by the API. **ToS owner-sign-off** (per `source_site`) + **per-run robots re-check**
+       (Protego, not one-time) are hard preflights. `catalog_miss` text is an opaque search term — never a
+       fetch URL / shell arg / SQL.
+     - **OSS stack + operating model:** `httpx 0.28.1` + `selectolax 0.4.10` (Lexbor/Apache-2.0 backend, NOT the
+       LGPL Modest engine) + **Protego 0.6.1** (RFC-9309-aware; stdlib `urllib.robotparser` is first-match-wins
+       and not longest-match/wildcard correct, so Protego from the pilot) + `pypinyin 0.55.0`; Scrapy 2.16.0
+       deferred to later sitemap traversal; a hashed lock file (`uv lock`/`pip-compile --generate-hashes`) +
+       `pip-licenses` CI check. Scraping runs as a **local one-off CLI**, off the API path and off the prod VM;
+       demand-driven by top `catalog_miss` terms; the review queue is an operator tool, not Android UI.
+     - **Sequencing (PR-sized):** PR1 `tea.source += scrape` + `public_id`/lifecycle + legacy map; PR2 source
+       registry + gates (`source_site`/`import_run`, no fetching); PR3 staging tables (`raw_evidence`,
+       `source_record` + idempotency indexes, `normalized_candidate`, `match_decision`, `tea_field_provenance`,
+       `tea_identity_alias`); PR4 importer service + facts-only DTO + upsert; PR5 cross-script identity + tiered
+       matcher + operator review-queue CLI; then facts-only CI guard + API switch to `public_id`. **Defer:** the
+       actual fetcher/crawler, Scrapy, threshold calibration, any server-side raw-prose retention beyond
+       short-retention `raw_evidence`. Per-site recon (artoftea.ru robots/ToS) is run-time-verified, never
+       assumed. Legal: facts not copyrightable; RU ГК РФ Art. 1334 operative (not the EU Directive); ToS is the
+       enforceable lever (*Ryanair v PR Aviation* C‑30/14); goal = a clean public APK, not zero risk.
