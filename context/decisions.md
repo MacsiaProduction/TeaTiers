@@ -2631,3 +2631,17 @@ deviated.
      (VM-verified it also yields the real IP) so the no-spoof guarantee is pinned EXPLICITLY and never
      depends on a Caddy-version default or survives a downgrade. (The Caffeine comment SRV-7 — "eviction
      never relaxes a budget" — is only correct given this; noted. No backend change needed.)
+
+135. **N6 (OCR concurrency wedge) fixed WITHOUT Pebble — the review's "MIT" claim was wrong; Pebble is LGPL
+     (2026-06-21).** The third-pass review (N6) found that under concurrency (the server gate allows 4
+     in-flight vs the sidecar's 1 worker) a timed-out inference SIGKILLs the shared pool and the SIBLING
+     requests' futures raise an **uncaught `CancelledError` → 500**, and a `BrokenProcessPool` (dead worker)
+     is never rebuilt. The review's OSS table said to adopt **Pebble `ProcessPool` (MIT)** — but **PyPI shows
+     Pebble 5.2.0 is LGPL**, not MIT, a poor fit for this license-disciplined project (and unnecessary). Used
+     the review's non-Pebble alternative instead, reusing the already-VM-verified P1-7 `ProcessPoolExecutor`:
+     a module-level **`asyncio.Lock` serializes** inference so only one request holds the worker at a time
+     (siblings queue at the lock, NOT on the pool → a kill-on-timeout can never cancel a sibling), plus a
+     **`BrokenProcessPool` catch that rebuilds** the pool. **VM-verified** (sidecar image, Python 3.14): 4
+     concurrent `/ocr` with a 0.01 s deadline → **all 504, zero 500, no `CancelledError`**, container healthy;
+     pytest 13/13; happy path 200. (Deferred polish: a worker-probing `/health` — low value given the rebuild
+     + the boot model-file check already prevent the "permanently wedged" case.)

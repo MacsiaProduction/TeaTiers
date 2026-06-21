@@ -20,6 +20,7 @@ import multiprocessing
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -73,6 +74,12 @@ _MP = multiprocessing.get_context("spawn")
 _executor: ProcessPoolExecutor | None = None
 _engine = None  # built per-worker by `_init_worker`; the parent process never holds the model
 _ready = False  # parent-side readiness (the parent's `_engine` stays None now that inference forked out)
+# Serialize inference to the single worker at the asyncio level (review N6): the server permits a few
+# in-flight /ocr requests (OcrProperties.maxConcurrent), but only ONE may hold the worker at a time, so
+# when a timeout SIGKILLs + respawns the worker there is never a SIBLING future on the pool to be
+# cancelled (which would surface as an unhandled CancelledError → 500). Waiters queue here, not on the
+# pool. A module-level Lock binds lazily to the running loop on first use (Python 3.10+).
+_lock = asyncio.Lock()
 
 
 def _build_engine():
@@ -235,25 +242,37 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
     if not within_pixel_budget(data):
         raise HTTPException(status_code=413, detail="image dimensions too large")
     started = time.time()
-    try:
-        result = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(_executor, _recognize_and_correct, data),
-            timeout=INFERENCE_DEADLINE_S,
-        )
-    except asyncio.TimeoutError:
-        # The wedged inference can't be interrupted in-process; SIGKILL its worker so it actually dies
-        # (no leaked thread pinning CPU/RAM), and swap in a fresh pool for the next request. Only when
-        # there IS a dedicated pool — `_executor` is None until `lifespan` runs (and in unit tests,
-        # which exercise the request contract on the default in-process executor), where there is no
-        # worker process to kill.
-        log.warning("OCR timed out after %ss (%d bytes); killing + respawning the worker", INFERENCE_DEADLINE_S, len(data))
-        stale = _executor
-        if stale is not None:
-            _executor = _new_executor()
-            _kill_executor(stale)
-        raise HTTPException(status_code=504, detail="recognition timed out")
-    except Exception:
-        log.exception("OCR recognition failed (%d bytes)", len(data))
-        raise HTTPException(status_code=500, detail="recognition failed")
+    # One inference at a time (review N6): hold the single worker exclusively so a kill-on-timeout can
+    # never cancel a concurrently-submitted sibling's future (which would surface as an unhandled
+    # CancelledError → 500). Other in-flight requests wait here, not on the pool.
+    async with _lock:
+        try:
+            result = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(_executor, _recognize_and_correct, data),
+                timeout=INFERENCE_DEADLINE_S,
+            )
+        except asyncio.TimeoutError:
+            # The wedged inference can't be interrupted in-process; SIGKILL its worker so it actually
+            # dies (no leaked thread pinning CPU/RAM), and swap in a fresh pool for the next request.
+            # Safe under the lock — no sibling future is on the pool. `_executor` is None in unit tests
+            # (default in-process executor; nothing to kill).
+            log.warning("OCR timed out after %ss (%d bytes); killing + respawning the worker", INFERENCE_DEADLINE_S, len(data))
+            stale = _executor
+            if stale is not None:
+                _executor = _new_executor()
+                _kill_executor(stale)
+            raise HTTPException(status_code=504, detail="recognition timed out")
+        except BrokenProcessPool:
+            # A worker died unexpectedly (OOM-kill, native segfault, a failed respawn-init). The pool is
+            # permanently broken, so rebuild it for the NEXT request instead of 500-ing forever (N6).
+            log.warning("OCR worker pool broke (%d bytes); rebuilding", len(data))
+            stale = _executor
+            if stale is not None:
+                _executor = _new_executor()
+                stale.shutdown(wait=False)
+            raise HTTPException(status_code=500, detail="recognition failed")
+        except Exception:
+            log.exception("OCR recognition failed (%d bytes)", len(data))
+            raise HTTPException(status_code=500, detail="recognition failed")
     log.info("ocr ok: %d bytes -> %d chars in %d ms", len(data), len(result["text"]), int(1000 * (time.time() - started)))
     return JSONResponse(result)
