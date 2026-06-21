@@ -2779,3 +2779,34 @@ deviated.
      index), then the P0 fixes as PRs with failing tests landed first. The scraper module itself stays
      deferred until these foundation invariants are closed — both reviews: "the next deliverable is not a
      crawler." See `context/review/INDEX.md` for the per-finding → status map.
+
+138. **Geo grounding: country = ISO 3166-1 alpha-2 (validated), region = a Wikidata-QID reference, never
+     free text — enables a future tea-region map widget (2026-06-22).** Today `tea.origin_country` is
+     unvalidated free text that already happens to be ISO 3166-1 alpha-2 (19 values: CN/IN/JP/LK/TW/GE/…),
+     and `tea.region` is 40 hand-invented, inconsistently-shaped strings ("Anji, Zhejiang", "Mount Emei,
+     Sichuan", "Junshan Island, Hunan", "Nuwara Eliya"). Owner requirement: ground both in a standard
+     dataset so the app can later render a tea's region on a map and so the scraper never invents regions.
+     **Locked model (design: `context/design/geo-region-country.md`):**
+     - **Country → ISO 3166-1 alpha-2.** Validate `origin_country` against the standard list at the
+       facts-only guard + importer; an unknown code rejects / enters the mapping queue, never silently
+       stored. A small committed resource carries ru/en/zh country names (+ optional flag/centroid).
+     - **Region → a Wikidata QID reference, NOT free text.** Chosen over GeoNames (needs self-hosting +
+       CC BY attribution) and ISO 3166-2 (too coarse — no Wuyi / Darjeeling / West Lake / Mount Emei).
+       Reuses the existing Wikidata client/SPARQL/upsert stack; CC0 (safe to cache + ship, consistent with
+       the facts-only stance). A new server-side `region` reference table keyed by QID caches: ru/en/zh
+       labels, lat/long (P625), country ISO (P17, cross-checked against the tea's `origin_country`),
+       optional parent (P131), fetched_at. `tea.region_qid` references it; the coordinates feed the future
+       map widget. The multilingual labels match the app's exact locales for free.
+     - **Scrape integration (mirrors #137-C5/C6 + the unknown-type mapping queue):** vendor region text
+       stays an OBSERVATION fact on the source revision; mapping vendor text → a region QID is a REVIEW
+       step via a curated `region_alias (text → qid)` table + human confirmation. Unknown region text
+       enters a mapping queue; a region is NEVER auto-invented. The canonical region is the QID, so the C6
+       region claim resolves to a QID rather than a free-text scalar — this must land before the scraper
+       hardens region text.
+     - **Map widget = future (Android), out of scope now.** Privacy note (mirrors AND-P2-2): a map that
+       pulls tiles from a third party leaks the device IP/interest, contradicting local-first — prefer a
+       bundled/offline or first-party tile/vector source, or disclose it; decide at build time.
+     - **Scope of THIS entry = decision + design only** (owner choice). No schema/code yet; implementation
+       is a later PR (Flyway `region` table + `tea.region_qid` + a Wikidata region-fetch query + backfill
+       the ~40 seed regions' QIDs + the importer region mapping queue + ISO country validation). Locked now
+       so the in-flight scrape hardening (#137-C5/C6) does not cement `region` as free text.
