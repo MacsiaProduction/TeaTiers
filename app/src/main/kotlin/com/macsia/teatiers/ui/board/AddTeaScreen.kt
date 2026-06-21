@@ -49,6 +49,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -95,8 +96,11 @@ fun AddTeaScreen(
     catalogTeaId: Long? = null,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
-    LaunchedEffect(boardId, teaId, catalogTeaId) {
-        viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId)
+    // Stable per-entry token: survives rotation/process-death via rememberSaveable, so a re-fired
+    // bind() on recreation preserves the in-progress form instead of wiping it (review N5).
+    val entryToken = rememberSaveable { java.util.UUID.randomUUID().toString() }
+    LaunchedEffect(boardId, teaId, catalogTeaId, entryToken) {
+        viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId, entryToken = entryToken)
     }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()

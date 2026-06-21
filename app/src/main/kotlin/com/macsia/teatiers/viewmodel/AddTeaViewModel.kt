@@ -164,7 +164,23 @@ class AddTeaViewModel @Inject constructor(
      * activity's `viewModelStore`). The tea load is async — the form stays empty until the
      * load resolves and we double-check the binding hasn't changed in between.
      */
-    fun bind(boardId: String? = null, teaId: String? = null, catalogTeaId: Long? = null) {
+    /** The entry whose form is currently bound; guards against a recreation-triggered reset (N5). */
+    private var lastEntryToken: String? = null
+
+    fun bind(
+        boardId: String? = null,
+        teaId: String? = null,
+        catalogTeaId: Long? = null,
+        entryToken: String = UUID.randomUUID().toString(),
+    ) {
+        // Preserve the in-progress form across a config change / recreation (review N5). The screen
+        // passes a STABLE rememberSaveable token per Add/Edit entry, so a re-fired bind() with the same
+        // token (a rotation — the ViewModel itself survived) is a NO-OP and the typed name/notes/flavors
+        // are kept. A genuinely new entry (or a changed binding) carries a fresh token and resets. After
+        // a process death the token is restored but the ViewModel is fresh (lastEntryToken == null), so
+        // it re-binds — edit mode reloads from teaId; an in-progress ADD is reset (acceptable, rare).
+        if (entryToken == lastEntryToken) return
+        lastEntryToken = entryToken
         this.boardId.value = boardId
         _editingTeaId.value = teaId
         _form.value = AddTeaForm()
