@@ -157,17 +157,22 @@ class BackupManager @Inject constructor(
     /** Serializes the current DB + bundles photo files into [out]; returns the exported tea count. */
     private suspend fun writeArchive(out: OutputStream): Int {
         val snapshot = dao.exportSnapshot()
-        val bundle = snapshot.toBundle(System.currentTimeMillis(), BuildConfig.VERSION_NAME)
+        // Drop file-backed photos whose file is GONE (gallery cleanup, an orphaned path, a crash
+        // between copy-in and row-insert) BEFORE building the bundle, so the JSON declares exactly the
+        // files the zip carries. Otherwise the strict, atomic importer (review P1-5) would reject the
+        // WHOLE restore over a single stale path — making the backup un-restorable (review N1). URL
+        // photos have no local file and always survive.
+        val exportable = snapshot.copy(
+            photos = snapshot.photos.filter { !it.uri.startsWith("/") || File(it.uri).exists() },
+        )
+        val bundle = exportable.toBundle(System.currentTimeMillis(), BuildConfig.VERSION_NAME)
         // Stream each photo file straight into the zip (review P1-5) — never read the whole corpus
         // into memory, so a large collection can't OOM the export.
-        val photos = snapshot.photos
+        val photos = exportable.photos
             .filter { it.uri.startsWith("/") }
-            .mapNotNull { photo ->
-                val file = File(photo.uri)
-                if (file.exists()) BackupArchive.PhotoSource(photo.bundledFileName()) { file.inputStream() } else null
-            }
+            .map { photo -> BackupArchive.PhotoSource(photo.bundledFileName()) { File(photo.uri).inputStream() } }
         BackupArchive.write(out, json.encodeToString(bundle), photos)
-        return snapshot.teas.size
+        return exportable.teas.size
     }
 
     private fun fileName(): String {
