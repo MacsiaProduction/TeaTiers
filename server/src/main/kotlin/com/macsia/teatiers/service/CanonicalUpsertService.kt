@@ -106,8 +106,15 @@ class CanonicalUpsertService(
         if (tea.region == null) tea.region = facts.region
         if (tea.cultivar == null) tea.cultivar = facts.cultivar
         if (tea.brand == null) tea.brand = facts.brand
-        if (tea.oxidationMin == null) tea.oxidationMin = facts.oxidationMin?.toShort()
-        if (tea.oxidationMax == null) tea.oxidationMax = facts.oxidationMax?.toShort()
+        // Fill the oxidation pair atomically: only when the COMBINED bounds stay ordered. Two individually
+        // valid sources (e.g. target min=10, scrape max=5) could otherwise invert min>max and trip the
+        // tea_oxidation_range CHECK; on conflict keep the existing row's bounds rather than crash.
+        val mergedOxidationMin = tea.oxidationMin ?: facts.oxidationMin?.toShort()
+        val mergedOxidationMax = tea.oxidationMax ?: facts.oxidationMax?.toShort()
+        if (mergedOxidationMin == null || mergedOxidationMax == null || mergedOxidationMin <= mergedOxidationMax) {
+            tea.oxidationMin = mergedOxidationMin
+            tea.oxidationMax = mergedOxidationMax
+        }
         // A tea assembled from more than one origin is 'mixed' (unless it was already scrape-only).
         if (tea.source != SOURCE_SCRAPE) tea.source = SOURCE_MIXED
         // Merge never touches verification_status -- a scrape can't promote a curated/verified row.

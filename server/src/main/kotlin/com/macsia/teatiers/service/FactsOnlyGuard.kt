@@ -30,6 +30,11 @@ class FactsOnlyGuard {
 
         ensure(facts.oxidationMin == null || facts.oxidationMin in 0..100) { "oxidationMin out of range" }
         ensure(facts.oxidationMax == null || facts.oxidationMax in 0..100) { "oxidationMax out of range" }
+        // Reject inverted bounds up front -- the catalog's tea_oxidation_range CHECK (min <= max) would
+        // otherwise abort the approval with an opaque DB error.
+        ensure(facts.oxidationMin == null || facts.oxidationMax == null || facts.oxidationMin <= facts.oxidationMax) {
+            "oxidation bounds inverted (min > max)"
+        }
     }
 
     private fun checkFactValue(field: String, value: String?, maxLen: Int) {

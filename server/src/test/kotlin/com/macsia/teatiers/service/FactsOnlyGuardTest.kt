@@ -64,4 +64,15 @@ class FactsOnlyGuardTest {
         val region = "Wuyi" + Char(0x2028) + "Mountains"
         assertFailsWith<FactsOnlyViolationException> { guard.validate(facts(region = region)) }
     }
+
+    @Test
+    fun `rejects inverted oxidation bounds (min greater than max)`() {
+        val inverted = ScrapedFacts(
+            names = listOf(ScrapedName("ru", "Чай", true)),
+            type = "OOLONG",
+            oxidationMin = 80,
+            oxidationMax = 20,
+        )
+        assertFailsWith<FactsOnlyViolationException> { guard.validate(inverted) }
+    }
 }

@@ -48,11 +48,16 @@ class IdentityMatchService(
     fun proposeFor(sourceRecordId: Long, importRunId: Long? = null): MatchDecision {
         val candidate = normalizedCandidateRepository.findBySourceRecordId(sourceRecordId)
             ?: error("no normalized_candidate for source_record $sourceRecordId; ingest it first")
+        val decisions = matchDecisionRepository.findBySourceRecordId(sourceRecordId)
+        // Already resolved -> return that decision; never stack a new pending one behind an approval
+        // (a re-propose after approval would otherwise orphan an un-approvable pending row in the queue).
+        decisions.firstOrNull { it.decision == "approved_new" || it.decision == "approved_merge" }
+            ?.let { return it }
+
         val proposal = bestProposal(candidate)
         val score = proposal.score?.let { BigDecimal.valueOf(it).setScale(4, RoundingMode.HALF_UP) }
 
-        val existingPending = matchDecisionRepository.findBySourceRecordId(sourceRecordId)
-            .firstOrNull { it.decision == "pending" }
+        val existingPending = decisions.firstOrNull { it.decision == "pending" }
         val decision = existingPending ?: MatchDecision(
             sourceRecordId = sourceRecordId,
             matchTier = proposal.tier,

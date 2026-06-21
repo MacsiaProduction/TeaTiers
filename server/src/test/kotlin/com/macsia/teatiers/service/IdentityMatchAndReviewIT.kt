@@ -250,4 +250,42 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             "a conflict must not auto-collapse into the proposed candidate",
         )
     }
+
+    @Test
+    fun `re-proposing after approval returns the approved decision and orphans no pending row`() {
+        eligibleSite()
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Orphan Test", true)))
+        reviewService.approveNew(requireNotNull(decision.id), "operator")
+
+        val again = matchService.proposeFor(decision.sourceRecordId, runId)
+
+        assertEquals(decision.id, again.id, "returns the approved decision, not a fresh pending one")
+        assertEquals(0, matchDecisionRepository.countByDecision("pending"))
+    }
+
+    @Test
+    fun `merging conflicting cross-source oxidation bounds does not crash`() {
+        eligibleSite()
+        val teaId = seedTea(names = listOf(Triple("pinyin", "rou gui", true)))
+        // Target carries only a lower bound; the scrape carries only an upper bound that inverts it.
+        teaRepository.findById(teaId).orElseThrow().also { it.oxidationMin = 10; teaRepository.saveAndFlush(it) }
+        aliasService.addAuthoritative(teaId, "ru", "Жоу Гуй", romanizationSystem = "palladius")
+
+        val obs = SourceObservation(
+            sourceSiteCode = "artoftea",
+            canonicalUrl = "https://artoftea.ru/ox",
+            externalId = "EX-OX",
+            retrievedAt = Instant.parse("2026-06-21T10:00:00Z"),
+            parserVersion = "artoftea-1",
+            facts = ScrapedFacts(names = listOf(ScrapedName("ru", "Жоу Гуй", true)), type = "OOLONG", oxidationMax = 5),
+        )
+        val record = importService.ingest(runId, obs)
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        assertEquals("authoritative", decision.matchTier)
+
+        reviewService.approveMerge(requireNotNull(decision.id), "operator") // must not throw on the CHECK
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertEquals(10.toShort(), tea.oxidationMin)
+        assertEquals(null, tea.oxidationMax, "conflicting cross-source oxidation bounds are left unmerged")
+    }
 }
