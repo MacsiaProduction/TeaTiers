@@ -2,6 +2,25 @@
 
 Status: design + lockable decision only. **No implementation in this doc.** Targets Room schema **v7**, package `com.macsia.teatiers.data.db`.
 
+Implementation baseline: server `21fda80` (decision #136 foundation landed). **Identity model amended 2026-06-21 — see the amendment box below.** The lossless-migration mechanics (§4, §6.4, §7) remain authoritative; the *catalog-ref identity type* and the resolution of Q1/Q2 are superseded by the amendment.
+
+> ### ⚠ AMENDMENT 2026-06-21 (decision #137-C2): catalog-ref identity is UUID, not `Long`
+>
+> Server decision #136 introduced `tea.public_id UUID` as the only client-facing catalog identity, and decision #137 corrected it to be reproducible from seed (frozen UUIDs, numeric resolves only through an immutable legacy map). That makes this doc's `catalog_refs.id: Long = server tea.id` a stale foreign-key contract. **The following overrides every `Long`/`id = server tea.id`/`catalogTeaId`-as-ref-id mention in §2–§7:**
+>
+> 1. **`CatalogRefEntity` primary key is `publicId` (UUID, stored as canonical lowercase text or a 16-byte value, deterministically encoded).** There is no `Long` ref primary key. An optional `legacyNumericId: Long?` column exists ONLY to upgrade v6 rows and to call the numeric compat endpoint exactly once during reconciliation.
+> 2. **`tea_samples.catalogRefId` becomes `catalogRefPublicId: String?`** (UUID text), nullable FK → `catalog_refs.publicId`, `ON DELETE SET NULL`. All new sample→ref links use the UUID only.
+> 3. **Migration backfills ref stubs as LEGACY-UNRESOLVED refs.** v6 only knows `teas.catalogTeaId` (a server `Long`). The migration creates one stub per DISTINCT non-null `catalogTeaId` with `legacyNumericId = catalogTeaId` and **`publicId = NULL-equivalent placeholder` is not allowed** — instead the stub row is keyed by a deterministic *local* placeholder UUID derived from the legacy id (so the PK/FK hold), flagged `resolved = 0`. Samples link to that placeholder.
+> 4. **A post-upgrade reconciliation pass** (runs after migration, off the UI thread, idempotent, retriable) calls the server numeric compat endpoint (`GET /teas/{legacyNumericId}` → returns `publicId`), then rewrites the stub's real `publicId` and re-points sample FKs — **without ever touching personal sample data** (notes, flavor, purchases, photos, names, ranks). Until reconciled, the app shows cached/personal data; catalog facts fill in after resolution. Reconciliation failure is non-fatal and re-attempted on next launch/refresh.
+> 5. **Wire/domain/cache must decode `publicId`, `status`, `supersededByPublicId`** and use a `/by-public-id/{uuid}` detail/poll endpoint for all NEW lookups; the numeric path is compat-only. A `merged` ref follows `supersededByPublicId`; a `retracted` ref shows a tombstone, never a hard 404.
+> 6. **Backup format v2 carries `publicId` + optional `legacyNumericId`** per ref (not a bare `Long`). The v6→v7 up-converter (§6.4) emits placeholder-UUID legacy-unresolved refs identically to the SQL migration; restore is followed by the same reconciliation pass.
+>
+> **This resolves open questions Q1 and Q2 (do NOT duplicate refreshable catalog facts into personal rows):**
+> - **Q1 →** `shortBlurb`, catalog flavor, server `enrichmentState`, `type`/`origin` when catalog-known, provenance (`source/sourceUrl/license`), `verificationStatus`, `confidence` live ONLY on `catalog_refs`. The sample keeps personal-only fields: `notes`, personal flavor, `vendor`, `product`, `harvestYear`, `batch`, `grade`, purchases, photos, and its own resolve `enrichmentState`.
+> - **Q2 →** catalog names live ONLY on `catalog_refs` (option (a)); `tea_sample_names` holds personal names only. The display resolver uses the personal primary name first and falls back to ref names. Catalog refresh touches ref rows only and can never overwrite a personal name/note/flavor. (This removes the §6.1/§6.2 "catalog names into `tea_sample_names`" path and the Q2 option-(b) `source='catalog'` rows.)
+>
+> The §4 id-reuse trick still applies to **`tea_samples.id` = v6 `teas.id`** (personal-side losslessness is unchanged). Only the *ref* identity moves to UUID. The migration/backup/CI tests in §7 must additionally assert: legacy-unresolved stubs created with `legacyNumericId`; reconciliation rewrites `publicId` and re-points sample FKs without mutating personal data; an un-reconciled sample still renders its personal primary name.
+
 Owner-locked product decisions this doc reflects:
 1. **Cross-board sharing kept** — one `TeaSample` is placed on many boards via many `placements` rows (`BoardPlacement → TeaSample`); preserves decisions.md #42 verbatim.
 2. **Reuse-if-same-catalog-ref on re-add**; a new sample is created only on an explicit **"add another"**; **custom samples are never auto-merged** (name-match dedup is a non-blocking suggestion).

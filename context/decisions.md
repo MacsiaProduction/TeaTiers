@@ -2706,3 +2706,76 @@ deviated.
        short-retention `raw_evidence`. Per-site recon (artoftea.ru robots/ToS) is run-time-verified, never
        assumed. Legal: facts not copyrightable; RU ГК РФ Art. 1334 operative (not the EU Directive); ToS is the
        enforceable lever (*Ryanair v PR Aviation* C‑30/14); goal = a clean public APK, not zero risk.
+
+137. **Post-foundation review (2026-06-21) → correction to #136: the locked design stands, but seven
+     contracts are tightened before any scraped write, and the v7 Android ref identity is corrected
+     `Long`→UUID.** Two current-state reviews (`context/review/2026-06-21-post-scrape-foundation-architecture-review.md`,
+     `…-scraper-implementation-readiness-review.md`) confirmed the #136 direction is right and that NO
+     scraper module exists yet, but found the shipped foundation (PR1–PR5, through `21fda80`) records the
+     *appearance* of its safety spine without making it a transaction invariant. These are implementation
+     defects, not reopened research (run 14 stays the only reserved run; no new run is warranted).
+     **Do not enable the review API or apply any scraped record until the P0 set below is closed and covered
+     by tests.** Corrected / newly-locked contracts:
+     - **(C1) Stable identity must be REPRODUCIBLE from the committed seed, not merely present.** #136-(b)
+       added `public_id` but existing/seeded/JPA rows get a *random* UUID (`V7…:25`, `Tea.kt:84`;
+       `SeedModels.SeedTea` has no `publicId`), and `catalog.detail(Long)` loads `findById` directly
+       (`TeaCatalogService.kt:58`), bypassing `tea_legacy_id_map`. **Lock:** every curated seed record
+       carries a frozen UUID preserved across seed/import/backup/restore; a blank rebuild reproduces
+       byte-identical public ids; the numeric endpoint resolves ONLY through an immutable legacy map and
+       rejects an ambiguous/reused id (it must NOT direct-load the current `tea.id`); `recordOnce` must not
+       silently retain a stale map on numeric-id reuse. `public_id` is the only new-client identity.
+     - **(C2) The v7 Android `CatalogRef` identity is UUID, not `Long`.** This supersedes
+       `catalog_refs.id: Long = server tea.id` in `context/design/tea-sample-split-v7.md` (amended the same
+       day). `publicId` is the ref primary key; an optional `legacyNumericId` exists only to upgrade v6 rows
+       via the compat endpoint once; all new writes link by UUID; backup format v2 carries UUID + optional
+       legacy id. The Android wire/domain/cache models must decode `publicId/status/supersededByPublicId`
+       (today they ignore them) and call a `/by-public-id/{uuid}` detail endpoint.
+     - **(C3) Catalog visibility is ONE predicate, enforced everywhere.** Browse, fuzzy search, facets,
+       numeric detail, and resolve must exclude `merged`/`retracted` rows and PENDING/FAILED user stubs;
+       only identity lookup returns an explicit tombstone/redirect. (Today only `detailByPublicId` is
+       lifecycle-aware; `search`/`facets`/`detail(Long)` leak every status.)
+     - **(C4) Ingestion is an ENFORCED state machine, not audit metadata.** `created → preflight_allowed →
+       ingesting → reviewed → applied/failed/blocked`, enforced by enums + DB constraints. A run becomes
+       ingestible only with a fresh robots snapshot (url, fetched-at, HTTP status, body hash, parser/version,
+       user agent, allowed-host set; fail closed on fetch/parse uncertainty). `ingest()` MUST load+lock the
+       run and verify `run.sourceSiteId == obs.sourceSiteId`, run state, parser version, and observation host
+       (today `CatalogImportService.ingest` checks none of these). `dryRun` may stage/match/render a patch but
+       canonical approval MUST reject a record from a dry/blocked/failed run. `finishRun` rejects unknown
+       states and a missing run. Counters are computed/updated transactionally, not decorative.
+     - **(C5) Decisions bind to an IMMUTABLE observation revision (content hash); corrections flow.** Today a
+       changed-facts record sits at `reparse_pending` forever because `proposeFor` returns the first
+       `approved_*` decision (`IdentityMatchService.kt:54`). **Lock:** parsed observations are immutable
+       revisions keyed by source identity + content hash; each proposal/decision binds to the exact revision;
+       a later revision opens a new pending decision without erasing audit history; approval rejects a stale
+       decision when the current hash no longer matches; unchanged re-import stays a no-op. Source-identity
+       changes (slug rename, new external id, redirect) reconcile through URL aliases/history with a collision
+       check, never a silent overwrite.
+     - **(C6) Approved merge writes VALUE-BEARING field claims + complete provenance, and PROMOTES reviewed
+       aliases.** Today merge fills null scalars then suppresses ALL scalar provenance
+       (`writeProvenanceAndAliases(includeScalarFields=false)`), provenance stores only a field name (no
+       value/decision), and every approved alias stays `library_derived, verified=false` because
+       `ReviewService` never calls `IdentityAliasService.addAuthoritative`. **Lock:** a field-claim model
+       (`field_name`, typed/canonicalized value, source-record revision, decision, reviewer, validity) with
+       the selected value written in the SAME tx as the canonical field; conflicts recorded even when an
+       existing verified value wins; explicitly-reviewed identity aliases promoted to `human_confirmed,
+       verified=true`; pypinyin/Palladius-derived candidates stay unverified; uniqueness / current-selection
+       constraints added so provenance has an unambiguous meaning.
+     - **(C7) Operator review is a LOCAL CLI, not an HTTP controller — this returns to the #136 locked
+       intent.** #136 sequencing already specified an "operator review-queue CLI"; PR5 instead shipped
+       `IngestReviewController`, which on `teatiers.ingest.review-api.enabled=true` exposes unauthenticated
+       list/approve/merge/reject with a caller-supplied `reviewer` string. **Lock:** remove the web
+       controller; review/apply runs as a local operator command/profile over an SSH tunnel or direct
+       operator DB connection, with an authenticated actor recorded on every decision. A production-context
+       test asserts the controller bean is absent and that the flag cannot be enabled on the public listener.
+     - **DB cardinality + concurrency (P1, same workstream):** add UNIQUE on
+       `normalized_candidate.source_record_id`, a partial-unique "one pending decision per (source_record,
+       revision)", and provenance uniqueness; use row locks / compare-and-set for review/apply (application
+       `require()` is not a concurrency boundary). The matcher returns a ranked candidate SET with per-hit
+       evidence and flags ties / multiple authoritative owners as a hard conflict; it never proposes an
+       inactive/retracted target. Unknown `tea.type` rejects or enters a mapping queue — never silently
+       `OTHER`. `vendor` stays on the observation; it is never copied to canonical `tea.brand` without an
+       explicit reviewer decision.
+     **Execution order:** docs first (this entry + the v7 amendment + plan/runbook drift + a decision
+     index), then the P0 fixes as PRs with failing tests landed first. The scraper module itself stays
+     deferred until these foundation invariants are closed — both reviews: "the next deliverable is not a
+     crawler." See `context/review/INDEX.md` for the per-finding → status map.

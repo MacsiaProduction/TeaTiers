@@ -1,5 +1,21 @@
 # TeaTiers — implementation plan
 
+> **⚠ Current status (2026-06-21) — read this first.** This file is now a **historical build
+> narrative**, not the live source of truth. Where it disagrees with the items below, trust the items:
+> 1. `./decisions.md` for locked intent — esp. **#136** (scrape foundation) and **#137** (its
+>    correction: the C1–C7 contracts that must close before any scraped catalog write).
+> 2. Focused designs — esp. `./design/tea-sample-split-v7.md` (identity **amended `Long`→UUID**, #137-C2).
+> 3. Live code + Flyway migrations (server through `V9`, Room v6 baseline committed).
+> 4. `./review/INDEX.md` — the active per-finding status map.
+>
+> **Landed since this plan was written:** v6 public Room baseline is real (schema exported, release
+> uses no destructive migration); scrape→catalog **foundation** PR1–PR5 (Flyway V7–V9, staging/match/
+> review/canonical services); OCR concurrency hardening (#135). **Current focus:** closing the #137
+> P0 contracts (stable seeded UUID + visibility, enforced run/robots/dry-run state machine, immutable
+> observation revisions, value-bearing provenance + alias promotion, local review CLI). **Not started:**
+> the scraper module itself (deferred), the Room v6→v7 lossless migration (AND-P1-1), the next-public-APK
+> release/privacy/ops gates.
+
 Source of truth for the build plan. Decisions it rests on are in
 `./decisions.md`; product spec in `../task.md`; stack rules in `../AGENTS.md`.
 Research runs 01–06 are **resolved** (01–04 won by opus; 05–06 by alice): backend on
@@ -470,10 +486,12 @@ The explicit checklist for "the first public APK may ship" (from the
 2026-06-17 architecture review; see `context/review/2026-06-17-disposition.md`). Until every
 line is ✅ or a deliberate written waiver, the build stays internal-only.
 
-- [ ] **Room migrations:** destructive fallback removed for future public schema changes;
-  `exportSchema` on + a committed baseline; "public schema starts at vN" declared (open #70.1).
-- [ ] **Backup fidelity:** export/import round-trips all current columns incl. the v5
-  enrichment fields ✅ (#69) and photos ✅ (#26) — re-verify on each new column.
+- [x] **Room migrations:** destructive fallback removed for release; `exportSchema` on + v6 baseline
+  committed; v6 is the public schema floor (#130/P0-1). **Caveat:** every future version still needs an
+  explicit `Migration` + device test — the v6→v7 lossless split (AND-P1-1) is not yet built.
+- [x] **Backup fidelity:** export/import round-trips all current columns incl. the v5 enrichment fields
+  (#69) and photos (#26); the missing-photo declaration bug is fixed + regression-tested (`1d4165c`).
+  **Caveat:** backup format **v2** (UUID refs + sample names) ships with the v7 split, not before.
 - [x] **Typo-tolerant catalog search** implemented + passes a ru/en/pinyin/zh search-gold set
   (run 09, #67) — ✅ pg_trgm `name_norm` + `word_similarity` (Flyway V4), `TeaSearchFuzzyIT` gold set green
   (#84). **Deployed + verified live (#91)** — V4 applied on the VM, live typos resolve correctly incl.
