@@ -57,6 +57,9 @@ class TeaCatalogService(
 
     fun detail(id: Long): TeaDetailDto? = teaRepository.findById(id).map { it.toDetail() }.orElse(null)
 
+    /** Compact summary by id; used by the operator review queue to show a proposed match candidate. */
+    fun summary(id: Long): TeaSummaryDto? = teaRepository.findById(id).map { it.toSummary() }.orElse(null)
+
     /**
      * Resolve by the stable public id (V7, decision #136). A 'merged' tea resolves to its survivor (the
      * client should re-cache the survivor's public_id); a 'retracted' tea returns its own tombstone detail
