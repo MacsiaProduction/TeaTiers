@@ -41,15 +41,26 @@ class CanonicalUpsertService(
     /** Create a brand-new canonical tea from an approved source record. Returns the new tea id. */
     @Transactional
     fun applyApprovedNew(sourceRecord: SourceRecord): Long {
+        // A source record links to exactly one canonical tea; approving twice must never mint a duplicate.
+        require(sourceRecord.teaId == null) {
+            "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
+        }
         val facts = parse(sourceRecord)
         val type = teaType(facts.type)
         val primary = primaryName(facts)
         val pinyin = facts.names.firstOrNull { it.locale == "pinyin" }?.value
+        val dedupKey = DedupKeys.of(primary, pinyin, type)
+
+        // create_new only matches on tea_name; dedup_key (primary+pinyin+type) can still collide. Surface a
+        // clear conflict so the operator merges, instead of aborting the tx on the unique index.
+        teaRepository.findByDedupKey(dedupKey)?.let {
+            throw CanonicalUpsertConflictException(dedupKey, requireNotNull(it.id))
+        }
 
         val tea = Tea(
             type = type,
             source = SOURCE_SCRAPE,
-            dedupKey = DedupKeys.of(primary, pinyin, type),
+            dedupKey = dedupKey,
             originCountry = facts.originCountry,
             region = facts.region,
             cultivar = facts.cultivar,
@@ -60,8 +71,11 @@ class CanonicalUpsertService(
             verificationStatus = STATUS_UNVERIFIED,
             status = "active",
         )
-        facts.names.forEach { n ->
-            tea.addName(TeaName(locale = n.locale, name = n.value, isPrimary = n.isPrimary, source = SOURCE_SCRAPE))
+        // At most one primary per (locale) -- the schema's tea_name_primary_uk -- and no dup (locale,name).
+        val primaryLocales = mutableSetOf<String>()
+        facts.names.distinctBy { it.locale to it.value }.forEach { n ->
+            val isPrimary = n.isPrimary && primaryLocales.add(n.locale)
+            tea.addName(TeaName(locale = n.locale, name = n.value, isPrimary = isPrimary, source = SOURCE_SCRAPE))
         }
         val saved = teaRepository.saveAndFlush(tea)
         val teaId = requireNotNull(saved.id)
@@ -79,6 +93,10 @@ class CanonicalUpsertService(
      */
     @Transactional
     fun applyApprovedMerge(sourceRecord: SourceRecord, targetTeaId: Long): Long {
+        // Re-affirming the same link is fine; silently re-pointing a linked record elsewhere is not.
+        require(sourceRecord.teaId == null || sourceRecord.teaId == targetTeaId) {
+            "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
+        }
         val tea = teaRepository.findById(targetTeaId).orElseThrow {
             IllegalArgumentException("merge target tea $targetTeaId not found")
         }
@@ -179,3 +197,10 @@ class CanonicalUpsertService(
         const val STATUS_UNVERIFIED = "unverified"
     }
 }
+
+/**
+ * An approved create-new collided with an existing tea on `dedup_key` -- it is really the same canonical
+ * tea. The operator should merge into [existingTeaId] instead of creating a duplicate.
+ */
+class CanonicalUpsertConflictException(val dedupKey: String, val existingTeaId: Long) :
+    RuntimeException("create_new collides with existing tea $existingTeaId on dedup_key '$dedupKey'; merge instead")

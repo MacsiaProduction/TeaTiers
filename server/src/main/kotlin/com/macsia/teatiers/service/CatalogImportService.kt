@@ -11,7 +11,6 @@ import com.macsia.teatiers.repository.ImportRunRepository
 import com.macsia.teatiers.repository.NormalizedCandidateRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.SourceSiteRepository
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
@@ -31,8 +30,6 @@ class CatalogImportService(
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val factsOnlyGuard: FactsOnlyGuard,
 ) {
-
-    private val log = LoggerFactory.getLogger(javaClass)
 
     // Deterministic serialization so the same facts always hash the same (drives reparse detection).
     private val factsMapper = jacksonObjectMapper()

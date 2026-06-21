@@ -194,4 +194,60 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             "double-approval must fail",
         )
     }
+
+    @Test
+    fun `re-proposing a source record does not stack pending decisions`() {
+        eligibleSite()
+        val obs = SourceObservation(
+            sourceSiteCode = "artoftea",
+            canonicalUrl = "https://artoftea.ru/idem",
+            externalId = "EX-IDEM",
+            retrievedAt = Instant.parse("2026-06-21T10:00:00Z"),
+            parserVersion = "artoftea-1",
+            facts = ScrapedFacts(names = listOf(ScrapedName("en", "Bai Hao Yinzhen", true)), type = "WHITE"),
+        )
+        val record = importService.ingest(runId, obs)
+        matchService.proposeFor(requireNotNull(record.id), runId)
+        matchService.proposeFor(record.id!!, runId)
+        assertEquals(1, matchDecisionRepository.findBySourceRecordId(record.id!!).count { it.decision == "pending" })
+    }
+
+    @Test
+    fun `approving a fresh decision for an already-linked record cannot mint a duplicate`() {
+        eligibleSite()
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Gaba Cha", true)))
+        reviewService.approveNew(requireNotNull(decision.id), "operator")
+        // A stale second proposal for the now-linked record must NOT create a second canonical tea.
+        val stale = matchService.proposeFor(decision.sourceRecordId, runId)
+        assertTrue(runCatching { reviewService.approveNew(requireNotNull(stale.id), "operator") }.isFailure)
+    }
+
+    @Test
+    fun `a create_new colliding on dedup_key surfaces a conflict, not a crash`() {
+        eligibleSite()
+        // Seed a tea sharing the dedup_key a scraped "Rou Gui" computes, but whose NAME the matcher misses.
+        val collidingKey = DedupKeys.of("Rou Gui", "rou gui", TeaType.OOLONG)
+        val seeded = Tea(type = TeaType.OOLONG, source = "curated", dedupKey = collidingKey, verificationStatus = "verified")
+        seeded.addName(TeaName(locale = "en", name = "Unrelated Label", isPrimary = true))
+        teaRepository.saveAndFlush(seeded)
+
+        val decision = stageAndPropose(
+            listOf(ScrapedName("en", "Rou Gui", true), ScrapedName("pinyin", "rou gui", true)),
+        )
+        assertEquals("create_new", decision.proposedKind)
+        val outcome = runCatching { reviewService.approveNew(requireNotNull(decision.id), "operator") }
+        assertTrue(outcome.exceptionOrNull() is CanonicalUpsertConflictException, "collision must surface as a merge hint")
+    }
+
+    @Test
+    fun `a brand-conflict decision refuses to merge without an explicit target`() {
+        eligibleSite()
+        seedTea(brand = "Shop A", names = listOf(Triple("en", "Conflict Tea", true)))
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Conflict Tea", true)), brand = "Shop B")
+        assertEquals("conflict", decision.proposedKind)
+        assertTrue(
+            runCatching { reviewService.approveMerge(requireNotNull(decision.id), "operator") }.isFailure,
+            "a conflict must not auto-collapse into the proposed candidate",
+        )
+    }
 }

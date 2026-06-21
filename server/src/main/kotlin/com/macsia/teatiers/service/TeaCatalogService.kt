@@ -61,19 +61,31 @@ class TeaCatalogService(
     fun summary(id: Long): TeaSummaryDto? = teaRepository.findById(id).map { it.toSummary() }.orElse(null)
 
     /**
-     * Resolve by the stable public id (V7, decision #136). A 'merged' tea resolves to its survivor (the
-     * client should re-cache the survivor's public_id); a 'retracted' tea returns its own tombstone detail
-     * (status = 'retracted') rather than a 404, so a client holding the id can show "unavailable" instead of
-     * silently losing the reference. Returns null only for a public_id that was never issued.
+     * Resolve by the stable public id (V7, decision #136). A 'merged' tea resolves to the TERMINAL survivor
+     * of its merge chain (bounded + cycle-guarded); the returned detail carries `supersededByPublicId` =
+     * the survivor's id so the client knows to re-cache. A 'retracted' tea returns its own tombstone
+     * (status = 'retracted') rather than a 404. Returns null only for a public_id that was never issued.
      */
     fun detailByPublicId(publicId: UUID): TeaDetailDto? {
         val tea = teaRepository.findByPublicId(publicId) ?: return null
-        if (tea.status == "merged") {
-            val survivor = tea.mergedIntoPublicId?.let { teaRepository.findByPublicId(it) }
-            // Fall back to the merged row's own tombstone if the survivor is somehow missing.
-            return (survivor ?: tea).toDetail()
+        if (tea.status != "merged") return tea.toDetail()
+        val survivor = resolveSurvivor(tea) ?: return tea.toDetail() // broken/cyclic chain -> own tombstone
+        // Signal the redirect: the client requested a merged id; tell it the current canonical id.
+        return survivor.toDetail().copy(supersededByPublicId = survivor.publicId)
+    }
+
+    /** Walk `merged_into_public_id` to the first non-merged row; null on a cycle or an over-long chain. */
+    private fun resolveSurvivor(start: Tea): Tea? {
+        var current = start
+        val seen = mutableSetOf<UUID>(start.publicId)
+        var hops = 0
+        while (current.status == "merged" && hops < MAX_MERGE_HOPS) {
+            val next = current.mergedIntoPublicId ?: return null
+            if (!seen.add(next)) return null
+            current = teaRepository.findByPublicId(next) ?: return null
+            hops++
         }
-        return tea.toDetail()
+        return current.takeIf { it.status != "merged" }
     }
 
     fun facets(): FacetsDto = FacetsDto(
@@ -133,5 +145,6 @@ class TeaCatalogService(
     companion object {
         const val MAX_LIMIT = 50
         const val DEFAULT_LIMIT = 20
+        private const val MAX_MERGE_HOPS = 16
     }
 }

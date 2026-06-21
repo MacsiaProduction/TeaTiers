@@ -97,6 +97,26 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `a merge chain resolves to the terminal survivor with a re-cache signal`() {
+        val survivor = teaRepository.saveAndFlush(newTea(source = "curated", primary = "Survivor C"))
+        val mid = newTea(source = "scrape", primary = "Mid B").apply {
+            status = "merged"
+            mergedIntoPublicId = survivor.publicId
+        }
+        val savedMid = teaRepository.saveAndFlush(mid)
+        val old = newTea(source = "scrape", primary = "Old A").apply {
+            status = "merged"
+            mergedIntoPublicId = savedMid.publicId
+        }
+        val savedOld = teaRepository.saveAndFlush(old)
+
+        val detail = catalogService.detailByPublicId(savedOld.publicId)
+
+        assertEquals(survivor.id, detail?.id, "A -> B -> C resolves to terminal C, not the intermediate B")
+        assertEquals(survivor.publicId, detail?.supersededByPublicId, "redirect signals the survivor id to re-cache")
+    }
+
+    @Test
     fun `a retracted tea returns a tombstone, not a 404`() {
         val tea = newTea(source = "scrape", primary = "Gone").apply { status = "retracted" }
         val saved = teaRepository.saveAndFlush(tea)

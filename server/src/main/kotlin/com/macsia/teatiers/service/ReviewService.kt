@@ -53,6 +53,11 @@ class ReviewService(
     @Transactional
     fun approveMerge(decisionId: Long, reviewer: String, targetTeaId: Long? = null): ReviewResultDto {
         val decision = pendingDecision(decisionId)
+        // A brand/vendor conflict never auto-collapses into the proposed candidate: force an explicit
+        // target so the operator consciously chooses to fold a differently-branded lot in.
+        require(decision.proposedKind != "conflict" || targetTeaId != null) {
+            "decision $decisionId is a brand/vendor conflict; pass an explicit targetTeaId to merge"
+        }
         val target = targetTeaId ?: decision.candidateTeaId
             ?: throw IllegalArgumentException("decision $decisionId has no merge target")
         val teaId = canonicalUpsertService.applyApprovedMerge(record(decision), target)

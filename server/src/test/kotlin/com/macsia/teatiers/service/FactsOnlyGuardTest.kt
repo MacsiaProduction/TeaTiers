@@ -52,4 +52,16 @@ class FactsOnlyGuardTest {
     fun `rejects facts with no names`() {
         assertFailsWith<FactsOnlyViolationException> { guard.validate(facts(names = emptyList())) }
     }
+
+    @Test
+    fun `rejects an over-long list of names (bulk prose chunked across entries)`() {
+        val many = (1..20).map { ScrapedName("en", "Name $it", false) }
+        assertFailsWith<FactsOnlyViolationException> { guard.validate(facts(names = many)) }
+    }
+
+    @Test
+    fun `rejects a Unicode line separator in a fact`() {
+        val region = "Wuyi" + Char(0x2028) + "Mountains"
+        assertFailsWith<FactsOnlyViolationException> { guard.validate(facts(region = region)) }
+    }
 }

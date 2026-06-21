@@ -3,10 +3,10 @@ package com.macsia.teatiers.service
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.NormalizedCandidate
 import com.macsia.teatiers.repository.MatchDecisionRepository
+import com.macsia.teatiers.repository.NameMatchCandidate
 import com.macsia.teatiers.repository.NormalizedCandidateRepository
 import com.macsia.teatiers.repository.TeaIdentityAliasRepository
 import com.macsia.teatiers.repository.TeaRepository
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -35,28 +35,37 @@ class IdentityMatchService(
     private val matchDecisionRepository: MatchDecisionRepository,
 ) {
 
-    private val log = LoggerFactory.getLogger(javaClass)
-
     data class MatchProposal(val tier: String, val candidateTeaId: Long?, val score: Double?, val kind: String)
 
-    /** Produce and persist the best pending proposal for a source record's normalized candidate. */
+    /**
+     * Produce and persist the best pending proposal for a source record's normalized candidate. Idempotent
+     * per source record: an existing PENDING decision is updated in place rather than stacking a second one
+     * (so a reparse re-proposal can't later be double-approved into duplicate teas). A re-propose is a no-op
+     * once the record has an already-decided (approved/rejected) decision -- a fresh review needs that
+     * decision revoked first.
+     */
     @Transactional
     fun proposeFor(sourceRecordId: Long, importRunId: Long? = null): MatchDecision {
         val candidate = normalizedCandidateRepository.findBySourceRecordId(sourceRecordId)
             ?: error("no normalized_candidate for source_record $sourceRecordId; ingest it first")
         val proposal = bestProposal(candidate)
-        return matchDecisionRepository.save(
-            MatchDecision(
-                sourceRecordId = sourceRecordId,
-                matchTier = proposal.tier,
-                proposedKind = proposal.kind,
-                normalizedCandidateId = candidate.id,
-                candidateTeaId = proposal.candidateTeaId,
-                matchScore = proposal.score?.let { BigDecimal.valueOf(it).setScale(4, RoundingMode.HALF_UP) },
-                importRunId = importRunId,
-                decision = "pending",
-            ),
+        val score = proposal.score?.let { BigDecimal.valueOf(it).setScale(4, RoundingMode.HALF_UP) }
+
+        val existingPending = matchDecisionRepository.findBySourceRecordId(sourceRecordId)
+            .firstOrNull { it.decision == "pending" }
+        val decision = existingPending ?: MatchDecision(
+            sourceRecordId = sourceRecordId,
+            matchTier = proposal.tier,
+            proposedKind = proposal.kind,
         )
+        decision.matchTier = proposal.tier
+        decision.proposedKind = proposal.kind
+        decision.normalizedCandidateId = candidate.id
+        decision.candidateTeaId = proposal.candidateTeaId
+        decision.matchScore = score
+        decision.importRunId = importRunId
+        decision.decision = "pending"
+        return matchDecisionRepository.save(decision)
     }
 
     private fun bestProposal(c: NormalizedCandidate): MatchProposal {
@@ -86,7 +95,7 @@ class IdentityMatchService(
         return MatchProposal("none", null, null, "create_new")
     }
 
-    private fun bestTrigram(values: List<String>): com.macsia.teatiers.repository.NameMatchCandidate? =
+    private fun bestTrigram(values: List<String>): NameMatchCandidate? =
         values.flatMap { teaRepository.findTrigramNameCandidates(it, TRIGRAM_THRESHOLD, CANDIDATE_LIMIT) }
             .maxByOrNull { it.score }
 
