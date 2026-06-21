@@ -55,3 +55,42 @@ jobs:
             exit 1
           fi
           echo "GMS-free OK: no gms / firebase / play-services on releaseRuntimeClasspath."
+      - name: Room schema export is committed (decision #130 / review P0-1)
+        # `assembleDebug` above regenerates app/schemas/<db>/<v>.json via KSP. If an @Entity changed
+        # without committing the new JSON, the migration baseline is stale — fail loudly so a schema
+        # change can never ship without its committed schema + (future) migration test.
+        run: |
+          if ! git diff --quiet -- schemas; then
+            echo "::error::Room schema export is out of date — rebuild the app and commit app/schemas/."
+            git --no-pager diff -- schemas
+            exit 1
+          fi
+          echo "Room schema export is up to date."
+
+  app-instrumented:
+    name: app migration tests (emulator)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+      - name: Enable KVM
+        # The hardware-accelerated x86_64 emulator needs /dev/kvm writable by the runner user.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Room MigrationTestHelper tests on an emulator
+        # On-device gate for the v6 migration baseline (decision #130 / P1-4). Every future
+        # Migration(6, N) is proven lossless here before it can ship.
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          working-directory: app
+          script: ./gradlew --no-daemon connectedDebugAndroidTest
