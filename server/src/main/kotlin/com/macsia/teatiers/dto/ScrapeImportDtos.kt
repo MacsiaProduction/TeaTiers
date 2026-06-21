@@ -43,3 +43,15 @@ data class SourceObservation(
     val parserVersion: String,
     val facts: ScrapedFacts,
 )
+
+/**
+ * The per-run robots snapshot a run must carry to be ingestible (decision #137-C4). The scraper fetches
+ * `robots.txt` and supplies this; the importer fails closed unless [decision] == "allow". This is a HARD
+ * gate, not audit metadata -- a run cannot start (and cannot ingest) without proven 'allow' evidence.
+ */
+data class RobotsEvidence(
+    val decision: String, // 'allow' | 'disallow' | 'fail_closed' | 'not_checked'
+    val fetchedAt: Instant,
+    val httpStatus: Int? = null,
+    val hash: String? = null,
+)

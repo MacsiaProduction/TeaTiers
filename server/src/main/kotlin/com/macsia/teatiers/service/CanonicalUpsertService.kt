@@ -9,6 +9,7 @@ import com.macsia.teatiers.domain.TeaIdentityAlias
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.ScrapedFacts
+import com.macsia.teatiers.repository.ImportRunRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.SourceSiteRepository
 import com.macsia.teatiers.repository.TeaFieldProvenanceRepository
@@ -33,6 +34,7 @@ class CanonicalUpsertService(
     private val aliasRepository: TeaIdentityAliasRepository,
     private val sourceRecordRepository: SourceRecordRepository,
     private val sourceSiteRepository: SourceSiteRepository,
+    private val importRunRepository: ImportRunRepository,
 ) {
 
     private val factsMapper = jacksonObjectMapper()
@@ -41,6 +43,7 @@ class CanonicalUpsertService(
     /** Create a brand-new canonical tea from an approved source record. Returns the new tea id. */
     @Transactional
     fun applyApprovedNew(sourceRecord: SourceRecord): Long {
+        requireApplyAllowed(sourceRecord)
         // A source record links to exactly one canonical tea; approving twice must never mint a duplicate.
         require(sourceRecord.teaId == null) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -93,6 +96,7 @@ class CanonicalUpsertService(
      */
     @Transactional
     fun applyApprovedMerge(sourceRecord: SourceRecord, targetTeaId: Long): Long {
+        requireApplyAllowed(sourceRecord)
         // Re-affirming the same link is fine; silently re-pointing a linked record elsewhere is not.
         require(sourceRecord.teaId == null || sourceRecord.teaId == targetTeaId) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -181,6 +185,22 @@ class CanonicalUpsertService(
         }
     }
 
+    /**
+     * The public catalog may be written ONLY from a real, non-dry, non-failed run (decision #137-C4):
+     * a dry run may stage/match/render a patch but its records can never be approved into the catalog.
+     */
+    private fun requireApplyAllowed(sourceRecord: SourceRecord) {
+        val run = importRunRepository.findById(sourceRecord.importRunId).orElseThrow {
+            CanonicalApplyForbiddenException("source_record ${sourceRecord.id} references missing run ${sourceRecord.importRunId}")
+        }
+        if (run.dryRun) {
+            throw CanonicalApplyForbiddenException("run ${run.id} is a dry run; its records cannot be applied to the catalog")
+        }
+        if (run.status == "blocked" || run.status == "failed") {
+            throw CanonicalApplyForbiddenException("run ${run.id} is '${run.status}'; its records cannot be applied")
+        }
+    }
+
     private fun link(sourceRecord: SourceRecord, teaId: Long) {
         sourceRecord.teaId = teaId
         sourceRecord.status = "linked"
@@ -211,3 +231,6 @@ class CanonicalUpsertService(
  */
 class CanonicalUpsertConflictException(val dedupKey: String, val existingTeaId: Long) :
     RuntimeException("create_new collides with existing tea $existingTeaId on dedup_key '$dedupKey'; merge instead")
+
+/** Approval tried to write the catalog from a dry/blocked/failed run (decision #137-C4) -- forbidden. */
+class CanonicalApplyForbiddenException(message: String) : RuntimeException(message)
