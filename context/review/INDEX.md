@@ -27,7 +27,7 @@ Baseline at index creation: `21fda80`. Update the Status/Evidence columns as PRs
 
 | ID | Finding (short) | Status | Closing PR / evidence |
 |---|---|:--:|---|
-| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced | OPEN | matcher returns ranked candidate set + conflict flags |
+| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced; can propose an inactive target | PARTIAL | apply-time tombstone guard landed (`InactiveMergeTargetException`, branch `…-c5c6`); ranked candidate set + conflict flags + `status='active'` on the match queries remain (P1 PR) |
 | FND-P1-2 / SCR-P1-3 | Vendor/brand semantics: `vendor` ignored; `brand` may land on canonical tea | OPEN | keep vendor on observation; brand only via explicit decision |
 | FND-P1-3 / SCR — | DB constraints don't support concurrent idempotency (no unique `normalized_candidate.source_record_id`, no one-pending-per-revision, no provenance uniqueness; no row locks) | DONE | run row-lock (C4) + V10 unique `normalized_candidate.source_record_id`, partial-unique one-pending-per-record, partial-unique one-selected-scalar-claim-per-field (C5/C6) |
 | FND-P1-4 / SCR-P1-2 | Evidence/input validation incomplete; `raw_evidence` never written; unknown `type` silently `OTHER`; approval doesn't re-run guard | OPEN | strict schema + URI/host validation + type mapping queue + evidence persist |

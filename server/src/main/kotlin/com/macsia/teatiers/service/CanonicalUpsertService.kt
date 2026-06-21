@@ -120,6 +120,10 @@ class CanonicalUpsertService(
         val tea = teaRepository.findById(targetTeaId).orElseThrow {
             IllegalArgumentException("merge target tea $targetTeaId not found")
         }
+        // Never write into a tombstone (decision #137-C3 lifecycle): a 'retracted' or 'merged' target must
+        // not be re-animated by a merge. The matcher can still propose a non-active target (FND-P1-1, P1) --
+        // this is the apply-time backstop until the candidate queries themselves filter status.
+        if (tea.status != "active") throw InactiveMergeTargetException(targetTeaId, tea.status)
         val facts = parse(revision)
         val ctx = claimContext(sourceRecord, revision, decisionId, reviewer)
 
@@ -318,3 +322,7 @@ class CanonicalUpsertConflictException(val dedupKey: String, val existingTeaId: 
 
 /** Approval tried to write the catalog from a dry/blocked/failed run (decision #137-C4) -- forbidden. */
 class CanonicalApplyForbiddenException(message: String) : RuntimeException(message)
+
+/** Approval tried to merge into a non-active (retracted/merged) tea (decision #137-C3) -- forbidden. */
+class InactiveMergeTargetException(val targetTeaId: Long, val status: String) :
+    RuntimeException("merge target tea $targetTeaId is '$status', not active; cannot write into a tombstone")

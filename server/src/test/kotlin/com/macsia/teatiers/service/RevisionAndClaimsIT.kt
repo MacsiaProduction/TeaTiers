@@ -191,4 +191,25 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         val claim = provenanceRepository.findByTeaId(teaId).firstOrNull { it.fieldName == "region" && it.selected }
         assertEquals("Fujian", assertNotNull(claim).claimedValue, "the filled field has a selected value-bearing claim")
     }
+
+    @Test
+    fun `approving a merge into a retracted target is rejected (tombstone guard, decision 137-C3)`() {
+        startRun()
+        val teaId = seedTea("sen cha")
+        aliasService.addAuthoritative(teaId, "ru", "Сэн Ча", romanizationSystem = "palladius")
+        // Tombstone the tea AFTER the alias exists.
+        teaRepository.findById(teaId).orElseThrow().also { it.status = "retracted"; teaRepository.saveAndFlush(it) }
+
+        val record = importService.ingest(
+            runId,
+            obs("https://s.example/t", externalId = "T", names = listOf(ScrapedName("ru", "Сэн Ча", true))),
+        )
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        // The matcher still proposes the (retracted) target -- candidate-set status filtering is deferred
+        // P1 (FND-P1-1) -- so the apply-time guard is the backstop that must refuse it.
+        assertEquals("authoritative", decision.matchTier)
+        assertFailsWith<InactiveMergeTargetException> {
+            reviewService.approveMerge(requireNotNull(decision.id), "op")
+        }
+    }
 }
