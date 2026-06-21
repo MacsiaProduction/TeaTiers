@@ -14,6 +14,7 @@ import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaEntity
 import com.macsia.teatiers.data.db.TierEntity
 import com.macsia.teatiers.data.repository.FakePhotoStore
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -163,5 +164,35 @@ class BackupManagerTest {
         assertTrue(result is BackupResult.InvalidFile, "expected InvalidFile for a missing photo, got $result")
         coVerify(exactly = 0) { dao.replaceAll(any()) }
         assertTrue(photoStore.reconcileCalls.isEmpty(), "a rejected import must not touch the live photo store")
+    }
+
+    @Test
+    fun `export drops a missing-on-disk photo so its own archive still round-trips (review N1)`() = runTest {
+        // snapshot()'s ph1 points at a path that does not exist here. Export must omit it from BOTH the
+        // zip AND the declaring JSON so the strict importer accepts the archive (not reject it whole).
+        val dao = mockk<TeaDao>(relaxed = true)
+        coEvery { dao.exportSnapshot() } returns snapshot()
+        val photoStore = FakePhotoStore()
+        val exported = ByteArrayOutputStream()
+        val uri = mockk<Uri>()
+        val resolver = mockk<ContentResolver> {
+            every { openOutputStream(uri) } returns exported
+            every { openAssetFileDescriptor(uri, "r") } returns null
+            every { openInputStream(uri) } answers { exported.toByteArray().inputStream() }
+        }
+        val context = mockk<Context> {
+            every { contentResolver } returns resolver
+            every { cacheDir } returns this@BackupManagerTest.cacheDir
+        }
+        val manager = BackupManager(context, dao, photoStore)
+
+        assertTrue(manager.exportTo(uri) is BackupResult.Exported)
+        val result = manager.importFrom(uri)
+
+        assertTrue(result is BackupResult.Imported, "a stale-photo export must re-import, got $result")
+        val written = slot<SeedEntities>()
+        coVerify { dao.replaceAll(capture(written)) }
+        // The missing file photo (ph1) is gone from the archive; the url photo (ph2) survives.
+        assertEquals(listOf("ph2"), written.captured.photos.map { it.id })
     }
 }
