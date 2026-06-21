@@ -2554,3 +2554,33 @@ deviated.
      `sourceText` — there is NO `source_text` column today), never shipped; existing LLM enrichment writes our
      own descriptions (#22). **Build is DEFERRED** (owner: "record decision, build later") — release-blockers
      first (#130: Room migration safety done in PR #108, privacy-doc accuracy, canonical-tea/sample split).
+
+132. **Canonical-tea vs user-sample split (P1-1) + any-language naming (P1-2) — v7 design LOCKED; build
+     deferred (2026-06-21).** Designed via a map→design→adversarial-review→synthesize workflow (9 agents; the
+     review caught **7 data-loss bugs** now fixed in the plan). Full design:
+     [`context/design/tea-sample-split-v7.md`](design/tea-sample-split-v7.md). **Owner-locked product decisions:**
+     (1) **cross-board sharing kept** — one `TeaSample` is placed on many boards via `placements` rows
+     (`BoardPlacement → TeaSample`, preserves #42); (2) **reuse-if-same-catalog-ref** on re-add, a new sample
+     only on an explicit **"add another"**, custom samples **never auto-merged** (name-match dedup is a
+     non-blocking suggestion); (3) deliverable is design + this decision, no implementation yet.
+     **The v7 model (Room version 7, exportSchema on):** retire the flat `teas` table into **`tea_samples`** (the
+     user item — **reuses `teas.id` verbatim** so every child FK, photo file, and `$id-p$pos` purchase id stays
+     valid; adds nullable `vendor`/`product`/`harvestYear`/`batch`/`grade`), **`tea_sample_names`** (per-locale
+     personal names, **≥1 required, exactly one primary** — replaces the `nameRu NOT NULL` rule, P1-2), and a
+     cached read-only **`catalog_refs`** row (catalog facts only; refresh overwrites facts, **never** personal
+     data). `placements`/`tea_flavors`/`purchase_locations`/`tea_photos` keep their structure and only repoint
+     their FK to `tea_samples`; `boards`/`tiers`/`catalog_cache` untouched. **Drop the `UNIQUE(catalogTeaId)`
+     index** (#101) so many samples link one ref. **Upgrade = one lossless, non-destructive `Migration(6,7)`**
+     (#130: release has no destructive fallback, so a wrong migration hard-crashes — must be tested). Key
+     data-loss safeguards the adversarial pass forced in: **explicit column lists, never `SELECT *`** (ordinal
+     corruption); a **blank-`nameRu` safety net** so no sample ends up nameless; **`catalog_refs` stub creation as
+     a precondition of every link write** (migration + enrichment patch + backup restore — else the FK fails);
+     a closing **`PRAGMA foreign_key_check`**; and a **backup format-v2** DTO set with a v6→v7 up-converter +
+     **validate-before-wipe** restore (today's `replaceAll` wipes first — a bad import = total loss). Ships only
+     behind **net-new `MigrationTestHelper` + a Gradle-Managed-Device CI gate** (also fixes P1-4: `release.yml`
+     must depend on the full `check`) with a committed `7.json`. **Recommended 6-PR sequence (build later):**
+     PR1 androidTest/emulator CI infra + `app/schemas` diff gate (no schema change); PR2 display-name resolver +
+     loosened P1-2 validation on v6; PR3 sample-identity fields on v6; PR4 the atomic schema flip
+     (`Migration(6,7)` + entity split + enrichment-patch redesign + `addAnotherSample`); PR5 backup format-v2 +
+     up-converter + validate-before-wipe; PR6 catalog-refresh-by-id writer (co-req — fills migrated stubs).
+     **Build DEFERRED** (owner: "design doc + locked decision" this round).
