@@ -23,6 +23,9 @@ import javax.inject.Singleton
 private const val TAG = "BackupManager"
 private const val SHARE_DIR = "backups"
 
+/** Cache subdir an import streams into + validates before any live mutation (review P1-5). */
+private const val IMPORT_STAGING_DIR = "import-staging"
+
 /** Reject a picked import larger than this before reading it (review 2026-06-18, decision #96). */
 private const val MAX_ARCHIVE_BYTES = 200L * 1024 * 1024
 
@@ -97,27 +100,41 @@ class BackupManager @Inject constructor(
         if (declaredSize != null && declaredSize > MAX_ARCHIVE_BYTES) {
             return@withContext BackupResult.TooLarge
         }
-        val parsed = try {
-            context.contentResolver.openInputStream(uri)?.use { BackupArchive.read(it) }
-                ?: return@withContext BackupResult.Failed
-        } catch (e: BackupArchive.TooLargeException) {
-            Log.w(TAG, "Import rejected: archive too large", e)
-            return@withContext BackupResult.TooLarge
-        } catch (e: Exception) {
-            Log.w(TAG, "Import read failed", e)
-            return@withContext BackupResult.Failed
-        }
-        if (parsed.json.isBlank()) return@withContext BackupResult.InvalidFile
-        val bundle = runCatching { json.decodeFromString<BackupBundle>(parsed.json) }
-            .getOrElse { return@withContext BackupResult.InvalidFile }
-        // We cannot faithfully restore a bundle written by a newer app version.
-        if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return@withContext BackupResult.InvalidFile
-
+        // Stream the archive into a fresh staging dir (photos to files, never the corpus in RAM), so
+        // we can fully VALIDATE it before touching any live data (review P1-5). A leftover dir from a
+        // killed import is cleared first; `finally` clears it on every exit path.
+        val stagingDir = File(context.cacheDir, IMPORT_STAGING_DIR).apply { deleteRecursively() }
         return@withContext try {
+            val extracted = try {
+                context.contentResolver.openInputStream(uri)?.use { BackupArchive.extractTo(it, stagingDir) }
+                    ?: return@withContext BackupResult.Failed
+            } catch (e: BackupArchive.TooLargeException) {
+                Log.w(TAG, "Import rejected: archive too large", e)
+                return@withContext BackupResult.TooLarge
+            }
+            if (extracted.json.isBlank()) return@withContext BackupResult.InvalidFile
+            val bundle = runCatching { json.decodeFromString<BackupBundle>(extracted.json) }
+                .getOrElse { return@withContext BackupResult.InvalidFile }
+            // We cannot faithfully restore a bundle written by a newer app version.
+            if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return@withContext BackupResult.InvalidFile
+
+            // Atomic guard (review P1-5): every photo the data declares must actually be present in the
+            // archive. If any is missing, reject the WHOLE restore and leave current data untouched —
+            // never half-restore (the old code silently dropped a missing photo from the imported tea).
+            val declared = bundle.bundledPhotoNames()
+            val missing = declared.filter { it !in extracted.photoFiles }
+            if (missing.isNotEmpty()) {
+                Log.w(TAG, "Import rejected: ${missing.size} declared photo(s) missing from the archive")
+                return@withContext BackupResult.InvalidFile
+            }
+
+            // Validated — apply. Stream each staged photo into the live store, then swap the DB.
             val restoredPaths = HashMap<String, String>()
-            bundle.bundledPhotoNames().forEach { name ->
-                val bytes = parsed.photoBytes[name] ?: return@forEach
-                photoStore.importInto(name, bytes.inputStream())?.let { restoredPaths[name] = it }
+            for (name in declared) {
+                val staged = extracted.photoFiles.getValue(name)
+                val path = staged.inputStream().use { photoStore.importInto(name, it) }
+                    ?: return@withContext BackupResult.Failed
+                restoredPaths[name] = path
             }
             val entities = bundle.toSeedEntities(restoredPaths)
             dao.replaceAll(entities)
@@ -132,6 +149,8 @@ class BackupManager @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "Import write failed", e)
             BackupResult.Failed
+        } finally {
+            runCatching { stagingDir.deleteRecursively() }
         }
     }
 
@@ -139,14 +158,15 @@ class BackupManager @Inject constructor(
     private suspend fun writeArchive(out: OutputStream): Int {
         val snapshot = dao.exportSnapshot()
         val bundle = snapshot.toBundle(System.currentTimeMillis(), BuildConfig.VERSION_NAME)
-        val photoBytes = snapshot.photos
+        // Stream each photo file straight into the zip (review P1-5) — never read the whole corpus
+        // into memory, so a large collection can't OOM the export.
+        val photos = snapshot.photos
             .filter { it.uri.startsWith("/") }
             .mapNotNull { photo ->
                 val file = File(photo.uri)
-                if (file.exists()) photo.bundledFileName() to file.readBytes() else null
+                if (file.exists()) BackupArchive.PhotoSource(photo.bundledFileName()) { file.inputStream() } else null
             }
-            .toMap()
-        BackupArchive.write(out, json.encodeToString(bundle), photoBytes)
+        BackupArchive.write(out, json.encodeToString(bundle), photos)
         return snapshot.teas.size
     }
 
