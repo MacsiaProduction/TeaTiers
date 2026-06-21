@@ -23,6 +23,9 @@ spring-boot-starter-test = { group = "org.springframework.boot", name = "spring-
 spring-boot-starter-webmvc-test = { group = "org.springframework.boot", name = "spring-boot-starter-webmvc-test" }
 spring-boot-testcontainers = { group = "org.springframework.boot", name = "spring-boot-testcontainers" }
 jackson-module-kotlin = { group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin" }
+# Bounded in-memory cache for the rate-limiter client state (review P1-9). Version is managed by the
+# Spring Boot BOM (Caffeine is a Boot-managed dependency), so no pin here.
+caffeine = { group = "com.github.ben-manes.caffeine", name = "caffeine" }
 # Spring Boot 4 modularized auto-configuration: the Flyway starter brings flyway-core plus the
 # autoconfigure module (bare flyway-core no longer triggers migrations on startup).
 spring-boot-starter-flyway = { group = "org.springframework.boot", name = "spring-boot-starter-flyway" }
