@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.macsia.teatiers.domain.ImportRun
 import com.macsia.teatiers.domain.NormalizedCandidate
 import com.macsia.teatiers.domain.SourceRecord
+import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.SourceObservation
 import com.macsia.teatiers.repository.ImportRunRepository
@@ -35,17 +36,23 @@ class CatalogImportService(
     private val factsMapper = jacksonObjectMapper()
         .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
 
-    /** Open a run for a site, enforcing the ToS/robots preflight gate. */
+    /**
+     * Open a run for a site, enforcing BOTH preflight gates (decision #137-C4): the ToS owner sign-off /
+     * active gate AND a fresh per-run robots snapshot. Fails closed -- a run cannot start unless [robots]
+     * carries an explicit 'allow' decision, so no run can ever ingest without proven robots evidence.
+     */
     @Transactional
     fun startRun(
         sourceSiteCode: String,
         operator: String,
         toolVersion: String,
         parserVersion: String,
+        robots: RobotsEvidence,
         dryRun: Boolean = true,
     ): ImportRun {
         val site = requireSite(sourceSiteCode)
         if (!site.importAllowed()) throw ImportGateException(site.code)
+        if (robots.decision != ROBOTS_ALLOW) throw RobotsGateException(site.code, robots.decision)
         return importRunRepository.save(
             ImportRun(
                 sourceSiteId = requireNotNull(site.id),
@@ -53,7 +60,11 @@ class CatalogImportService(
                 toolVersion = toolVersion,
                 parserVersion = parserVersion,
                 dryRun = dryRun,
-                status = "running",
+                status = STATUS_RUNNING,
+                robotsFetchedAt = robots.fetchedAt,
+                robotsHttpStatus = robots.httpStatus,
+                robotsHash = robots.hash,
+                robotsDecision = robots.decision,
             ),
         )
     }
@@ -67,6 +78,22 @@ class CatalogImportService(
     fun ingest(importRunId: Long, obs: SourceObservation): SourceRecord {
         val site = requireSite(obs.sourceSiteCode)
         if (!site.importAllowed()) throw ImportGateException(site.code)
+        // The run is a transaction invariant, not an audit field (decision #137-C4): load+lock it and prove
+        // it is THIS site's run, still running, robots-allowed, and on the same parser before staging.
+        val run = importRunRepository.findByIdForUpdate(importRunId)
+            ?: throw RunStateException("import run $importRunId does not exist")
+        if (run.status != STATUS_RUNNING) {
+            throw RunStateException("import run $importRunId is '${run.status}', not running")
+        }
+        if (run.robotsDecision != ROBOTS_ALLOW) {
+            throw RunStateException("import run $importRunId has no 'allow' robots decision")
+        }
+        if (run.sourceSiteId != requireNotNull(site.id)) {
+            throw RunStateException("observation site '${site.code}' does not match run $importRunId site ${run.sourceSiteId}")
+        }
+        if (obs.parserVersion != run.parserVersion) {
+            throw RunStateException("observation parser '${obs.parserVersion}' != run parser '${run.parserVersion}'")
+        }
         factsOnlyGuard.validate(obs.facts)
 
         val factsJson = factsMapper.writeValueAsString(obs.facts)
@@ -108,14 +135,15 @@ class CatalogImportService(
         return record
     }
 
-    /** Mark a run finished with final counts. */
+    /** Mark a run finished. Rejects an unknown terminal status and a missing run (decision #137-C4). */
     @Transactional
     fun finishRun(importRunId: Long, status: String) {
-        importRunRepository.findById(importRunId).ifPresent {
-            it.status = status
-            it.finishedAt = Instant.now()
-            importRunRepository.save(it)
-        }
+        if (status !in TERMINAL_STATUSES) throw RunStateException("unknown finish status '$status'")
+        val run = importRunRepository.findById(importRunId).orElse(null)
+            ?: throw RunStateException("import run $importRunId does not exist")
+        run.status = status
+        run.finishedAt = Instant.now()
+        importRunRepository.save(run)
     }
 
     private fun rebuildCandidate(record: SourceRecord, facts: ScrapedFacts) {
@@ -153,11 +181,28 @@ class CatalogImportService(
     private fun sha256(value: String): String =
         MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
+
+    companion object {
+        const val ROBOTS_ALLOW = "allow"
+        const val STATUS_RUNNING = "running"
+        const val STATUS_BLOCKED = "blocked"
+        const val STATUS_FAILED = "failed"
+
+        /** A run may finish only into one of these terminal states (decision #137-C4). */
+        val TERMINAL_STATUSES = setOf("succeeded", STATUS_FAILED, STATUS_BLOCKED)
+    }
 }
 
 /** The source's ToS owner sign-off / active gate is not satisfied -- no run may start. */
 class ImportGateException(val sourceCode: String) :
     RuntimeException("Source '$sourceCode' is not import-eligible (needs ToS sign-off + active)")
+
+/** The per-run robots snapshot does not 'allow' (decision #137-C4) -- the run fails closed. */
+class RobotsGateException(val sourceCode: String, val decision: String) :
+    RuntimeException("Source '$sourceCode' run blocked: robots decision is '$decision', not 'allow'")
+
+/** A run/observation invariant was violated (missing/finished/cross-site/parser-mismatch run, etc.). */
+class RunStateException(message: String) : RuntimeException(message)
 
 /** No source_site is registered under the given code. */
 class UnknownSourceSiteException(val sourceCode: String) :

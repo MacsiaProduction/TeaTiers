@@ -4,6 +4,7 @@ import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.repository.LegacyIdReuseException
 import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import org.springframework.beans.factory.annotation.Autowired
@@ -54,17 +55,19 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `legacy-id map records a numeric id once and is idempotent`() {
+    fun `legacy-id map is idempotent but refuses a conflicting remap (decision 137-C1)`() {
         val saved = teaRepository.saveAndFlush(newTea(source = "scrape", primary = "Tie Guan Yin"))
         val id = requireNotNull(saved.id)
 
         legacyIdMap.recordOnce(id, saved.publicId)
-        // A second call (e.g. a reseed) must NOT flip the mapping or throw.
-        legacyIdMap.recordOnce(id, UUID.randomUUID())
+        // Re-recording the SAME pairing (e.g. a reseed) is a no-op, never a throw.
+        legacyIdMap.recordOnce(id, saved.publicId)
+        assertEquals(saved.publicId, legacyIdMap.findById(id).orElseThrow().publicId)
 
-        val mapped = legacyIdMap.findById(id).orElse(null)
-        assertNotNull(mapped)
-        assertEquals(saved.publicId, mapped.publicId, "the first public_id wins; a re-run never re-points it")
+        // Re-recording the same legacy id with a DIFFERENT public_id is numeric-id reuse: fail loudly
+        // rather than silently keep a now-wrong mapping that would resolve an old client to the wrong tea.
+        assertFailsWith<LegacyIdReuseException> { legacyIdMap.recordOnce(id, UUID.randomUUID()) }
+        assertEquals(saved.publicId, legacyIdMap.findById(id).orElseThrow().publicId, "mapping is unchanged")
     }
 
     @Test

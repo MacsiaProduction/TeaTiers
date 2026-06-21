@@ -12,6 +12,7 @@ import com.macsia.teatiers.dto.TeaImageDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -21,6 +22,7 @@ import java.util.UUID
 @Transactional(readOnly = true)
 class TeaCatalogService(
     private val teaRepository: TeaRepository,
+    private val legacyIdMapRepository: TeaLegacyIdMapRepository,
 ) {
 
     /**
@@ -55,7 +57,23 @@ class TeaCatalogService(
         return PageDto(items, nextCursor)
     }
 
+    /**
+     * Direct detail by the current numeric id. INTERNAL only (e.g. [ResolveService] holds a freshly
+     * resolved/created id) -- it deliberately does NOT apply the lifecycle/visibility rules so the resolve
+     * poller can still observe a PENDING stub. The client-facing numeric route uses [detailByLegacyId].
+     */
     fun detail(id: Long): TeaDetailDto? = teaRepository.findById(id).map { it.toDetail() }.orElse(null)
+
+    /**
+     * Client-facing numeric-id detail -- a COMPAT path for apps that cached the old BIGINT id (decision
+     * #137-C1). It resolves through the immutable legacy map -> public_id, NEVER by a direct findById, so a
+     * DB rebuild that renumbers tea.id can never point an old client at a different tea. An id that was
+     * never issued returns null (404). Merged/retracted lifecycle is handled by [detailByPublicId].
+     */
+    fun detailByLegacyId(legacyId: Long): TeaDetailDto? {
+        val publicId = legacyIdMapRepository.findById(legacyId).map { it.publicId }.orElse(null) ?: return null
+        return detailByPublicId(publicId)
+    }
 
     /** Compact summary by id; used by the operator review queue to show a proposed match candidate. */
     fun summary(id: Long): TeaSummaryDto? = teaRepository.findById(id).map { it.toSummary() }.orElse(null)

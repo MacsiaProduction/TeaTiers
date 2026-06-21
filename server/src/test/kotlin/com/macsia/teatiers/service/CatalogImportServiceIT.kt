@@ -1,6 +1,7 @@
 package com.macsia.teatiers.service
 
 import com.macsia.teatiers.AbstractIntegrationTest
+import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
@@ -35,6 +36,8 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
         siteService.setActive(code, true)
     }
 
+    private fun allowRobots() = RobotsEvidence("allow", Instant.parse("2026-06-21T09:00:00Z"), 200, "robots-hash")
+
     private fun observation(
         code: String = "artoftea",
         url: String = "https://artoftea.ru/puer/da-hong-pao",
@@ -64,14 +67,14 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
         // Registered but neither signed-off nor active.
         siteService.register("blocked", "Blocked", "https://blocked.example")
         assertFailsWith<ImportGateException> {
-            importService.startRun("blocked", "op", "tool-1", "p-1")
+            importService.startRun("blocked", "op", "tool-1", "p-1", allowRobots())
         }
     }
 
     @Test
     fun `an eligible source stages a parsed source record with a normalized candidate`() {
         eligibleSite()
-        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1")
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
 
         val record = importService.ingest(requireNotNull(run.id), observation())
 
@@ -86,7 +89,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
     @Test
     fun `re-ingesting identical facts is idempotent on the source record`() {
         eligibleSite()
-        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1")
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
 
         val first = importService.ingest(requireNotNull(run.id), observation())
         val again = importService.ingest(requireNotNull(run.id), observation())
@@ -99,7 +102,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
     @Test
     fun `changed facts re-queue the record for review`() {
         eligibleSite()
-        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1")
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
         val first = importService.ingest(requireNotNull(run.id), observation(region = "Wuyi"))
 
         val changed = importService.ingest(requireNotNull(run.id), observation(region = "Wuyishan"))
@@ -111,7 +114,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
     @Test
     fun `facts-only boundary is enforced at ingest`() {
         eligibleSite()
-        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1")
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
         val prose = observation(region = "Богатый чай с горы Уи, ".repeat(10))
         assertFailsWith<FactsOnlyViolationException> { importService.ingest(requireNotNull(run.id), prose) }
     }
@@ -119,7 +122,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
     @Test
     fun `distinct urls without external ids create distinct records`() {
         eligibleSite()
-        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1")
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
         val a = importService.ingest(
             requireNotNull(run.id),
             observation(url = "https://artoftea.ru/a", externalId = null),

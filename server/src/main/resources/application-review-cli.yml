@@ -1,0 +1,13 @@
+# Operator review CLI profile (decision #137-C7). Activate with --spring.profiles.active=review-cli.
+# Run on the operator box against the operator database (SSH tunnel / local connection), NEVER the
+# public listener. Forces a non-web one-shot process and skips the catalog seed.
+spring:
+  main:
+    # No Tomcat: this is a command, not a service. ReviewCli runs one command and exits.
+    web-application-type: none
+    banner-mode: "off"
+
+teatiers:
+  seed:
+    # The CLI must not reseed the catalog as a side effect of connecting.
+    enabled: false

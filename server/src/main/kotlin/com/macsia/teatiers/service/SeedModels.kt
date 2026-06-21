@@ -2,6 +2,7 @@ package com.macsia.teatiers.service
 
 import com.macsia.teatiers.domain.FlavorDimension
 import com.macsia.teatiers.domain.TeaType
+import java.util.UUID
 
 /** Shape of `resources/seed/catalog-seed.json` (curated, own-authored; deserialized by Jackson). */
 data class SeedBundle(
@@ -10,6 +11,9 @@ data class SeedBundle(
 )
 
 data class SeedTea(
+    // Frozen client-facing identity (decision #137-C1): the seed pins a stable public_id per record so a
+    // blank-database rebuild reproduces byte-identical public ids. Absent -> a random one (legacy rows only).
+    val publicId: UUID? = null,
     val type: TeaType,
     val originCountry: String? = null,
     val region: String? = null,

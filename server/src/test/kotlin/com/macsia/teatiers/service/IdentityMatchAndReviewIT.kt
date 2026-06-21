@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
@@ -60,7 +61,9 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         siteService.register("artoftea", "Art of Tea", "https://artoftea.ru", licenseDefault = "facts-only")
         siteService.signOffTerms("artoftea", "owner@teatiers")
         siteService.setActive("artoftea", true)
-        runId = requireNotNull(importService.startRun("artoftea", "op", "tool-1", "artoftea-1").id)
+        // A real (non-dry) robots-allowed run so approval can write the catalog (decision #137-C4).
+        val robots = RobotsEvidence("allow", Instant.parse("2026-06-21T09:00:00Z"), 200, "robots-hash")
+        runId = requireNotNull(importService.startRun("artoftea", "op", "tool-1", "artoftea-1", robots, dryRun = false).id)
     }
 
     private fun seedTea(

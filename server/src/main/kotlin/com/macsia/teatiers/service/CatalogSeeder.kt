@@ -75,6 +75,9 @@ class CatalogSeeder(
             license = license,
             verificationStatus = verificationStatus,
         )
+        // Pin the frozen public_id from the seed (decision #137-C1) so a rebuild is reproducible; only
+        // legacy seed entries without one fall back to the entity's random default.
+        publicId?.let { tea.publicId = it }
         names.forEach { tea.addName(TeaName(locale = it.locale, name = it.name, isPrimary = it.isPrimary, source = source)) }
         descriptions.forEach {
             tea.addDescription(

@@ -25,7 +25,9 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
      */
     @Query(
         value = "SELECT t.id FROM tea t JOIN tea_name n ON n.tea_id = t.id " +
-            "WHERE lower(unaccent(n.name)) = lower(unaccent(:q)) ORDER BY t.id LIMIT 1",
+            // Visibility (decision #137-C3): a resolve cache hit never lands on a merged/retracted tea
+            // (a PENDING/FAILED stub IS a valid hit -- the resolver re-arms/polls it).
+            "WHERE lower(unaccent(n.name)) = lower(unaccent(:q)) AND t.status = 'active' ORDER BY t.id LIMIT 1",
         nativeQuery = true,
     )
     fun findIdByNormalizedName(@Param("q") q: String): Long?
@@ -33,10 +35,17 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
     @Query("select distinct t from Tea t left join fetch t.names where t.id in :ids order by t.id")
     fun findAllWithNames(@Param("ids") ids: Collection<Long>): List<Tea>
 
-    @Query("select distinct t.type from Tea t order by t.type")
+    // Facets reflect only what browse/search can return (decision #137-C3): active, non-stub rows.
+    @Query(
+        "select distinct t.type from Tea t where t.status = 'active' " +
+            "and (t.enrichmentState is null or t.enrichmentState not in ('PENDING', 'FAILED')) order by t.type",
+    )
     fun distinctTypes(): List<TeaType>
 
-    @Query("select distinct t.originCountry from Tea t where t.originCountry is not null order by t.originCountry")
+    @Query(
+        "select distinct t.originCountry from Tea t where t.originCountry is not null and t.status = 'active' " +
+            "and (t.enrichmentState is null or t.enrichmentState not in ('PENDING', 'FAILED')) order by t.originCountry",
+    )
     fun distinctOrigins(): List<String>
 
     /**
