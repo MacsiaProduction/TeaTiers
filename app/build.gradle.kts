@@ -100,6 +100,10 @@ android {
             }
         }
     }
+
+    // The exported Room schema JSONs are bundled as androidTest assets so MigrationTestHelper can
+    // open the v6 baseline (and validate future v6→vN upgrades) on-device (decision #130 / P1-4).
+    sourceSets.getByName("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
 }
 
 kotlin {
@@ -171,6 +175,12 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+
+    // Instrumented (on-device) Room migration tests — JUnit4 + AndroidJUnitRunner (the project's
+    // unit tests are JUnit 5/JVM; instrumented tests must use the Android runner).
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
 
 // SBOM for the OSV-Scanner CI gate (decision #102). Scope to what the release APK actually ships
