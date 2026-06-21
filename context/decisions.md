@@ -2617,3 +2617,17 @@ deviated.
      path, the `tea.source` CHECK migration, per-field provenance, stable-public-id + soft-rollback preserving
      the shipped `catalogTeaId`, ToS/per-run-robots gate, facts-only, OSS reuse). Then the httpx+selectolax
      pilot. Supersedes the unbuildable import machinery of #131 (source/policy choices stand).
+
+134. **N2 (rate-limiter XFF spoof) — VM-verified as a FALSE POSITIVE; explicit overwrite added as
+     version-independent hardening (2026-06-21).** The third-pass review (N2) claimed decision #98 was
+     wrong — that Caddy v2 `reverse_proxy` *appends* the client `X-Forwarded-For`, leaving the backend's
+     first-hop read (`TeaController.clientId` `substringBefore(',')`) attacker-controlled, defeating every
+     cost limiter. **Ran the warranted Caddy-XFF spike on the VM** with the EXACT pinned prod image
+     (`caddy:2-alpine@sha256:4679412…`, **v2.11.4**) + an echo backend: a request with a spoofed
+     `X-Forwarded-For: 1.2.3.4` reaches the backend as the **real** client IP (`172.22.0.1`) — the client
+     value is **dropped, not appended**. So **#98 holds** for Caddy 2.7+ (the `trusted_proxies` era ignores
+     untrusted client XFF by default); the review assumed pre-2.7 append behavior. **Still hardened:** added
+     `header_up X-Forwarded-For {http.request.remote.host}` to the prod Caddyfile `reverse_proxy` block
+     (VM-verified it also yields the real IP) so the no-spoof guarantee is pinned EXPLICITLY and never
+     depends on a Caddy-version default or survives a downgrade. (The Caffeine comment SRV-7 — "eviction
+     never relaxes a budget" — is only correct given this; noted. No backend change needed.)
