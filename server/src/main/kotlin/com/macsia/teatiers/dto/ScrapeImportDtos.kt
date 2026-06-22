@@ -45,12 +45,15 @@ data class SourceObservation(
 )
 
 /**
- * The per-run robots snapshot a run must carry to be ingestible (decision #137-C4). The scraper fetches
- * `robots.txt` and supplies this; the importer fails closed unless [decision] == "allow". This is a HARD
- * gate, not audit metadata -- a run cannot start (and cannot ingest) without proven 'allow' evidence.
+ * The per-run robots snapshot a run must carry to be ingestible (decision #137-C4 + #139-R3). The scraper
+ * fetches `robots.txt` and supplies a COMPLETE snapshot; the importer fails closed unless [decision] ==
+ * "allow" AND the evidence is fresh + complete (a 2xx [httpStatus], a non-blank body [hash], the exact
+ * [robotsUrl], and the [userAgent] the decision was made for). A hard gate, not audit metadata.
  */
 data class RobotsEvidence(
     val decision: String, // 'allow' | 'disallow' | 'fail_closed' | 'not_checked'
+    val robotsUrl: String,
+    val userAgent: String,
     val fetchedAt: Instant,
     val httpStatus: Int? = null,
     val hash: String? = null,

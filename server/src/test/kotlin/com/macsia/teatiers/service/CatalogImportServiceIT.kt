@@ -36,7 +36,8 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
         siteService.setActive(code, true)
     }
 
-    private fun allowRobots() = RobotsEvidence("allow", Instant.parse("2026-06-21T09:00:00Z"), 200, "robots-hash")
+    private fun allowRobots() =
+        RobotsEvidence("allow", "https://artoftea.ru/robots.txt", "TeaTiers/test", Instant.now().minusSeconds(60), 200, "robots-hash")
 
     private fun observation(
         code: String = "artoftea",

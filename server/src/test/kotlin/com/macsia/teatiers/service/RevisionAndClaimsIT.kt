@@ -53,15 +53,19 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
 
     @Autowired lateinit var teaRepository: TeaRepository
 
-    private val fetchedAt = Instant.parse("2026-06-21T09:00:00Z")
+    // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
+    private val fetchedAt = Instant.now().minusSeconds(60)
     private var runId: Long = 0
+
+    private fun allowRobots() =
+        RobotsEvidence("allow", "https://s.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash")
 
     private fun startRun() {
         siteService.register("s", "S", "https://s.example")
         siteService.signOffTerms("s", "owner@teatiers")
         siteService.setActive("s", true)
         runId = requireNotNull(
-            importService.startRun("s", "op", "t", "p-1", RobotsEvidence("allow", fetchedAt), dryRun = false).id,
+            importService.startRun("s", "op", "t", "p-1", allowRobots(), dryRun = false).id,
         )
     }
 

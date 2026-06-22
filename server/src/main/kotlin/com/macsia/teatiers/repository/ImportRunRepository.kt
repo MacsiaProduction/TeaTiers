@@ -16,4 +16,7 @@ interface ImportRunRepository : JpaRepository<ImportRun, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from ImportRun r where r.id = :id")
     fun findByIdForUpdate(@Param("id") id: Long): ImportRun?
+
+    /** At most one non-terminal run per source (decision #139-R3); a friendly pre-check before the DB index. */
+    fun existsBySourceSiteIdAndStatus(sourceSiteId: Long, status: String): Boolean
 }

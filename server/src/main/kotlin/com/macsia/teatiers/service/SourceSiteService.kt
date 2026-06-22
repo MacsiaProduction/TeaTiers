@@ -16,7 +16,12 @@ class SourceSiteService(
     private val sourceSiteRepository: SourceSiteRepository,
 ) {
 
-    /** Create or update a source registration. Always lands inactive + un-signed-off. */
+    /**
+     * Create or update a source registration. A new site lands inactive + un-signed-off. Re-registering an
+     * existing site with a MATERIAL change (base/terms/robots URL or license) INVALIDATES its approval
+     * (decision #139-R3): it is deactivated and its ToS sign-off cleared, so the operator must re-verify and
+     * re-activate. A cosmetic-only re-register (same material fields, e.g. a display-name fix) keeps approval.
+     */
     @Transactional
     fun register(
         code: String,
@@ -26,16 +31,25 @@ class SourceSiteService(
         robotsUrl: String? = null,
         licenseDefault: String? = null,
     ): SourceSite {
-        val site = sourceSiteRepository.findByCode(code) ?: SourceSite(
-            code = code,
-            displayName = displayName,
-            baseUrl = baseUrl,
-        )
+        val existing = sourceSiteRepository.findByCode(code)
+        val site = existing ?: SourceSite(code = code, displayName = displayName, baseUrl = baseUrl)
+        val materialChange = existing != null && (
+            existing.baseUrl != baseUrl ||
+                existing.termsUrl != termsUrl ||
+                existing.robotsUrl != robotsUrl ||
+                existing.licenseDefault != licenseDefault
+            )
         site.displayName = displayName
         site.baseUrl = baseUrl
         site.termsUrl = termsUrl
         site.robotsUrl = robotsUrl
         site.licenseDefault = licenseDefault
+        if (materialChange) {
+            site.active = false
+            site.termsSignedOffBy = null
+            site.termsSignedOffAt = null
+            site.termsCheckedAt = null
+        }
         site.updatedAt = Instant.now()
         return sourceSiteRepository.save(site)
     }
