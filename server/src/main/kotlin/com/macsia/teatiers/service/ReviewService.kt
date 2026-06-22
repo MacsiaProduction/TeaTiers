@@ -2,11 +2,13 @@ package com.macsia.teatiers.service
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.macsia.teatiers.domain.ImportRun
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.SourceRecord
 import com.macsia.teatiers.domain.SourceRecordRevision
 import com.macsia.teatiers.dto.PendingMatchDto
 import com.macsia.teatiers.dto.ReviewResultDto
+import com.macsia.teatiers.dto.RunApplyResultDto
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
@@ -17,10 +19,11 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 /**
- * The operator review queue (decision #136). Nothing in the pilot auto-merges: the matcher proposes, an
- * operator approves (merge into an existing tea, or create a new one) or rejects here. Approval is the
- * ONLY path that writes the canonical catalog (via [CanonicalUpsertService]); it can never mark a row
- * verified.
+ * The operator review queue (decision #136 + #137-C4 two-phase). Nothing auto-merges: the matcher proposes,
+ * an operator DECIDES each item (approve-merge into an existing tea, approve-new, or reject) -- which records
+ * intent only, no catalog write. The run is then sealed ([markReviewed]) and [applyRun] materializes the
+ * approved decisions into the catalog. Apply is the ONLY path that writes a canonical tea, always
+ * 'unverified', and only from a reviewed/apply-authorized run.
  */
 @Service
 class ReviewService(
@@ -29,6 +32,7 @@ class ReviewService(
     private val revisionRepository: SourceRecordRevisionRepository,
     private val canonicalUpsertService: CanonicalUpsertService,
     private val catalogService: TeaCatalogService,
+    private val importRunStateMachine: ImportRunStateMachine,
 ) {
 
     private val factsMapper = jacksonObjectMapper()
@@ -43,18 +47,22 @@ class ReviewService(
     @Transactional(readOnly = true)
     fun pendingCount(): Long = matchDecisionRepository.countByDecision("pending")
 
-    /** Approve: create a brand-new canonical tea from the reviewed revision. */
+    /**
+     * DECIDE: approve creating a brand-new canonical tea from the reviewed revision. Records intent only --
+     * no catalog write (that happens in [applyRun]). Rejects a stale decision up front (decision #137-C5).
+     */
     @Transactional
     fun approveNew(decisionId: Long, reviewer: String): ReviewResultDto {
         val decision = pendingDecision(decisionId)
-        val record = record(decision)
-        val revision = reviewedRevision(decision, record)
-        val teaId = canonicalUpsertService.applyApprovedNew(record, revision, decisionId, reviewer)
-        finish(decision, "approved_new", reviewer, teaId)
-        return ReviewResultDto(decisionId, "approved_new", teaId)
+        reviewedRevision(decision, record(decision)) // fail closed early if the content changed since review
+        finishReview(decision, "approved_new", reviewer)
+        return ReviewResultDto(decisionId, "approved_new", null)
     }
 
-    /** Approve: merge the reviewed revision into an existing tea (operator may override the proposed target). */
+    /**
+     * DECIDE: approve merging the reviewed revision into an existing tea (operator may override the proposed
+     * target). Records intent + the chosen target only; the merge itself happens in [applyRun].
+     */
     @Transactional
     fun approveMerge(decisionId: Long, reviewer: String, targetTeaId: Long? = null): ReviewResultDto {
         val decision = pendingDecision(decisionId)
@@ -65,25 +73,72 @@ class ReviewService(
         }
         val target = targetTeaId ?: decision.candidateTeaId
             ?: throw IllegalArgumentException("decision $decisionId has no merge target")
-        val record = record(decision)
-        val revision = reviewedRevision(decision, record)
-        val teaId = canonicalUpsertService.applyApprovedMerge(record, revision, decisionId, reviewer, target)
-        finish(decision, "approved_merge", reviewer, teaId)
-        return ReviewResultDto(decisionId, "approved_merge", teaId)
+        reviewedRevision(decision, record(decision)) // fail closed early if the content changed since review
+        decision.candidateTeaId = target // persist the chosen target so the apply phase merges into it
+        finishReview(decision, "approved_merge", reviewer)
+        return ReviewResultDto(decisionId, "approved_merge", null)
     }
 
     @Transactional
     fun reject(decisionId: Long, reviewer: String): ReviewResultDto {
         val decision = pendingDecision(decisionId)
-        finish(decision, "rejected", reviewer, null)
+        finishReview(decision, "rejected", reviewer)
         return ReviewResultDto(decisionId, "rejected", null)
     }
 
-    private fun finish(decision: MatchDecision, outcome: String, reviewer: String, teaId: Long?) {
+    /**
+     * Seal review (decision #137-C4): a run can be applied ONLY once every one of its decisions is resolved
+     * (no 'pending'). Moves the run awaiting_review -> reviewed. This is the completeness gate -- you cannot
+     * publish a half-reviewed run.
+     */
+    @Transactional
+    fun markReviewed(runId: Long): ImportRun {
+        val pending = matchDecisionRepository.countByImportRunIdAndDecision(runId, "pending")
+        if (pending > 0) {
+            throw RunStateException("import run $runId has $pending pending decision(s); resolve them before applying")
+        }
+        return importRunStateMachine.transition(runId, ImportRunState.REVIEWED)
+    }
+
+    /**
+     * APPLY: materialize a fully-reviewed run into the canonical catalog (decision #137-C4) -- the ONLY path
+     * that writes teas. The run must be 'reviewed'; it moves to 'applying' for the writes then 'applied' once
+     * they commit. Each approved decision is applied for the EXACT revision it reviewed (re-checked here, so a
+     * post-review revision can never publish), and already-linked records are skipped (idempotent). Atomic:
+     * any failure rolls the whole apply back, leaving the run 'reviewed' to retry.
+     */
+    @Transactional
+    fun applyRun(runId: Long, reviewer: String = "system:apply"): RunApplyResultDto {
+        importRunStateMachine.transition(runId, ImportRunState.APPLYING)
+        val approved = matchDecisionRepository.findByImportRunIdAndDecisionIn(runId, APPROVED)
+        val results = mutableListOf<ReviewResultDto>()
+        var skipped = 0
+        for (decision in approved) {
+            val record = record(decision)
+            val who = decision.reviewer ?: reviewer
+            val teaId = when (decision.decision) {
+                "approved_new" -> {
+                    // A create-new whose record is already linked would mint a duplicate -> skip (idempotent).
+                    if (record.teaId != null) { skipped++; continue }
+                    canonicalUpsertService.applyApprovedNew(record, reviewedRevision(decision, record), decision.id, who)
+                }
+                // A merge may target an already-linked record (a correction in a later run) -- never skipped.
+                "approved_merge" -> canonicalUpsertService.applyApprovedMerge(
+                    record, reviewedRevision(decision, record), decision.id, who,
+                    decision.candidateTeaId ?: throw IllegalStateException("approved_merge ${decision.id} has no target"),
+                )
+                else -> continue
+            }
+            results += ReviewResultDto(requireNotNull(decision.id), decision.decision, teaId)
+        }
+        importRunStateMachine.transition(runId, ImportRunState.APPLIED)
+        return RunApplyResultDto(runId, results.size, skipped, results)
+    }
+
+    private fun finishReview(decision: MatchDecision, outcome: String, reviewer: String) {
         decision.decision = outcome
         decision.reviewer = reviewer
         decision.decidedAt = Instant.now()
-        if (teaId != null) decision.candidateTeaId = teaId
         matchDecisionRepository.save(decision)
     }
 
@@ -134,6 +189,9 @@ class ReviewService(
     private companion object {
         const val DEFAULT_LIMIT = 50
         const val MAX_LIMIT = 200
+
+        /** Review-terminal outcomes the apply phase materializes. */
+        val APPROVED = setOf("approved_new", "approved_merge")
     }
 }
 

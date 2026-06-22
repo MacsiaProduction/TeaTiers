@@ -30,8 +30,9 @@ class ImportRun(
     @Column(name = "dry_run", nullable = false)
     var dryRun: Boolean = true,
 
+    // Lifecycle managed by ImportRunStateMachine (decision #137-C4); startRun persists 'preflight_allowed'.
     @Column(nullable = false)
-    var status: String = "running",
+    var status: String = "preflight_allowed",
 
     @Column(name = "started_at", nullable = false)
     var startedAt: Instant = Instant.now(),

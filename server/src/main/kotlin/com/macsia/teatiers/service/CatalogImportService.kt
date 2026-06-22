@@ -37,6 +37,7 @@ class CatalogImportService(
     private val urlHistoryRepository: SourceRecordUrlHistoryRepository,
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val factsOnlyGuard: FactsOnlyGuard,
+    private val importRunStateMachine: ImportRunStateMachine,
 ) {
 
     // Deterministic serialization so the same facts always hash the same (drives reparse detection).
@@ -61,10 +62,12 @@ class CatalogImportService(
         if (!site.importAllowed()) throw ImportGateException(site.code)
         validateRobots(site.code, robots)
         val siteId = requireNotNull(site.id)
-        // One active run per source (decision #139-R3): a friendly pre-check before the DB partial-unique.
-        if (importRunRepository.existsBySourceSiteIdAndStatus(siteId, STATUS_RUNNING)) {
+        // One active run per source (decision #137-C4): a friendly pre-check before the DB partial-unique.
+        if (importRunRepository.existsBySourceSiteIdAndStatusIn(siteId, ImportRunState.ACTIVE_CODES)) {
             throw RunStateException("source '${site.code}' already has an active run; finish it before starting another")
         }
+        // Preflight (ToS + robots + host) passed synchronously above -> persist directly at preflight_allowed
+        // (decision #137-C4). The 'created' state is reserved for a future async preflight.
         return importRunRepository.save(
             ImportRun(
                 sourceSiteId = siteId,
@@ -72,7 +75,7 @@ class CatalogImportService(
                 toolVersion = toolVersion,
                 parserVersion = parserVersion,
                 dryRun = dryRun,
-                status = STATUS_RUNNING,
+                status = ImportRunState.PREFLIGHT_ALLOWED.code,
                 robotsFetchedAt = robots.fetchedAt,
                 robotsHttpStatus = robots.httpStatus,
                 robotsHash = robots.hash,
@@ -109,8 +112,11 @@ class CatalogImportService(
         // it is THIS site's run, still running, robots-allowed, and on the same parser before staging.
         val run = importRunRepository.findByIdForUpdate(importRunId)
             ?: throw RunStateException("import run $importRunId does not exist")
-        if (run.status != STATUS_RUNNING) {
-            throw RunStateException("import run $importRunId is '${run.status}', not running")
+        val state = ImportRunState.of(run.status)
+        if (state != ImportRunState.PREFLIGHT_ALLOWED && state != ImportRunState.INGESTING) {
+            throw RunStateException(
+                "import run $importRunId is '${run.status}', not accepting observations (must be preflight_allowed/ingesting)",
+            )
         }
         if (run.robotsDecision != ROBOTS_ALLOW) {
             throw RunStateException("import run $importRunId has no 'allow' robots decision")
@@ -121,6 +127,9 @@ class CatalogImportService(
         if (obs.parserVersion != run.parserVersion) {
             throw RunStateException("observation parser '${obs.parserVersion}' != run parser '${run.parserVersion}'")
         }
+        // First observation moves the run preflight_allowed -> ingesting (decision #137-C4); the row is
+        // already write-locked above, so transition it in place without re-locking.
+        if (state == ImportRunState.PREFLIGHT_ALLOWED) importRunStateMachine.transition(run, ImportRunState.INGESTING)
         factsOnlyGuard.validate(obs.facts)
 
         val factsJson = factsMapper.writeValueAsString(obs.facts)
@@ -235,20 +244,28 @@ class CatalogImportService(
     }
 
     /**
-     * Mark a run finished. Rejects an unknown terminal status, a missing run, and a re-finish of an
-     * already-terminal run (decision #139-R3: terminal states are immutable). Locks the run on transition.
+     * Seal ingestion (decision #137-C4): no further observations may be staged; the run moves to review.
+     * The apply phase ([ReviewService.markReviewed] + [ReviewService.applyRun]) takes over from here.
      */
     @Transactional
-    fun finishRun(importRunId: Long, status: String) {
-        if (status !in TERMINAL_STATUSES) throw RunStateException("unknown finish status '$status'")
-        val run = importRunRepository.findByIdForUpdate(importRunId)
-            ?: throw RunStateException("import run $importRunId does not exist")
-        if (run.status != STATUS_RUNNING) {
-            throw RunStateException("import run $importRunId is '${run.status}', already terminal; cannot re-finish")
+    fun closeIngestion(importRunId: Long): ImportRun =
+        importRunStateMachine.transition(importRunId, ImportRunState.AWAITING_REVIEW)
+
+    /** Abort a run as failed (runner/operator error). Terminal + immutable; records an optional reason. */
+    @Transactional
+    fun failRun(importRunId: Long, reason: String? = null): ImportRun = terminate(importRunId, ImportRunState.FAILED, reason)
+
+    /** Abort a run as blocked (a robots/ToS/host gate tripped mid-run). Terminal + immutable. */
+    @Transactional
+    fun blockRun(importRunId: Long, reason: String? = null): ImportRun = terminate(importRunId, ImportRunState.BLOCKED, reason)
+
+    private fun terminate(importRunId: Long, to: ImportRunState, reason: String?): ImportRun {
+        val run = importRunStateMachine.transition(importRunId, to)
+        if (reason != null) {
+            run.notes = reason
+            importRunRepository.save(run)
         }
-        run.status = status
-        run.finishedAt = Instant.now()
-        importRunRepository.save(run)
+        return run
     }
 
     private fun rebuildCandidate(record: SourceRecord, facts: ScrapedFacts) {
@@ -289,12 +306,6 @@ class CatalogImportService(
 
     companion object {
         const val ROBOTS_ALLOW = "allow"
-        const val STATUS_RUNNING = "running"
-        const val STATUS_BLOCKED = "blocked"
-        const val STATUS_FAILED = "failed"
-
-        /** A run may finish only into one of these terminal states (decision #137-C4). */
-        val TERMINAL_STATUSES = setOf("succeeded", STATUS_FAILED, STATUS_BLOCKED)
 
         /** A per-run robots snapshot must be fetched within this window of the run start (decision #139-R3). */
         private val ROBOTS_MAX_AGE = Duration.ofHours(1)

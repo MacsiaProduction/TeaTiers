@@ -97,6 +97,13 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         return matchService.proposeFor(requireNotNull(record.id), runId)
     }
 
+    /** Two-phase #137-C4 materialization: seal ingestion, mark the run reviewed, and apply it. */
+    private fun sealAndApply() = run {
+        importService.closeIngestion(runId)
+        reviewService.markReviewed(runId)
+        reviewService.applyRun(runId)
+    }
+
     @Test
     fun `no catalog match proposes create_new and approval writes an unverified scrape tea`() {
         eligibleSite()
@@ -110,8 +117,8 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         assertEquals("create_new", decision.proposedKind)
         assertEquals("pending", decision.decision)
 
-        val result = reviewService.approveNew(requireNotNull(decision.id), "operator")
-        val teaId = assertNotNull(result.teaId)
+        reviewService.approveNew(requireNotNull(decision.id), "operator")
+        val teaId = assertNotNull(sealAndApply().results.single().teaId)
         val tea = teaRepository.findById(teaId).orElseThrow()
 
         assertEquals("scrape", tea.source)
@@ -147,6 +154,7 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         assertEquals(teaId, decision.candidateTeaId)
 
         reviewService.approveMerge(requireNotNull(decision.id), "operator")
+        sealAndApply()
         val tea = teaRepository.findById(teaId).orElseThrow()
         // The merge added the ru name additively and flipped the (curated) row to 'mixed'.
         assertTrue(tea.names.any { it.locale == "ru" && it.name == "Да Хун Пао" })
@@ -225,13 +233,18 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `approving a fresh decision for an already-linked record cannot mint a duplicate`() {
+    fun `an applied (linked) record's decision cannot be re-approved to mint a duplicate`() {
         eligibleSite()
         val decision = stageAndPropose(listOf(ScrapedName("en", "Gaba Cha", true)))
         reviewService.approveNew(requireNotNull(decision.id), "operator")
-        // A stale second proposal for the now-linked record must NOT create a second canonical tea.
-        val stale = matchService.proposeFor(decision.sourceRecordId, runId)
-        assertTrue(runCatching { reviewService.approveNew(requireNotNull(stale.id), "operator") }.isFailure)
+        assertNotNull(sealAndApply().results.single().teaId) // record now linked, run 'applied'
+        // Re-proposing the now-linked record returns the SAME approved decision; it cannot be re-approved.
+        val again = matchService.proposeFor(decision.sourceRecordId, runId)
+        assertEquals(decision.id, again.id)
+        assertTrue(
+            runCatching { reviewService.approveNew(requireNotNull(again.id), "operator") }.isFailure,
+            "a linked record's already-approved decision cannot be re-approved",
+        )
     }
 
     @Test
@@ -247,8 +260,9 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             listOf(ScrapedName("en", "Rou Gui", true), ScrapedName("pinyin", "rou gui", true)),
         )
         assertEquals("create_new", decision.proposedKind)
-        val outcome = runCatching { reviewService.approveNew(requireNotNull(decision.id), "operator") }
-        assertTrue(outcome.exceptionOrNull() is CanonicalUpsertConflictException, "collision must surface as a merge hint")
+        reviewService.approveNew(requireNotNull(decision.id), "operator") // decide is fine; the collision is a write-time fact
+        val outcome = runCatching { sealAndApply() }
+        assertTrue(outcome.exceptionOrNull() is CanonicalUpsertConflictException, "collision must surface as a merge hint at apply")
     }
 
     @Test
@@ -295,7 +309,8 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         val decision = matchService.proposeFor(requireNotNull(record.id), runId)
         assertEquals("authoritative", decision.matchTier)
 
-        reviewService.approveMerge(requireNotNull(decision.id), "operator") // must not throw on the CHECK
+        reviewService.approveMerge(requireNotNull(decision.id), "operator")
+        sealAndApply() // must not throw on the CHECK
         val tea = teaRepository.findById(teaId).orElseThrow()
         assertEquals(10.toShort(), tea.oxidationMin)
         assertEquals(null, tea.oxidationMax, "conflicting cross-source oxidation bounds are left unmerged")
@@ -306,7 +321,8 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         eligibleSite()
         val decision = stageAndPropose(listOf(ScrapedName("en", "Vendor Rou Gui", true)), brand = "Some Vendor")
         assertEquals("create_new", decision.proposedKind)
-        val teaId = assertNotNull(reviewService.approveNew(requireNotNull(decision.id), "operator").teaId)
+        reviewService.approveNew(requireNotNull(decision.id), "operator")
+        val teaId = assertNotNull(sealAndApply().results.single().teaId)
 
         val tea = teaRepository.findById(teaId).orElseThrow()
         assertNull(tea.brand, "brand is never auto-written to the canonical tea from identity approval")
