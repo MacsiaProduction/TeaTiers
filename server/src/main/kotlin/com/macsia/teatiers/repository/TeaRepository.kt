@@ -2,7 +2,9 @@ package com.macsia.teatiers.repository
 
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaType
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.util.UUID
@@ -11,6 +13,14 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
 
     /** Stable client-facing lookup (V7, decision #136); the API resolves by public_id, not the BIGINT id. */
     fun findByPublicId(publicId: UUID): Tea?
+
+    /**
+     * Load a tea with a pessimistic write lock so concurrent canonical applies to the SAME tea serialize
+     * (decision #139-R4): the selected-claim swap + fill-null must not race. Null if the tea is missing.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Tea t where t.id = :id")
+    fun findByIdForUpdate(@Param("id") id: Long): Tea?
 
     /** Cross-source identity lookup; used by the seed/enrich upsert to avoid duplicate rows. */
     fun findByWikidataQid(wikidataQid: String): Tea?

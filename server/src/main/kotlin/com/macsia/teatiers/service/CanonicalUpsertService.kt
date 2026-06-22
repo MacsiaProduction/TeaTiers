@@ -69,8 +69,8 @@ class CanonicalUpsertService(
             cultivar = facts.cultivar,
             oxidationMin = facts.oxidationMin?.toShort(),
             oxidationMax = facts.oxidationMax?.toShort(),
-            brand = facts.brand,
-            // A scrape can NEVER self-certify; reserved 'verified' is unreachable from this path.
+            // brand is NOT set from identity approval (decision #139-R4): a vendor/brand is observation-only
+            // until an operator makes an explicit brand decision. It is recorded below as a proposal claim.
             verificationStatus = STATUS_UNVERIFIED,
             status = "active",
         )
@@ -85,12 +85,13 @@ class CanonicalUpsertService(
         legacyIdMapRepository.recordOnce(teaId, saved.publicId)
 
         val ctx = claimContext(sourceRecord, revision, decisionId, reviewer)
-        // create-new: every non-null scalar fact is the SELECTED value for its field.
+        // create-new: each non-null scalar fact is the SELECTED value for its field -- EXCEPT brand, which
+        // is only ever a proposal (decision #139-R4: brand needs an explicit, separate field decision).
         if (facts.type != null) selectClaim(teaId, "type", type.name, ctx)
         if (facts.originCountry != null) selectClaim(teaId, "origin_country", facts.originCountry, ctx)
         if (facts.region != null) selectClaim(teaId, "region", facts.region, ctx)
         if (facts.cultivar != null) selectClaim(teaId, "cultivar", facts.cultivar, ctx)
-        if (facts.brand != null) selectClaim(teaId, "brand", facts.brand, ctx)
+        if (facts.brand != null) proposalClaim(teaId, "brand", facts.brand, ctx)
         oxidationValue(facts.oxidationMin?.toShort(), facts.oxidationMax?.toShort())
             ?.let { selectClaim(teaId, "oxidation", it, ctx) }
         writeNamesAndAliases(teaId, facts, ctx)
@@ -117,9 +118,10 @@ class CanonicalUpsertService(
         require(sourceRecord.teaId == null || sourceRecord.teaId == targetTeaId) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
         }
-        val tea = teaRepository.findById(targetTeaId).orElseThrow {
-            IllegalArgumentException("merge target tea $targetTeaId not found")
-        }
+        // Pessimistically lock the target (decision #139-R4): serialize concurrent applies to one tea so
+        // the selected-claim swap (deselect-then-insert) and fill-null can't race.
+        val tea = teaRepository.findByIdForUpdate(targetTeaId)
+            ?: throw IllegalArgumentException("merge target tea $targetTeaId not found")
         // Never write into a tombstone (decision #137-C3 lifecycle): a 'retracted' or 'merged' target must
         // not be re-animated by a merge. The matcher can still propose a non-active target (FND-P1-1, P1) --
         // this is the apply-time backstop until the candidate queries themselves filter status.
@@ -130,8 +132,11 @@ class CanonicalUpsertService(
         mergeScalar(targetTeaId, "origin_country", tea.originCountry, facts.originCountry, ctx) { tea.originCountry = it }
         mergeScalar(targetTeaId, "region", tea.region, facts.region, ctx) { tea.region = it }
         mergeScalar(targetTeaId, "cultivar", tea.cultivar, facts.cultivar, ctx) { tea.cultivar = it }
-        mergeScalar(targetTeaId, "brand", tea.brand, facts.brand, ctx) { tea.brand = it }
         mergeOxidation(targetTeaId, tea, facts, ctx)
+        // type is identity (never changed by a merge), but corroboration/conflict is still recorded.
+        facts.type?.let { recordCorroborationOrConflict(targetTeaId, "type", tea.type.name, teaType(it).name, ctx) }
+        // brand is never auto-filled by a merge (decision #139-R4) -- only ever proposed for an explicit decision.
+        facts.brand?.let { proposalClaim(targetTeaId, "brand", it, ctx) }
 
         // A tea assembled from more than one origin is 'mixed' (unless it was already scrape-only).
         if (tea.source != SOURCE_SCRAPE) tea.source = SOURCE_MIXED
@@ -149,7 +154,11 @@ class CanonicalUpsertService(
         return targetTeaId
     }
 
-    /** Fill a null scalar field (SELECTED claim); record a CONFLICT claim if an existing value wins. */
+    /**
+     * Fill a null scalar field (SELECTED claim). If a value already exists, never overwrite -- but always
+     * record the incoming value: a CORROBORATION claim when it agrees (an independent source confirms it,
+     * decision #139-R4) or a CONFLICT claim when it differs (kept as evidence, not silently dropped).
+     */
     private inline fun mergeScalar(
         teaId: Long,
         field: String,
@@ -159,11 +168,17 @@ class CanonicalUpsertService(
         setter: (String) -> Unit,
     ) {
         if (incoming == null) return
-        when {
-            existing == null -> { setter(incoming); selectClaim(teaId, field, incoming, ctx) }
-            existing != incoming -> conflictClaim(teaId, field, incoming, ctx)
-            // existing == incoming: same value, nothing new to record.
+        if (existing == null) {
+            setter(incoming)
+            selectClaim(teaId, field, incoming, ctx)
+        } else {
+            recordCorroborationOrConflict(teaId, field, existing, incoming, ctx)
         }
+    }
+
+    /** An incoming value for an already-set field: corroboration if it agrees, conflict if it differs. */
+    private fun recordCorroborationOrConflict(teaId: Long, field: String, existing: String, incoming: String, ctx: ClaimContext) {
+        if (existing == incoming) corroborationClaim(teaId, field, incoming, ctx) else conflictClaim(teaId, field, incoming, ctx)
     }
 
     /** Oxidation is a pair filled atomically (only when the combined bounds stay ordered, else kept). */
@@ -177,10 +192,11 @@ class CanonicalUpsertService(
             tea.oxidationMin = mergedMin
             tea.oxidationMax = mergedMax
             selectClaim(teaId, "oxidation", oxidationValue(mergedMin, mergedMax)!!, ctx)
-        } else if (!wouldChange || !ordered) {
-            // Existing bounds already cover it, or the combined bounds invert -> keep existing, record conflict.
+        } else {
+            // Existing bounds already cover it, or the combined bounds invert -> keep existing; record the
+            // incoming value as corroboration (agrees) or conflict (differs).
             val existing = oxidationValue(tea.oxidationMin, tea.oxidationMax)
-            if (existing != incoming) conflictClaim(teaId, "oxidation", incoming, ctx)
+            if (existing != null) recordCorroborationOrConflict(teaId, "oxidation", existing, incoming, ctx)
         }
     }
 
@@ -207,6 +223,20 @@ class CanonicalUpsertService(
 
     /** A non-selected conflict claim: the incoming value lost to an existing one but is kept as evidence. */
     private fun conflictClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
+        writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
+
+    /**
+     * A non-selected corroboration claim: an independent source confirms the already-selected value
+     * (decision #139-R4). Distinguishable from a conflict because its value equals the selected claim's.
+     */
+    private fun corroborationClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
+        writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
+
+    /**
+     * A non-selected proposal claim: a value (e.g. brand) that must NOT be auto-accepted from identity
+     * approval (decision #139-R4) -- it awaits an explicit operator field decision before it can be selected.
+     */
+    private fun proposalClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
         writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
 
     private fun writeClaim(
