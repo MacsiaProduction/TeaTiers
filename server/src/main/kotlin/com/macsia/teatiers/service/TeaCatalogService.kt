@@ -97,17 +97,21 @@ class TeaCatalogService(
             "retracted" -> CatalogDetail.Tombstone(tea.toLifecycle(RETRACTED_MESSAGE))
             "merged" -> {
                 val survivor = resolveSurvivor(tea)
-                if (survivor != null) {
+                when {
+                    survivor == null -> {
+                        // Broken/cyclic merge chain: fail closed to lifecycle-only data + alert the operator.
+                        log.error(
+                            "merge chain for public_id {} is broken/cyclic (immediate target {}); returning a tombstone",
+                            publicId,
+                            tea.mergedIntoPublicId,
+                        )
+                        CatalogDetail.Tombstone(tea.toLifecycle(MERGED_MESSAGE))
+                    }
+                    // The chain terminates in a WITHDRAWN (retracted) survivor: never leak its content
+                    // (decision #139-R2) -- return its lifecycle tombstone, not full detail.
+                    survivor.status != "active" -> CatalogDetail.Tombstone(survivor.toLifecycle(RETRACTED_MESSAGE))
                     // Redirect: tell the client the current canonical id to re-cache.
-                    CatalogDetail.Full(survivor.toDetail().copy(supersededByPublicId = survivor.publicId))
-                } else {
-                    // Broken/cyclic merge chain: fail closed to lifecycle-only data + alert the operator.
-                    log.error(
-                        "merge chain for public_id {} is broken/cyclic (immediate target {}); returning a tombstone",
-                        publicId,
-                        tea.mergedIntoPublicId,
-                    )
-                    CatalogDetail.Tombstone(tea.toLifecycle(MERGED_MESSAGE))
+                    else -> CatalogDetail.Full(survivor.toDetail().copy(supersededByPublicId = survivor.publicId))
                 }
             }
 

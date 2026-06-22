@@ -131,6 +131,22 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `a merge chain ending in a retracted survivor returns a tombstone, not its content (decision 139-R2)`() {
+        val survivor = newTea(source = "scrape", primary = "Withdrawn Survivor").apply { status = "retracted" }
+        val savedSurvivor = teaRepository.saveAndFlush(survivor)
+        val merged = newTea(source = "scrape", primary = "Old Dup").apply {
+            status = "merged"
+            mergedIntoPublicId = savedSurvivor.publicId
+        }
+        val savedMerged = teaRepository.saveAndFlush(merged)
+
+        // The survivor is withdrawn -> withhold its content; do NOT return Full(survivor.toDetail()).
+        val tombstone = catalogService.detailByPublicId(savedMerged.publicId) as CatalogDetail.Tombstone
+        assertEquals("retracted", tombstone.lifecycle.status)
+        assertEquals(savedSurvivor.publicId, tombstone.lifecycle.publicId)
+    }
+
+    @Test
     fun `an unissued public id resolves to null`() {
         assertNull(catalogService.detailByPublicId(UUID.randomUUID()))
     }
