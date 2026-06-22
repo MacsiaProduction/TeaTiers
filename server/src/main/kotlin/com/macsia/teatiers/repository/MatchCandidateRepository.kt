@@ -13,9 +13,10 @@ interface MatchCandidateRepository : JpaRepository<MatchCandidate, Long> {
 
     /**
      * Clear a decision's candidate set before re-pointing it (the decision is reused in place across
-     * revisions). A bulk DELETE so the (match_decision_id, rank) unique can't see stale rows on reinsert.
+     * revisions). A bulk DELETE so the (match_decision_id, rank) unique can't see stale rows on reinsert;
+     * `clearAutomatically` evicts the L1 cache so a same-transaction reinsert never trips on a stale entity.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("delete from MatchCandidate c where c.matchDecisionId = :id")
     fun deleteByMatchDecisionId(@Param("id") id: Long)
 }

@@ -11,6 +11,7 @@ import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
+import com.macsia.teatiers.repository.MatchCandidateRepository
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.TeaFieldProvenanceRepository
@@ -51,6 +52,8 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
     @Autowired lateinit var sourceRecordRepository: SourceRecordRepository
 
     @Autowired lateinit var matchDecisionRepository: MatchDecisionRepository
+
+    @Autowired lateinit var matchCandidateRepository: MatchCandidateRepository
 
     @Autowired lateinit var provenanceRepository: TeaFieldProvenanceRepository
 
@@ -380,6 +383,20 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         teaRepository.findById(a).orElseThrow().also { it.status = "retracted"; teaRepository.saveAndFlush(it) }
         val moved = aliasService.addAuthoritative(b, "ru", "Дубль")
         assertEquals(b, moved.teaId)
+    }
+
+    @Test
+    fun `re-proposing rebuilds the ranked candidate set in place without duplicating it (decision 141)`() {
+        eligibleSite()
+        seedTea(names = listOf(Triple("en", "Re Propose Tea", true)))
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Re Propose Tea", true)))
+        assertEquals("exact", decision.matchTier)
+        assertEquals(1, matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(requireNotNull(decision.id)).size)
+
+        // Re-propose the same still-pending record: persistCandidates must delete+reinsert (re-point in
+        // place), not stack a second rank-0 row (which would trip the (decision, rank) unique).
+        matchService.proposeFor(decision.sourceRecordId, runId)
+        assertEquals(1, matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(decision.id!!).size)
     }
 
     @Test
