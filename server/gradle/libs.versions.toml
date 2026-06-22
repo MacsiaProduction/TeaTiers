@@ -11,6 +11,9 @@ mockwebserver = "5.4.0"
 # CycloneDX SBOM for the OSV-Scanner CI gate (decision #102). OSV can't read build.gradle.kts
 # directly, so we emit an SBOM of the resolved graph and scan that.
 cyclonedx = "3.2.4"
+# seancfoley IPAddress: strict IPv4/IPv6 parsing + private/loopback/link-local/reserved classification
+# for the scrape SSRF/host gate (decision #141, PR-2). Latest stable, verified on Maven Central 2026-06-22.
+ipaddress = "5.6.2"
 
 [libraries]
 spring-boot-starter-web = { group = "org.springframework.boot", name = "spring-boot-starter-web" }
@@ -26,6 +29,8 @@ jackson-module-kotlin = { group = "com.fasterxml.jackson.module", name = "jackso
 # Bounded in-memory cache for the rate-limiter client state (review P1-9). Version is managed by the
 # Spring Boot BOM (Caffeine is a Boot-managed dependency), so no pin here.
 caffeine = { group = "com.github.ben-manes.caffeine", name = "caffeine" }
+# Strict IP parsing + SSRF range classification for scraped/observed URLs (decision #141, PR-2).
+ipaddress = { group = "com.github.seancfoley", name = "ipaddress", version.ref = "ipaddress" }
 # Spring Boot 4 modularized auto-configuration: the Flyway starter brings flyway-core plus the
 # autoconfigure module (bare flyway-core no longer triggers migrations on startup).
 spring-boot-starter-flyway = { group = "org.springframework.boot", name = "spring-boot-starter-flyway" }

@@ -38,8 +38,10 @@ class SourceRecordRevision(
     @Column(name = "import_run_id", nullable = false)
     var importRunId: Long,
 
-    @Column(name = "raw_evidence_id")
-    var rawEvidenceId: Long? = null,
+    // Bound to the immutable fetch envelope at ingest (decision #141, PR-2); NOT NULL from V14 -- every
+    // revision must prove the fetch that produced it, and canonical apply fails closed without it.
+    @Column(name = "raw_evidence_id", nullable = false)
+    var rawEvidenceId: Long,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

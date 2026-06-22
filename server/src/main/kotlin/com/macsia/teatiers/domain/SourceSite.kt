@@ -6,12 +6,15 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 
 /**
  * A scrape source registry row + its hard preflight gates (V8, decision #136). A run may not start for a
  * site unless [termsSignedOffAt] is set AND [active] is true; the scraper re-checks robots every run.
- * `allowed_hosts` (the fetch allowlist) is managed in SQL and not mapped here.
+ * [allowedHosts] is the fetch allowlist enforced by `UrlSafety` (decision #141, PR-2): every observed /
+ * robots / evidence URL must resolve to a host in this set, and changing it invalidates approval.
  */
 @Entity
 @Table(name = "source_site")
@@ -24,6 +27,12 @@ class SourceSite(
 
     @Column(name = "base_url", nullable = false)
     var baseUrl: String,
+
+    // The first Postgres TEXT[] mapping in the codebase (decision #141, PR-2): Hibernate 6 ARRAY jdbc type.
+    // A Kotlin Array has identity equals, so callers compare/normalize via .toSet() (see SourceSiteService).
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "allowed_hosts", nullable = false, columnDefinition = "text[]")
+    var allowedHosts: Array<String> = emptyArray(),
 
     @Column(name = "license_default")
     var licenseDefault: String? = null,

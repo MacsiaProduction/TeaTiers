@@ -4,6 +4,7 @@ import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.FetchEvidence
 import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
@@ -62,6 +63,7 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
 
     private fun startRun() {
         siteService.register("s", "S", "https://s.example")
+        siteService.setAllowedHosts("s", listOf("s.example"))
         siteService.signOffTerms("s", "owner@teatiers")
         siteService.setActive("s", true)
         runId = requireNotNull(
@@ -81,6 +83,7 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         retrievedAt = fetchedAt,
         parserVersion = "p-1",
         facts = ScrapedFacts(names = names, type = "OOLONG", originCountry = "CN", region = region),
+        evidence = FetchEvidence(contentHash = "b".repeat(64), httpStatus = 200, contentType = "text/html"),
     )
 
     private fun seedTea(pinyin: String): Long {

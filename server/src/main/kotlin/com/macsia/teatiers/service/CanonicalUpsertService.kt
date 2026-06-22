@@ -10,6 +10,7 @@ import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.repository.ImportRunRepository
+import com.macsia.teatiers.repository.RawEvidenceRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.SourceSiteRepository
 import com.macsia.teatiers.repository.TeaFieldProvenanceRepository
@@ -35,6 +36,7 @@ class CanonicalUpsertService(
     private val sourceRecordRepository: SourceRecordRepository,
     private val sourceSiteRepository: SourceSiteRepository,
     private val importRunRepository: ImportRunRepository,
+    private val rawEvidenceRepository: RawEvidenceRepository,
 ) {
 
     private val factsMapper = jacksonObjectMapper()
@@ -306,6 +308,28 @@ class CanonicalUpsertService(
             throw CanonicalApplyForbiddenException(
                 "run ${run.id} is '${run.status}', not apply-authorized (must be reviewed/applying)",
             )
+        }
+        requireEvidenceChain(revision)
+    }
+
+    /**
+     * Fail closed (decision #141, PR-2) if the revision's immutable fetch-evidence chain is absent or
+     * inconsistent: the bound RawEvidence must exist, belong to the SAME run that produced the revision, and
+     * carry a non-blank body hash. Proves the published facts trace back to a real recorded fetch.
+     */
+    private fun requireEvidenceChain(revision: SourceRecordRevision) {
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow {
+            CanonicalApplyForbiddenException(
+                "revision ${revision.id} has no raw evidence (${revision.rawEvidenceId}); the fetch chain is absent",
+            )
+        }
+        if (evidence.importRunId != revision.importRunId) {
+            throw CanonicalApplyForbiddenException(
+                "revision ${revision.id} evidence run ${evidence.importRunId} != revision run ${revision.importRunId}",
+            )
+        }
+        if (evidence.contentHash.isBlank()) {
+            throw CanonicalApplyForbiddenException("revision ${revision.id} evidence has a blank body hash")
         }
     }
 
