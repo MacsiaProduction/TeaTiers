@@ -10,40 +10,46 @@ this index reflects what is still open against `main`.
   - `2026-06-21-scraper-implementation-readiness-review.md` (SCR-)
   - `2026-06-22-full-architecture-design-review.md` (full re-assessment after #119/#120 merged; P0-1..P0-5, P1-1..P1-14)
   - `2026-06-22-research-glm-minimax-review.md` (independent re-analysis of the new GLM/MiniMax answers; no decision changes)
+  - `2026-06-22-post-hardening-current-state-refresh.md` (refresh after #121/#122/#124; reopens the incomplete C4 apply-state contract)
+  - `2026-06-22-oss-reuse-architecture-review.md` (same reopen via an open-source-reuse lens; library decisions in #141)
 - Status legend: `OPEN` · `WIP` · `PARTIAL` (core landed, contract not fully met) · `REOPEN` (was marked DONE,
   re-opened by a later review) · `DONE` (landed + tested) · `DEFERRED` (gated, not now).
 
-Baseline at index creation: `21fda80`. **Re-assessed against `399ed92` (2026-06-22).** PRs #119/#120 landed the
-C1–C7 work at the *blank-rebuild / core-invariant* bar; the 2026-06-22 review applies a *production-safe* bar
-and reopens the rows below. Update Status/Evidence as PRs land.
+Baseline at index creation: `21fda80`. **Re-assessed against `a622da0` (2026-06-22) by two independent
+reviews** (post-hardening refresh + OSS-reuse pass). PRs #119/#120 landed the C1–C7 work at the
+*blank-rebuild / core-invariant* bar; #121/#122/#124 closed several production gaps. Both new reviews reopen
+C4's apply-state portion: safe preflight/terminal handling landed, but no reviewed/apply-authorized run state
+exists and `allowed_hosts`/SSRF is unenforced. **Decision #141 locks Phase 1 (everything) as the next
+workstream** — a sequence of PRs (C4 state machine → SSRF/evidence → strict validation → review CAS →
+ranked-candidate matcher → Bucket4j), built with adopted libraries. Update Status/Evidence as PRs land.
 
 ## P0 — must close before ANY scraped canonical write (decision #137)
 
 | ID | Finding (short) | Contract | Status | Closing PR / evidence |
 |---|---|---|:--:|---|
 | FND-P0-1 / SCR-P0-8 | Stable public id reproducible; numeric→legacy-map; visibility | C1, C3 | **DONE** | #119 (blank rebuild) + #121 (V11 production reconciliation) — both the clean-rebuild and existing-prod-row paths now yield the frozen seed UUID. Operator rehearsal-before-deploy still applies (see P0-1 row). |
-| **P0-1 (2026-06-22)** | **Production-row UUID reconciliation** | C1 | **DONE (code) — operator must rehearse+deploy** | #121 merged — V11 `SeedPublicIdReconciler` reconciles existing rows to the frozen seed UUID by `dedup_key`, rebuilds the legacy map + remaps merge pointers FK-safely, fails closed on collision / an unreconciled curated row, idempotent + no-op on blank DB. **Owner action remains:** rehearse V6→current on a prod-like backup, then deploy by verified digest. |
+| **P0-1 (2026-06-22)** | **Production-row UUID reconciliation** | C1 | **DONE (code) — operator must rehearse+deploy; P2 sub-gap folded into C4 batch** | #121 merged — V11 `SeedPublicIdReconciler` reconciles existing rows to the frozen seed UUID by `dedup_key`, rebuilds the legacy map + remaps merge pointers FK-safely, fails closed on collision / an unreconciled curated row, idempotent + no-op on blank DB. **C1.1 sub-gap (#141, P2, fix before deploy):** the straggler scan is `WHERE source='curated'` only (`:128`) — a non-curated row with a seed `dedup_key` could keep its V7 random UUID; widen to all rows whose `dedup_key ∈ seed` + add a `failOnCollision` test (folded into PR-1). **Owner action remains:** rehearse V6→current on a prod-like backup, then deploy by verified digest. |
 | **P0-3 (2026-06-22)** | **Compact tombstone** | C3 | **DONE** | #122 merged — content-free `TeaLifecycleDto` + sealed `CatalogDetail{Full,Tombstone}`; retracted / broken-chain / retracted-survivor → 410 Gone, no content; numeric path shares it. |
 | AND-P0-1 | v7 Android ref identity must be UUID, not `Long` | C2 | DONE (design) | `context/design/tea-sample-split-v7.md` amendment 2026-06-21; code at v7 impl time |
-| FND-P0-2 / SCR-P0-2,3 | Robots/run-ownership/dry-run gates | C4 | **DONE** | #119 + #124 (R3, V12) — complete+fresh robots evidence (2xx/hash/url/UA/fetchedAt≤1h), re-registration approval-invalidation, ≤1 active run/source, terminal-immutable `finishRun`, clean status enum + dropped decorative counters. **`allowed_hosts`/URL/redirect/SSRF enforcement folded into FND-P1-4** (same URL-validation family; relevant at fetch time). |
+| FND-P0-2 / SCR-P0-2,3 | Robots/run-ownership/dry-run/apply-state gates | C4 | **PARTIAL / REOPEN P0 — PR-1 (WIP)** | #119 + #124 added fresh robots evidence, approval invalidation, ≤1 active run/source, terminal immutability, and removed decorative counters. **Still open:** V12 has only `running→succeeded/failed/blocked`; canonical apply accepts non-dry `running` or `succeeded` runs (`CanonicalUpsertService.kt:295-305`) and does not require/produce a reviewed/apply-authorized state. **Plan (#141):** V13 enum lifecycle `created→preflight_allowed→ingesting→awaiting_review→reviewed→applying→applied` (+failed/blocked) with DB CHECK + a row-locked **hand-rolled transition table** (NOT Spring Statemachine — EOL/no Boot 4); apply only from `reviewed`/`applying` for the exact reviewed revision; mark `applied` after writes commit. `allowed_hosts`/URL/redirect/SSRF/evidence enforcement is PR-2 (FND-P1-4). |
 | FND-P0-3 / SCR-P0-4 | Observation revisions stop flowing after first approval | C5 | DONE | branch `harden/scrape-foundation-137-c5c6` — immutable `source_record_revision` (V10), revision-bound decisions, correction flow, stale-approval rejection |
 | SCR-P0-5 | Source identity (slug rename / new external id / redirect) not reconciled | C5 | DONE | branch `harden/scrape-foundation-137-c5c6` — slug-rename URL update + `source_record_url_history` + external-id attach + collision detection |
-| FND-P0-4 / SCR-P0-6,7 | Value-bearing claims + alias promotion | C6 | **DONE** | #120 + #124 (R4) — claim model + `type` corroboration/conflict on merge, corroboration claims when sources agree, `brand` as a non-selected proposal (never auto-canonical), pessimistic target-tea lock for the selected-claim swap. Remaining nicety (not blocking): baseline claims for pre-existing curated rows. |
+| FND-P0-4 / SCR-P0-6,7 | Value-bearing claims + alias promotion | C6 | **DONE** | #120 + #124 (R4) — claim model + `type` corroboration/conflict on merge, corroboration claims when sources agree, `brand` as a non-selected proposal (never auto-canonical), pessimistic target-tea lock for the selected-claim swap. Remaining nicety (not blocking): baseline claims for pre-existing curated rows (folds into PR-5/provenance work, #141). |
 | FND-P0-5 / SCR-P0-9 | Operator HTTP surface unauthenticated when enabled | C7 | DONE | branch `harden/scrape-foundation-137-p0` — removed `IngestReviewController`; local review CLI + route-absence IT |
 
 ## P1 — same workstream, before second source / publication scale
 
 | ID | Finding (short) | Status | Closing PR / evidence |
 |---|---|:--:|---|
-| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced; can propose an inactive target | PARTIAL | apply-time tombstone guard landed (`InactiveMergeTargetException`, branch `…-c5c6`); ranked candidate set + conflict flags + `status='active'` on the match queries remain (P1 PR) |
+| FND-P1-1 / SCR-P1-1 | Matcher hides ambiguity (`firstOrNull`/single max); ties & multiple authoritative owners not surfaced; can propose an inactive target | PARTIAL → **PR-5** | apply-time tombstone guard landed (`InactiveMergeTargetException`, branch `…-c5c6`); **PR-5:** ranked candidate set + per-hit evidence + explicit tie/multi-owner conflict + `tea.status='active'` in the exact/trigram/authoritative SQL + a **global** authoritative-alias invariant (currently per-tea `tea_identity_alias_uk`) + dup-alias repair report; no auto-merge |
 | FND-P1-2 / SCR-P1-3 | Vendor/brand semantics: `vendor` ignored; `brand` may land on canonical tea | OPEN | keep vendor on observation; brand only via explicit decision |
-| FND-P1-3 / SCR — | Concurrent idempotency constraints + locking | **PARTIAL** | V10 constraints + C4 run row-lock + C6 target-tea row-lock (#124) landed. **Still open:** two CLI processes can load+consume the *same* pending decision — needs `findByIdForUpdate` / atomic `UPDATE … WHERE decision='pending'` / `@Version` on the review/approve path |
-| FND-P1-4 / SCR-P1-2 | Evidence/input validation incomplete; unknown `type`→`OTHER`; country not ISO; region free-text; URL/host/evidence; lenient deserialization; **+ `allowed_hosts` administration + URL/redirect/SSRF (folded from C4/R3)** | **OPEN — P0 before scraper** | strict DTO/schema + URI/host/SSRF validation + `allowed_hosts` enforcement on every observation/evidence URL + ISO-3166 country + #138 region QID queue (or reject region) + persist `raw_evidence` proof chain + re-run facts guard at apply against the exact revision |
+| FND-P1-3 / SCR — | Concurrent idempotency constraints + locking | **PARTIAL → PR-4** | V10 constraints + C4 run row-lock + C6 target-tea row-lock (#124) landed. **PR-4:** two CLI processes can load+consume the *same* pending decision — `findByIdForUpdate` / atomic `UPDATE … WHERE decision='pending'` / `@Version` on the review/approve path; assert exactly one affected row before any canonical write; two-transaction IT |
+| FND-P1-4 / SCR-P1-2 | Evidence/input validation incomplete; unknown `type`→`OTHER`; country not ISO; region free-text; URL/host/evidence; lenient deserialization; **+ `allowed_hosts` administration + URL/redirect/SSRF (folded from C4/R3)** | **OPEN — P0 before scraper → PR-2 (hosts/SSRF/evidence) + PR-3 (strict validation)** | **PR-2:** `allowed_hosts` mapped+administered (changes invalidate approval) + URI/host/scheme/port/redirect/SSRF validation via **seancfoley/IPAddress** (allowlist-first, strict parser, post-DNS re-check) on every observation/evidence URL + persist immutable `RawEvidence` proof chain bound to the revision (fail apply if absent). **PR-3:** strict facts DTOs via **jakarta.validation** + custom `@Iso3166` country + #138 region QID queue (reject free-text) + `FAIL_ON_UNKNOWN_PROPERTIES=true` + reject (not coerce) unknown `type` + re-run `FactsOnlyGuard` at apply against the exact revision |
 | FND-P1-5 | Public lifecycle additive, not integrated (one visibility predicate everywhere) | DONE | folded into C3 (branch `harden/scrape-foundation-137-p0`) |
 | AND-P1-1 | Sample/reference split (Room v6→v7), any-language names | **READY** | server prereq exists + amended v7 design; **prod UUID reconciliation (P0-1) must land first.** One doc cleanup: remove the obsolete `Long`-based sketches below the v7 amendment (or move to a labeled historical appendix) before coding |
 | AND-P1-2 | Catalog DTO compat not executable (server↔app drift); Android decodes only numeric `id`, ignores lifecycle | OPEN | frozen server/app JSON fixtures in both modules + public-ID routes/lifecycle in contract tests; UUID for all new lookups; numeric compat-only |
 | AND-P1-3 (2026-06-22) | Enrichment patch contradicts ownership: `applyEnrichmentPatch` prefers any nonblank catalog value over the user's + always replaces `type` | OPEN | fill blank-only or track per-field dirty/ownership; the v7 ref/sample split is the clean fix; align tests+comments to actual policy |
-| AND-P1-4 (2026-06-22) | Queued enrichment not durable — app-coroutine + `resumePending()` on startup; process death/reboot strands work | OPEN | adopt WorkManager 2.11.2 (unique work/sample, network constraint, backoff, idempotent calls) **if** background completion is a product promise, else keep the weaker app-open copy |
+| AND-P1-4 (2026-06-22) | Queued enrichment not durable — app-coroutine + `resumePending()` on startup; process death/reboot strands work | OPEN — **ADOPT at v7 (#141)** | WorkManager (unique work/sample, network constraint, backoff, idempotent calls) lands with the v7 ref/sample split (Phase 2) **if** background completion is a product promise, else document the weaker app-open copy |
 | AND-P1-5 (2026-06-22) | Unbounded image/file reads — `readBytes()` before bounds; no byte cap/MIME check on photo copy/import; prefix-based delete; URIs/paths logged in release | OPEN | bounded-stream caps, safe bounds/MIME decode, canonical-path boundary, redact URIs/paths |
 
 ## Release / privacy / server / ops — before next public APK (not ingestion-blocking)
@@ -54,7 +60,7 @@ and reopens the rows below. Update Status/Evidence as PRs land.
 | REL-P0-2 | Custom updater trusts server-selected trust data | OPEN |
 | REL-P1-1 | `release.yml` not a complete release gate (tag/version/versionCode/package/cert/emulator/SBOM) | OPEN |
 | PRIV-P0-1 | Privacy copy/retention vs behavior (geopoints copy, scattered egress, miss-text retention, raw query in `ResolveService` conflict log, diagnostics binds before `@Size`) | OPEN | one data-flow table; cap/normalize+age-purge miss text; redact logs; validate diagnostic body before alloc |
-| PRIV-P1-1 (2026-06-22) | Caffeine per-client rate-limit eviction resets abuse budgets | OPEN | add edge/global overload budget + bounded token-bucket; keep expensive-op global semaphores (no Redis at this scale) |
+| PRIV-P1-1 (2026-06-22) | Caffeine per-client rate-limit eviction resets abuse budgets | OPEN → **PR-6** | adopt **Bucket4j** core + caffeine integration (refill survives eviction) + one global edge bucket for `/resolve`+`/search`; keep expensive-op global semaphores (no Spring-Boot-starter/Redis at this scale) |
 | SRV-P1-1 | LLM activation has unsafe dormant behavior (run 14 reserved) | DEFERRED (no LLM key) |
 | SRV-P2-1 | Diagnostics binds oversized body before truncating (`@Valid` + caps) | OPEN |
 | OCR-P2-1 | CI/runtime Python version drift (3.12 vs 3.14) | OPEN |
@@ -62,7 +68,8 @@ and reopens the rows below. Update Status/Evidence as PRs land.
 | AND-P2-2 | Remote catalog images must be first-party / disclosed (no hotlinking) | DEFERRED (no images yet) |
 | OPS-P1-1 | Image identity produced but not enforced at deploy; **live prod is behind current migrations/contracts** | **OPEN — urgent** |
 | OPS-P1-2 | Backups: broad creds, no enforced restore evidence | OPEN |
-| OPS-P1-3 | Single-host: SSH `0.0.0.0/0`, no external alerts, no log rotation | OPEN (owner) |
+| OPS-P1-3 | Single-host: SSH `0.0.0.0/0`, no external alerts, no log rotation; add Micrometer Prometheus + Docker `max-size` | OPEN (owner) |
+| OPS-P1-4 (2026-06-22) | 4 GB VM over-committed (~3420 MiB declared) + `core_fraction=50` ≈ 1 vCPU vs OCR `cpus:1.5` → JVM starvation/OOM under load | OPEN (owner) | trim server heap or raise `core_fraction`/resize; treat OCR as off the hot path |
 | OPS-P2-1 | Dependency scan doesn't cover OS/container layers (add Trivy) | OPEN |
 
 ## Research ideas (2026-06-22 GLM/MiniMax review) — only 3 worth carrying

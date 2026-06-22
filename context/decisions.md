@@ -2877,3 +2877,60 @@ deviated.
      `scrape_upsert_canonical()` plpgsql as a reference sketch only, reconciled with the locked dedup arch
      (pypinyin + pg_trgm @0.3) before any use; (RES-3, ADOPT-as-reference) Hilt map-provider scaffolding
      when map work resumes post-MVP. Run 14 stays the only reserved run.
+
+141. **Two new 2026-06-22 reviews (post-hardening refresh + OSS-reuse pass) against `main` `a622da0` confirm
+     the core architecture but correct the INDEX: C4 was overstated as DONE → REOPENED PARTIAL/P0; Phase 1
+     (full ingestion safety) is the locked next workstream, built with adopted libraries (owner choices).**
+     `context/review/2026-06-22-post-hardening-current-state-refresh.md` and
+     `context/review/2026-06-22-oss-reuse-architecture-review.md` independently reach the same headline and
+     were verified against code here (apply-gate, V12 CHECK, type coercion, reconciler scan). The system
+     boundary stands unchanged. **Locked corrections + decisions:**
+     - **(C1.1, new sub-gap, P2 — folded into the C4 batch) reconciler completeness is curated-only.**
+       `SeedPublicIdReconciler.failOnIncompleteCuratedReconcile` scans only `WHERE source='curated'`
+       (`:128`), so a non-curated row (`mixed`/`scrape`/`ai`) whose `dedup_key` is in the seed could keep its
+       V7 random UUID and never trip the fail-closed gate; there is also no `failOnCollision` test. Widen the
+       straggler scan to **all** rows whose `dedup_key ∈ seed` + add the collision IT. Time-sensitive: V11
+       has not deployed yet.
+     - **(C4 REOPENED P0 — the main correction) the run state machine + apply-from-reviewed gate were never
+       built, and `allowed_hosts`/SSRF is unenforced.** Confirmed: V12's CHECK is only
+       `status IN ('running','succeeded','failed','blocked')`; `startRun` goes straight to `running`;
+       `requireApplyAllowed` rejects only `dryRun`/`blocked`/`failed` (`CanonicalUpsertService.kt:295-305`) →
+       a **non-dry, never-reviewed `running` (or generic `succeeded`) run can be applied to canonical data
+       today.** `allowed_hosts` is "managed in SQL and not mapped" with zero enforcement; no URL/host/scheme/
+       port/IP-literal/private-range/redirect validation on `obs.canonicalUrl`; `RawEvidence` is never
+       written so revisions can't prove which fetch produced them; unknown `type` silently coerces to `OTHER`
+       (`:317`); country/region unvalidated; facts deserialize lenient; `FactsOnlyGuard` not re-run at apply.
+       INDEX `FND-P0-2 / C4` → **PARTIAL / REOPEN P0** (already applied).
+     - **(C3 confirmed; two P2 niceties) tombstone is correct;** add a cyclic-chain tombstone test + an
+       explicit "DTO carries no names/flavors/images" assertion, and give the merged→survivor redirect a
+       clear contract (an explicit `requestedPublicId`/redirect field rather than reusing the survivor's own
+       id as `supersededByPublicId`).
+     - **(REUSE — owner choice: ADOPT the recommended libraries)** each closes an open finding *and* deletes
+       hand-rolled code; pin exact versions at adoption per `AGENTS.md`: **Bucket4j** core + caffeine
+       integration (rate limit whose refill survives cache eviction + a global edge ceiling for
+       `/resolve`+`/search`); **seancfoley/IPAddress** (allowlist-first SSRF/CIDR classification, strict
+       parser, post-DNS re-check); **jakarta.validation/Hibernate Validator** (already transitive) + a custom
+       `@Iso3166` validator for strict facts DTOs; **AndroidX WorkManager** for durable enrichment retry
+       (**at the v7 split**, Phase 2); **Coil 3** bounded decode (already a dep); **Micrometer Prometheus**
+       registry (already on classpath) + external alerts; **Trivy** for OS/container-layer scan; **cosign
+       verify + gh attestation verify** in a `deploy.sh` digest gate; **Obtainium** now + offline **Ed25519**
+       manifest for the updater. **REJECT Spring Statemachine** (EOL for OSS, Apr 2025; Boot-4 support
+       "not planned") → the run state machine is a ~30-line **hand-rolled enum transition table** with a DB
+       CHECK + row-locked transitions. Reject (still) Meilisearch/Kafka/RabbitMQ/Redis/admin-CMS at this scale.
+     - **(OPS, new) the 4 GB VM is over-committed + CPU-throttled.** Declared `mem_limit` sums to ~3420 MiB
+       (caddy 128 + server 1500 + db 768 + ocr 1024) leaving ~580 MiB for host+daemon, and `core_fraction=50`
+       on 2 vCPU ≈ effective 1 vCPU while OCR may take `cpus:1.5` → concurrent OCR+DB can starve the JVM / OOM.
+       Trim server heap or raise `core_fraction`/resize; treat OCR as off the hot path. Tracked OPS-P1-4.
+     - **(SCOPE — owner choice) implement Phase 1 (everything) as a sequence of reviewable PRs**, keystone
+       first: (1) C4 enum state machine + apply-from-reviewed gate + the C1.1 sub-gap fix; (2) `allowed_hosts`
+       + SSRF + RawEvidence persistence/binding; (3) strict facts validation + apply-time re-guard;
+       (4) review-decision single-consumer CAS (FND-P1-3); (5) ranked-candidate matcher + active-only SQL +
+       global authoritative-alias invariant (FND-P1-1/2); (6) Bucket4j rate limiting (PRIV-P1-1). C6 curated
+       baseline-claim backfill folds into (5)/provenance work.
+     - **(RESEARCH) no new run.** Both reviews agree the remaining work is code/migration/verification; the
+       only two latent questions (offline-signed-manifest protocol; a concrete JVM SSRF/redirect/DNS-rebind
+       recipe) are engineering write-ups folded into their build tasks, not model research. Run 14 unchanged.
+     - **(OWNER P0 actions, unchanged-but-restated)** protect/back-up/recovery-test `release.jks` (0644
+       today); rehearse V6→current on a prod-like backup then deploy the exact tested digest with pre/post
+       contract probes (live prod still serves the pre-public-id shape — OPS-P1-1 urgent); no independent
+       updater trust root yet (Obtainium for testers until the signed manifest exists).
