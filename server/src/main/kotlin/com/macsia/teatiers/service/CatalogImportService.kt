@@ -41,6 +41,7 @@ class CatalogImportService(
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val rawEvidenceRepository: RawEvidenceRepository,
     private val factsOnlyGuard: FactsOnlyGuard,
+    private val factsValidator: FactsValidator,
     private val urlSafety: UrlSafety,
     private val importRunStateMachine: ImportRunStateMachine,
 ) {
@@ -141,7 +142,8 @@ class CatalogImportService(
         // First observation moves the run preflight_allowed -> ingesting (decision #137-C4); the row is
         // already write-locked above, so transition it in place without re-locking.
         if (state == ImportRunState.PREFLIGHT_ALLOWED) importRunStateMachine.transition(run, ImportRunState.INGESTING)
-        factsOnlyGuard.validate(obs.facts)
+        factsOnlyGuard.validate(obs.facts)   // facts-not-prose boundary
+        factsValidator.validate(obs.facts)   // semantic: known type, ISO-3166 country (decision #141, PR-3)
 
         val factsJson = factsMapper.writeValueAsString(obs.facts)
         val hash = sha256(factsJson)

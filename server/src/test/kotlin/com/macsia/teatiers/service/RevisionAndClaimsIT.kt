@@ -237,6 +237,20 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `apply re-guards the exact revision and rejects facts that fail semantic validation (decision 141)`() {
+        startRun()
+        val record = importService.ingest(runId, obs("https://s.example/g", externalId = "G"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        // Tamper the reviewed revision's stored facts to carry an unknown type (bypassing ingest's gate) to
+        // prove the apply-time re-guard is the backstop -- mirrors the retracted-target tombstone test below.
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        revision.rawFacts = """{"names":[{"locale":"en","value":"Sen Cha","isPrimary":true}],"type":"PURPLE"}"""
+        revisionRepository.saveAndFlush(revision)
+        assertFailsWith<FactsValidationException> { sealAndApply() }
+    }
+
+    @Test
     fun `approving a merge into a retracted target is rejected (tombstone guard, decision 137-C3)`() {
         startRun()
         val teaId = seedTea("sen cha")

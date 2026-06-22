@@ -1,5 +1,7 @@
 package com.macsia.teatiers.dto
 
+import com.macsia.teatiers.validation.Iso3166
+import com.macsia.teatiers.validation.KnownTeaType
 import java.time.Instant
 
 /**
@@ -16,11 +18,16 @@ data class ScrapedName(
     val isPrimary: Boolean = false,
 )
 
-/** The structured facts of one product/catalog observation. No prose, no images. */
+/**
+ * The structured facts of one product/catalog observation. No prose, no images. Semantic constraints
+ * (decision #141, PR-3) are enforced by `FactsValidator` at ingest AND re-checked at canonical apply:
+ * an unknown [type] and a non-ISO [originCountry] are REJECTED, never coerced. (region stays free-text
+ * until the #138 Wikidata-QID region table lands; it is length/prose-bounded by FactsOnlyGuard.)
+ */
 data class ScrapedFacts(
     val names: List<ScrapedName>,
-    val type: String? = null,            // mapped to TeaType by the importer; unknown -> OTHER
-    val originCountry: String? = null,
+    @field:KnownTeaType val type: String? = null,
+    @field:Iso3166 val originCountry: String? = null,
     val region: String? = null,
     val cultivar: String? = null,
     val oxidationMin: Int? = null,
