@@ -5,9 +5,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Decision #141 / PRIV-P1-1: the per-client token-bucket limiter. The old fixed-window limiter reset an
- * evicted client to a fresh window (count=0); the token bucket's refill state survives, and an exhausted
- * client is not handed a fresh allowance by other clients' traffic.
+ * Decision #141 / PRIV-P1-1: the per-client token-bucket limiter (replaces the fixed-window limiter whose
+ * eviction reset a client to a fresh window). These cover the per-client semantics and the memory bound.
+ *
+ * NOTE on the churn defect: the per-client limiter's improvement is in TIME eviction (an idle bucket is only
+ * evicted once refilled to full, via basedOnTimeForRefillingBucketUpToMax) -- which is wall-clock/eviction
+ * dependent and not deterministically unit-testable here. Under extreme SIZE pressure the Caffeine cache can
+ * still drop an active entry (a documented, bounded residual); the churn-IMMUNE protection PRIV-P1-1 asks for
+ * is the GLOBAL edge bucket -- asserted in TeaControllerTest ("...global edge ceiling is saturated -> 503").
  */
 class ClientRateLimiterTest {
 
@@ -29,17 +34,17 @@ class ClientRateLimiterTest {
     }
 
     @Test
-    fun `an exhausted client is not reset by other clients' traffic (PRIV-P1-1)`() {
-        // The fixed-window defect: a flood of distinct ids could evict the victim's entry, which was then
-        // re-created at count=0 -> a fresh budget. With the token bucket (refill-based eviction + a generous
-        // bound so the victim is not size-evicted), the victim stays blocked across other clients' traffic.
+    fun `a client's exhausted bucket is unaffected by other clients' traffic (within the cache bound)`() {
+        // Per-client isolation under load: other clients' requests (no size eviction here -- well within the
+        // bound) neither share nor refill the victim's bucket. (The eviction-RESET case is the global edge
+        // bucket's job; see the class KDoc + TeaControllerTest.)
         val limiter = ClientRateLimiter(ratePerMinute = 1, maxTrackedClients = 10_000)
         assertTrue(limiter.tryAcquire("victim"))
         assertFalse(limiter.tryAcquire("victim"))
 
         repeat(500) { limiter.tryAcquire("other-$it") }
 
-        assertFalse(limiter.tryAcquire("victim"), "other clients' churn must not refill the victim's budget")
+        assertFalse(limiter.tryAcquire("victim"), "other clients' traffic must not refill the victim's bucket")
     }
 
     @Test
