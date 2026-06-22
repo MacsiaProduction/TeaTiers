@@ -34,7 +34,13 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
         val stream = javaClass.classLoader.getResourceAsStream(seedResource)
             ?: error("seed resource '$seedResource' not found on the classpath")
         val bundle = stream.use { mapper.readValue(it, SeedBundle::class.java) }
-        return bundle.teas.mapNotNull { tea -> tea.publicId?.let { DedupKeys.ofSeed(tea) to it } }.toMap()
+        val pairs = bundle.teas.mapNotNull { tea -> tea.publicId?.let { DedupKeys.ofSeed(tea) to it } }
+        // A duplicate dedup_key would let .toMap() silently drop a frozen UUID; refuse rather than mis-reconcile.
+        val duplicates = pairs.groupingBy { it.first }.eachCount().filterValues { it > 1 }.keys
+        if (duplicates.isNotEmpty()) {
+            throw SeedPublicIdReconcileException("seed has duplicate dedup_keys, cannot map to distinct public_ids: $duplicates")
+        }
+        return pairs.toMap()
     }
 
     /**
@@ -47,6 +53,9 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
         if (map.isEmpty()) return Report(0, 0, 0)
 
         failOnCollision(connection, map)
+        // Capture old->new public_id for the rows that will change, BEFORE the in-place UPDATE, so merge
+        // pointers can be remapped after (a merged row's merged_into_public_id holds a survivor's OLD id).
+        val oldToNew = oldToNewPublicId(connection, map)
 
         // tea_legacy_id_map.public_id and tea.merged_into_public_id both reference tea.public_id; drop them
         // so the unique public_id can be reassigned atomically, then recreate (identical definitions). The
@@ -70,6 +79,15 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
             "UPDATE tea_legacy_id_map m SET public_id = t.public_id FROM tea t " +
                 "WHERE m.legacy_id = t.id AND m.public_id <> t.public_id",
         )
+        // Remap any merge pointer that referenced a survivor's OLD public_id to its new (frozen) value, so
+        // the recreated FK holds even on a DB that already has merged rows.
+        connection.prepareStatement("UPDATE tea SET merged_into_public_id = ? WHERE merged_into_public_id = ?").use { ps ->
+            for ((old, new) in oldToNew) {
+                ps.setObject(1, new)
+                ps.setObject(2, old)
+                ps.executeUpdate()
+            }
+        }
 
         exec(
             connection,
@@ -81,7 +99,46 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
             "ALTER TABLE tea ADD CONSTRAINT tea_merged_into_fk " +
                 "FOREIGN KEY (merged_into_public_id) REFERENCES tea (public_id)",
         )
+
+        // Completeness (decision #139-R1): NO curated (seed-origin) row may be left with a non-frozen UUID.
+        // A drifted/removed dedup_key would otherwise silently keep its V7 random id and orphan clients.
+        failOnIncompleteCuratedReconcile(connection, map.values.toSet())
+
         return Report(map.size, teas, legacy)
+    }
+
+    /** Old public_id -> new (frozen) for the rows the reconcile will rewrite (used to remap merge pointers). */
+    private fun oldToNewPublicId(connection: Connection, map: Map<String, UUID>): Map<UUID, UUID> {
+        val result = LinkedHashMap<UUID, UUID>()
+        connection.prepareStatement("SELECT dedup_key, public_id FROM tea").use { ps ->
+            ps.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val current = rs.getObject("public_id", UUID::class.java)
+                    val frozen = map[rs.getString("dedup_key")]
+                    if (frozen != null && frozen != current) result[current] = frozen
+                }
+            }
+        }
+        return result
+    }
+
+    /** Fail the migration if any curated (seed-origin) row still holds a non-frozen public_id after reconcile. */
+    private fun failOnIncompleteCuratedReconcile(connection: Connection, frozen: Set<UUID>) {
+        val stragglers = mutableListOf<String>()
+        connection.prepareStatement("SELECT dedup_key, public_id FROM tea WHERE source = 'curated'").use { ps ->
+            ps.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val publicId = rs.getObject("public_id", UUID::class.java)
+                    if (publicId !in frozen) stragglers += "${rs.getString("dedup_key")} ($publicId)"
+                }
+            }
+        }
+        if (stragglers.isNotEmpty()) {
+            throw SeedPublicIdReconcileException(
+                "after reconcile, ${stragglers.size} curated row(s) still hold a non-frozen public_id " +
+                    "(dedup_key drift, or a row missing from the seed): ${stragglers.take(10)}",
+            )
+        }
     }
 
     /**

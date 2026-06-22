@@ -4,6 +4,7 @@ import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.CatalogDetail
 import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import jakarta.persistence.EntityManager
@@ -14,7 +15,7 @@ import java.sql.Connection
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import kotlin.test.assertFailsWith
 
 /**
  * Decision #137-C1 / #139-R1: V11 reconciles existing catalog rows (which V7 gave random UUIDs) to their
@@ -71,12 +72,60 @@ class SeedPublicIdReconcileIT : AbstractIntegrationTest() {
             assertEquals(expected, tea.publicId, "row '$dedupKey' now carries its frozen public_id")
             // numeric id still resolves (via the rebuilt legacy map) and the frozen UUID resolves the row
             assertEquals(expected, legacyIdMap.findById(id).orElseThrow().publicId)
-            assertEquals(id, assertNotNull(catalogService.detailByLegacyId(id)).id)
+            val resolved = catalogService.detailByLegacyId(id) as CatalogDetail.Full
+            assertEquals(id, resolved.tea.id)
             assertEquals(id, teaRepository.findByPublicId(expected)?.id)
         }
 
         // Idempotent: a second pass touches nothing.
         assertEquals(0, runReconcile().teasReconciled, "re-running reconciliation is a no-op")
+    }
+
+    @Test
+    fun `a merge pointer is remapped to the survivor's frozen public_id, so the FK holds (decision 139-R1)`() {
+        val (dedupKey, frozen) = reconciler.mapping().entries.first()
+        val survivor = Tea(type = TeaType.OTHER, source = "curated", dedupKey = dedupKey, verificationStatus = "verified")
+            .apply { publicId = UUID.randomUUID() }
+        survivor.addName(TeaName(locale = "en", name = dedupKey, isPrimary = true))
+        val savedSurvivor = teaRepository.saveAndFlush(survivor)
+        legacyIdMap.recordOnce(requireNotNull(savedSurvivor.id), savedSurvivor.publicId)
+
+        // A merged row (non-seed) pointing at the survivor's CURRENT (random) public_id.
+        val merged = Tea(
+            type = TeaType.OTHER, source = "scrape", dedupKey = "non-seed-${UUID.randomUUID()}", verificationStatus = "unverified",
+        ).apply {
+            publicId = UUID.randomUUID()
+            status = "merged"
+            mergedIntoPublicId = savedSurvivor.publicId
+        }
+        merged.addName(TeaName(locale = "en", name = "Old Dup", isPrimary = true))
+        val savedMerged = teaRepository.saveAndFlush(merged)
+        legacyIdMap.recordOnce(requireNotNull(savedMerged.id), savedMerged.publicId)
+        entityManager.flush()
+
+        runReconcile() // must not throw: the merge pointer is remapped before the FK is recreated
+        entityManager.clear()
+
+        assertEquals(frozen, teaRepository.findById(savedSurvivor.id!!).orElseThrow().publicId)
+        assertEquals(
+            frozen,
+            teaRepository.findById(savedMerged.id!!).orElseThrow().mergedIntoPublicId,
+            "merge pointer follows the survivor to its frozen public_id",
+        )
+    }
+
+    @Test
+    fun `a curated row whose dedup_key is absent from the seed fails the reconcile (decision 139-R1)`() {
+        val orphan = Tea(
+            type = TeaType.OTHER, source = "curated", dedupKey = "not-a-seed-key-${UUID.randomUUID()}", verificationStatus = "verified",
+        ).apply { publicId = UUID.randomUUID() }
+        orphan.addName(TeaName(locale = "en", name = "Orphan", isPrimary = true))
+        val saved = teaRepository.saveAndFlush(orphan)
+        legacyIdMap.recordOnce(requireNotNull(saved.id), saved.publicId)
+        entityManager.flush()
+
+        // Fail closed rather than silently leave a curated row with its V7 random UUID.
+        assertFailsWith<SeedPublicIdReconcileException> { runReconcile() }
     }
 
     private fun runReconcile(): SeedPublicIdReconciler.Report =
