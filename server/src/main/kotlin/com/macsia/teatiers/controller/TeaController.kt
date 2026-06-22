@@ -2,13 +2,15 @@ package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.CatalogDetail
 import com.macsia.teatiers.dto.FacetsDto
 import com.macsia.teatiers.dto.OcrResponseDto
 import com.macsia.teatiers.dto.PageDto
 import com.macsia.teatiers.dto.ResolveRequestDto
 import com.macsia.teatiers.dto.ResolveResponseDto
-import com.macsia.teatiers.dto.TeaDetailDto
 import com.macsia.teatiers.dto.TeaSummaryDto
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import com.macsia.teatiers.service.FixedWindowRateLimiter
 import com.macsia.teatiers.service.OcrService
 import com.macsia.teatiers.service.ResolveService
@@ -71,17 +73,25 @@ class TeaController(
      * different tea; an id that was never issued 404s. New clients should use `/by-public-id/{uuid}`.
      */
     @GetMapping("/{id}")
-    fun detail(@PathVariable id: Long): TeaDetailDto =
-        service.detailByLegacyId(id) ?: throw TeaNotFoundException(id)
+    fun detail(@PathVariable id: Long): ResponseEntity<Any> =
+        respond(service.detailByLegacyId(id)) { throw TeaNotFoundException(id) }
 
     /**
-     * Detail by the stable public id (V7, decision #136) — the id new clients cache. A merged tea
-     * resolves to its survivor; a retracted tea returns its tombstone (status='retracted'), never a 404.
-     * Only a public_id that was never issued 404s.
+     * Detail by the stable public id (V7, decision #136 + #139-R2). 'active' / resolvable-merge returns full
+     * detail (200); a retracted tea or a broken merge chain returns a content-free lifecycle tombstone
+     * (410 Gone); only a public_id that was never issued 404s.
      */
     @GetMapping("/by-public-id/{publicId}")
-    fun detailByPublicId(@PathVariable publicId: UUID): TeaDetailDto =
-        service.detailByPublicId(publicId) ?: throw TeaPublicNotFoundException(publicId)
+    fun detailByPublicId(@PathVariable publicId: UUID): ResponseEntity<Any> =
+        respond(service.detailByPublicId(publicId)) { throw TeaPublicNotFoundException(publicId) }
+
+    /** Full content -> 200; a lifecycle tombstone (retracted / broken merge) -> 410 Gone; null -> 404. */
+    private inline fun respond(result: CatalogDetail?, onMissing: () -> Nothing): ResponseEntity<Any> =
+        when (result) {
+            is CatalogDetail.Full -> ResponseEntity.ok(result.tea)
+            is CatalogDetail.Tombstone -> ResponseEntity.status(HttpStatus.GONE).body(result.lifecycle)
+            null -> onMissing()
+        }
 
     /**
      * Resolves a typed tea name to a catalog row: Wikidata on a cache miss, then a background LLM

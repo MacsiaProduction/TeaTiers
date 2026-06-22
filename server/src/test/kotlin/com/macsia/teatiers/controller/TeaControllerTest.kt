@@ -2,6 +2,7 @@ package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.CatalogDetail
 import com.macsia.teatiers.dto.FacetsDto
 import com.macsia.teatiers.dto.OcrResponseDto
 import com.macsia.teatiers.dto.PageDto
@@ -9,6 +10,7 @@ import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.ResolveStatus
 import com.macsia.teatiers.dto.TeaDetailDto
 import com.macsia.teatiers.dto.TeaImageDto
+import com.macsia.teatiers.dto.TeaLifecycleDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
@@ -139,30 +141,32 @@ class TeaControllerTest {
 
     @Test
     fun `detail returns the tea`() {
-        // The numeric route resolves through the legacy map (decision #137-C1).
-        every { service.detailByLegacyId(7) } returns TeaDetailDto(
-            id = 7,
-            publicId = UUID.randomUUID(),
-            status = "active",
-            supersededByPublicId = null,
-            wikidataQid = "Q474971",
-            type = TeaType.GREEN,
-            originCountry = "CN",
-            region = null,
-            cultivar = null,
-            oxidationMin = null,
-            oxidationMax = null,
-            brand = null,
-            image = TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
-            images = listOf(
-                TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
-                TeaImageDto("https://img.example/longjing-2.jpg", "CC BY 4.0", "https://commons.example/longjing2"),
+        // The numeric route resolves through the legacy map (decision #137-C1) and returns a sealed result.
+        every { service.detailByLegacyId(7) } returns CatalogDetail.Full(
+            TeaDetailDto(
+                id = 7,
+                publicId = UUID.randomUUID(),
+                status = "active",
+                supersededByPublicId = null,
+                wikidataQid = "Q474971",
+                type = TeaType.GREEN,
+                originCountry = "CN",
+                region = null,
+                cultivar = null,
+                oxidationMin = null,
+                oxidationMax = null,
+                brand = null,
+                image = TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
+                images = listOf(
+                    TeaImageDto("https://img.example/longjing.jpg", "CC BY-SA 4.0", "https://commons.example/longjing"),
+                    TeaImageDto("https://img.example/longjing-2.jpg", "CC BY 4.0", "https://commons.example/longjing2"),
+                ),
+                names = listOf(TeaNameDto("en", "Longjing", isPrimary = true)),
+                descriptions = emptyList(),
+                flavors = emptyList(),
+                provenance = TeaProvenanceDto("curated", null, null, "verified", null),
+                enrichmentState = null,
             ),
-            names = listOf(TeaNameDto("en", "Longjing", isPrimary = true)),
-            descriptions = emptyList(),
-            flavors = emptyList(),
-            provenance = TeaProvenanceDto("curated", null, null, "verified", null),
-            enrichmentState = null,
         )
 
         mockMvc.perform(get("/api/v1/teas/7"))
@@ -183,6 +187,22 @@ class TeaControllerTest {
             .andExpect(status().isNotFound())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("Tea not found"))
+    }
+
+    @Test
+    fun `a retracted tea returns 410 gone with a content-free lifecycle body`() {
+        val pid = UUID.randomUUID()
+        every { service.detailByPublicId(pid) } returns CatalogDetail.Tombstone(
+            TeaLifecycleDto(publicId = pid, status = "retracted", supersededByPublicId = null, message = "withdrawn"),
+        )
+
+        mockMvc.perform(get("/api/v1/teas/by-public-id/$pid"))
+            .andExpect(status().isGone)
+            .andExpect(jsonPath("$.status").value("retracted"))
+            .andExpect(jsonPath("$.publicId").value(pid.toString()))
+            // No catalog content leaks through a tombstone (decision #139-R2).
+            .andExpect(jsonPath("$.names").doesNotExist())
+            .andExpect(jsonPath("$.provenance").doesNotExist())
     }
 
     @Test

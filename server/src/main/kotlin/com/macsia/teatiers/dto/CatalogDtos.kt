@@ -87,6 +87,30 @@ data class TeaDetailDto(
 )
 
 /**
+ * Lifecycle-only response for a withdrawn (`retracted`) tea, or a `merged` tea whose survivor chain is
+ * broken/cyclic (decision #137-C3 / #139-R2). It deliberately carries NO catalog content -- no names,
+ * descriptions, images, flavor, origin, brand, or provenance -- so a retraction genuinely WITHDRAWS
+ * content that may be incorrect, unsafe, or not licensed for publication. Returned with HTTP 410 Gone.
+ */
+data class TeaLifecycleDto(
+    val publicId: UUID,
+    val status: String, // 'retracted' | 'merged'
+    val supersededByPublicId: UUID?, // the survivor to re-cache, when known
+    val message: String? = null, // generic, content-free
+)
+
+/**
+ * Result of a client-facing catalog detail lookup (`/by-public-id/{uuid}` and the numeric compat route):
+ * full content for an active tea or a resolvable merge redirect, otherwise a content-free [TeaLifecycleDto]
+ * tombstone. `null` (handled by the caller) means the id was never issued -> 404.
+ */
+sealed interface CatalogDetail {
+    data class Full(val tea: TeaDetailDto) : CatalogDetail
+
+    data class Tombstone(val lifecycle: TeaLifecycleDto) : CatalogDetail
+}
+
+/**
  * Cursor-paged result. `nextCursor` is the last item's id when a full page was returned (pass it
  * back as `cursor` for the next page); `null` means no more results.
  */
