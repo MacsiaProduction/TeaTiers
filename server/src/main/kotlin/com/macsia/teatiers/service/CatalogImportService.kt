@@ -19,6 +19,7 @@ import com.macsia.teatiers.repository.SourceSiteRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -43,9 +44,9 @@ class CatalogImportService(
         .configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
 
     /**
-     * Open a run for a site, enforcing BOTH preflight gates (decision #137-C4): the ToS owner sign-off /
-     * active gate AND a fresh per-run robots snapshot. Fails closed -- a run cannot start unless [robots]
-     * carries an explicit 'allow' decision, so no run can ever ingest without proven robots evidence.
+     * Open a run for a site, enforcing the preflight gates (decision #137-C4 + #139-R3): the ToS owner
+     * sign-off / active gate, a COMPLETE + FRESH 'allow' robots snapshot, and at most one active run per
+     * source. Fails closed -- no run can ever start (hence ingest) without proven, current robots evidence.
      */
     @Transactional
     fun startRun(
@@ -58,10 +59,15 @@ class CatalogImportService(
     ): ImportRun {
         val site = requireSite(sourceSiteCode)
         if (!site.importAllowed()) throw ImportGateException(site.code)
-        if (robots.decision != ROBOTS_ALLOW) throw RobotsGateException(site.code, robots.decision)
+        validateRobots(site.code, robots)
+        val siteId = requireNotNull(site.id)
+        // One active run per source (decision #139-R3): a friendly pre-check before the DB partial-unique.
+        if (importRunRepository.existsBySourceSiteIdAndStatus(siteId, STATUS_RUNNING)) {
+            throw RunStateException("source '${site.code}' already has an active run; finish it before starting another")
+        }
         return importRunRepository.save(
             ImportRun(
-                sourceSiteId = requireNotNull(site.id),
+                sourceSiteId = siteId,
                 operator = operator,
                 toolVersion = toolVersion,
                 parserVersion = parserVersion,
@@ -71,8 +77,22 @@ class CatalogImportService(
                 robotsHttpStatus = robots.httpStatus,
                 robotsHash = robots.hash,
                 robotsDecision = robots.decision,
+                robotsUrl = robots.robotsUrl,
+                robotsUserAgent = robots.userAgent,
             ),
         )
+    }
+
+    /** A run is ingestible only with a fresh, complete 'allow' snapshot (decision #139-R3); else fail closed. */
+    private fun validateRobots(siteCode: String, robots: RobotsEvidence) {
+        if (robots.decision != ROBOTS_ALLOW) throw RobotsGateException(siteCode, robots.decision)
+        val complete = robots.robotsUrl.isNotBlank() && robots.userAgent.isNotBlank() &&
+            (robots.httpStatus ?: 0) in 200..299 && !robots.hash.isNullOrBlank()
+        if (!complete) throw RobotsGateException(siteCode, "incomplete (need robotsUrl, userAgent, 2xx status, body hash)")
+        val age = Duration.between(robots.fetchedAt, Instant.now())
+        if (age > ROBOTS_MAX_AGE || age < ROBOTS_FUTURE_SKEW.negated()) {
+            throw RobotsGateException(siteCode, "stale robots snapshot (fetchedAt ${robots.fetchedAt})")
+        }
     }
 
     /**
@@ -214,12 +234,18 @@ class CatalogImportService(
         sourceRecordRepository.save(record)
     }
 
-    /** Mark a run finished. Rejects an unknown terminal status and a missing run (decision #137-C4). */
+    /**
+     * Mark a run finished. Rejects an unknown terminal status, a missing run, and a re-finish of an
+     * already-terminal run (decision #139-R3: terminal states are immutable). Locks the run on transition.
+     */
     @Transactional
     fun finishRun(importRunId: Long, status: String) {
         if (status !in TERMINAL_STATUSES) throw RunStateException("unknown finish status '$status'")
-        val run = importRunRepository.findById(importRunId).orElse(null)
+        val run = importRunRepository.findByIdForUpdate(importRunId)
             ?: throw RunStateException("import run $importRunId does not exist")
+        if (run.status != STATUS_RUNNING) {
+            throw RunStateException("import run $importRunId is '${run.status}', already terminal; cannot re-finish")
+        }
         run.status = status
         run.finishedAt = Instant.now()
         importRunRepository.save(run)
@@ -269,6 +295,10 @@ class CatalogImportService(
 
         /** A run may finish only into one of these terminal states (decision #137-C4). */
         val TERMINAL_STATUSES = setOf("succeeded", STATUS_FAILED, STATUS_BLOCKED)
+
+        /** A per-run robots snapshot must be fetched within this window of the run start (decision #139-R3). */
+        private val ROBOTS_MAX_AGE = Duration.ofHours(1)
+        private val ROBOTS_FUTURE_SKEW = Duration.ofMinutes(5)
     }
 }
 

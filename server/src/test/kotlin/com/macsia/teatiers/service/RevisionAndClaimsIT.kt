@@ -53,15 +53,19 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
 
     @Autowired lateinit var teaRepository: TeaRepository
 
-    private val fetchedAt = Instant.parse("2026-06-21T09:00:00Z")
+    // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
+    private val fetchedAt = Instant.now().minusSeconds(60)
     private var runId: Long = 0
+
+    private fun allowRobots() =
+        RobotsEvidence("allow", "https://s.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash")
 
     private fun startRun() {
         siteService.register("s", "S", "https://s.example")
         siteService.signOffTerms("s", "owner@teatiers")
         siteService.setActive("s", true)
         runId = requireNotNull(
-            importService.startRun("s", "op", "t", "p-1", RobotsEvidence("allow", fetchedAt), dryRun = false).id,
+            importService.startRun("s", "op", "t", "p-1", allowRobots(), dryRun = false).id,
         )
     }
 
@@ -190,6 +194,30 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         assertEquals("Fujian", tea.region, "the null field was filled by the merge")
         val claim = provenanceRepository.findByTeaId(teaId).firstOrNull { it.fieldName == "region" && it.selected }
         assertEquals("Fujian", assertNotNull(claim).claimedValue, "the filled field has a selected value-bearing claim")
+    }
+
+    @Test
+    fun `merge records a corroboration claim when an independent source agrees (decision 139-R4)`() {
+        startRun()
+        val teaId = seedTea("sen cha")
+        teaRepository.findById(teaId).orElseThrow().also { it.originCountry = "CN"; teaRepository.saveAndFlush(it) }
+        aliasService.addAuthoritative(teaId, "ru", "Сэн Ча", romanizationSystem = "palladius")
+
+        // obs() carries originCountry = "CN", which AGREES with the existing value.
+        val record = importService.ingest(
+            runId,
+            obs("https://s.example/c1", externalId = "C1", names = listOf(ScrapedName("ru", "Сэн Ча", true))),
+        )
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        reviewService.approveMerge(requireNotNull(decision.id), "op")
+
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertEquals("CN", tea.originCountry, "the existing value is unchanged")
+        val originClaims = provenanceRepository.findByTeaId(teaId).filter { it.fieldName == "origin_country" }
+        assertTrue(
+            originClaims.any { !it.selected && it.claimedValue == "CN" },
+            "an independent agreeing source is kept as a corroboration claim, not dropped",
+        )
     }
 
     @Test
