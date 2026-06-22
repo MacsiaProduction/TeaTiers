@@ -269,4 +269,28 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         reviewService.approveMerge(requireNotNull(decision.id), "op") // decide is fine; the guard is at apply
         assertFailsWith<InactiveMergeTargetException> { sealAndApply() }
     }
+
+    @Test
+    fun `a decision applied in a later run is gated on the applying run, not the revision's terminal run (decision 141, PR-4)`() {
+        // Run A: stage + propose a record but FAIL the run without applying. The decision stays pending and
+        // revision R1 belongs to run A, which is now terminal ('failed'); the record is unlinked.
+        startRun()
+        val record = importService.ingest(runId, obs("https://s.example/a", externalId = "A"))
+        matchService.proposeFor(requireNotNull(record.id), runId)
+        importService.failRun(runId)
+
+        // Run B: re-propose the still-pending decision into run B, approve, seal, apply. The reviewed revision
+        // R1 was produced by the now-terminal run A. The OLD gate resolved the run via the revision (-> run A,
+        // 'failed') and wrongly rejected; the fix authorizes the apply via the APPLYING run (B).
+        val runB = requireNotNull(importService.startRun("s", "op", "t", "p-1", allowRobots(), dryRun = false).id)
+        val d = matchService.proposeFor(requireNotNull(record.id), runB)
+        assertEquals("pending", d.decision, "the still-pending decision re-enters review under run B")
+        reviewService.approveNew(requireNotNull(d.id), "op")
+        importService.closeIngestion(runB) // run B itself ingested nothing
+        reviewService.markReviewed(runB)
+
+        val applied = reviewService.applyRun(runB) // must NOT throw despite R1 belonging to terminal run A
+        assertEquals(1, applied.appliedCount, "the decision applies under run B's authorization")
+        assertEquals("linked", sourceRecordRepository.findById(requireNotNull(record.id)).orElseThrow().status)
+    }
 }

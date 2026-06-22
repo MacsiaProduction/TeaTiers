@@ -48,8 +48,14 @@ class CanonicalUpsertService(
 
     /** Create a brand-new canonical tea from an approved revision. Returns the new tea id. */
     @Transactional
-    fun applyApprovedNew(sourceRecord: SourceRecord, revision: SourceRecordRevision, decisionId: Long?, reviewer: String): Long {
-        requireApplyAllowed(revision)
+    fun applyApprovedNew(
+        sourceRecord: SourceRecord,
+        revision: SourceRecordRevision,
+        decisionId: Long?,
+        reviewer: String,
+        applyingRunId: Long,
+    ): Long {
+        requireApplyAllowed(applyingRunId, revision)
         // A source record links to exactly one canonical tea; approving twice must never mint a duplicate.
         require(sourceRecord.teaId == null) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -118,8 +124,9 @@ class CanonicalUpsertService(
         decisionId: Long?,
         reviewer: String,
         targetTeaId: Long,
+        applyingRunId: Long,
     ): Long {
-        requireApplyAllowed(revision)
+        requireApplyAllowed(applyingRunId, revision)
         // Re-affirming the same link is fine; silently re-pointing a linked record elsewhere is not.
         require(sourceRecord.teaId == null || sourceRecord.teaId == targetTeaId) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -296,13 +303,15 @@ class CanonicalUpsertService(
 
     /**
      * The public catalog may be written ONLY from a real, non-dry run that is apply-authorized (decision
-     * #137-C4 / refresh ING-P0-1): the run must be in 'reviewed' or 'applying' -- a state reached only after
-     * ingestion was sealed and every decision resolved. A dry run may stage/match/review for rehearsal but
-     * its records can never be applied; a 'running'/'ingesting'/'succeeded' run is NOT apply-authorized.
+     * #137-C4 / refresh ING-P0-1): the APPLYING run (the one materializing this decision) must be in
+     * 'reviewed' or 'applying' -- a state reached only after ingestion was sealed and every decision resolved.
+     * Gating on the applying run (not [SourceRecordRevision.importRunId]) is deliberate: a revision can legitimately
+     * be reviewed+applied in a LATER run than the one that produced it (e.g. a revert to an older revision
+     * whose original run is already terminal). The evidence-chain check still binds to the revision's own run.
      */
-    private fun requireApplyAllowed(revision: SourceRecordRevision) {
-        val run = importRunRepository.findById(revision.importRunId).orElseThrow {
-            CanonicalApplyForbiddenException("revision ${revision.id} references missing run ${revision.importRunId}")
+    private fun requireApplyAllowed(applyingRunId: Long, revision: SourceRecordRevision) {
+        val run = importRunRepository.findById(applyingRunId).orElseThrow {
+            CanonicalApplyForbiddenException("apply run $applyingRunId not found")
         }
         if (run.dryRun) {
             throw CanonicalApplyForbiddenException("run ${run.id} is a dry run; its records cannot be applied to the catalog")

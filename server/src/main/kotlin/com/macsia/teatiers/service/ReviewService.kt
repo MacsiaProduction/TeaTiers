@@ -125,12 +125,13 @@ class ReviewService(
                 "approved_new" -> {
                     // A create-new whose record is already linked would mint a duplicate -> skip (idempotent).
                     if (record.teaId != null) { skipped++; continue }
-                    canonicalUpsertService.applyApprovedNew(record, reviewedRevision(decision, record), decision.id, who)
+                    canonicalUpsertService.applyApprovedNew(record, reviewedRevision(decision, record), decision.id, who, runId)
                 }
                 // A merge may target an already-linked record (a correction in a later run) -- never skipped.
                 "approved_merge" -> canonicalUpsertService.applyApprovedMerge(
                     record, reviewedRevision(decision, record), decision.id, who,
                     decision.candidateTeaId ?: throw IllegalStateException("approved_merge ${decision.id} has no target"),
+                    runId,
                 )
                 else -> continue
             }
@@ -163,9 +164,14 @@ class ReviewService(
         )
     }
 
+    /**
+     * Load a decision under a write lock and assert it is still pending (decision #137 / FND-P1-3). The lock
+     * makes consumption single-consumer: two operators racing approve/reject on one decision serialize, and
+     * the loser sees the now-terminal state and is rejected -- so a pending decision is consumed exactly once.
+     */
     private fun pendingDecision(decisionId: Long): MatchDecision {
-        val decision = matchDecisionRepository.findById(decisionId)
-            .orElseThrow { IllegalArgumentException("no match decision $decisionId") }
+        val decision = matchDecisionRepository.findByIdForUpdate(decisionId)
+            ?: throw IllegalArgumentException("no match decision $decisionId")
         require(decision.decision == "pending") { "decision $decisionId already ${decision.decision}" }
         return decision
     }
