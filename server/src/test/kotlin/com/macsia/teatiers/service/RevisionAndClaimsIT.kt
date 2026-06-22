@@ -193,6 +193,30 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `merge records a corroboration claim when an independent source agrees (decision 139-R4)`() {
+        startRun()
+        val teaId = seedTea("sen cha")
+        teaRepository.findById(teaId).orElseThrow().also { it.originCountry = "CN"; teaRepository.saveAndFlush(it) }
+        aliasService.addAuthoritative(teaId, "ru", "Сэн Ча", romanizationSystem = "palladius")
+
+        // obs() carries originCountry = "CN", which AGREES with the existing value.
+        val record = importService.ingest(
+            runId,
+            obs("https://s.example/c1", externalId = "C1", names = listOf(ScrapedName("ru", "Сэн Ча", true))),
+        )
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        reviewService.approveMerge(requireNotNull(decision.id), "op")
+
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertEquals("CN", tea.originCountry, "the existing value is unchanged")
+        val originClaims = provenanceRepository.findByTeaId(teaId).filter { it.fieldName == "origin_country" }
+        assertTrue(
+            originClaims.any { !it.selected && it.claimedValue == "CN" },
+            "an independent agreeing source is kept as a corroboration claim, not dropped",
+        )
+    }
+
+    @Test
     fun `approving a merge into a retracted target is rejected (tombstone guard, decision 137-C3)`() {
         startRun()
         val teaId = seedTea("sen cha")

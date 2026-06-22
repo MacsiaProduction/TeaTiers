@@ -298,4 +298,18 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         assertEquals(10.toShort(), tea.oxidationMin)
         assertEquals(null, tea.oxidationMax, "conflicting cross-source oxidation bounds are left unmerged")
     }
+
+    @Test
+    fun `create_new records brand only as a non-selected proposal, never on the canonical tea (decision 139-R4)`() {
+        eligibleSite()
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Vendor Rou Gui", true)), brand = "Some Vendor")
+        assertEquals("create_new", decision.proposedKind)
+        val teaId = assertNotNull(reviewService.approveNew(requireNotNull(decision.id), "operator").teaId)
+
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertNull(tea.brand, "brand is never auto-written to the canonical tea from identity approval")
+        val brandClaims = provenanceRepository.findByTeaId(teaId).filter { it.fieldName == "brand" }
+        assertTrue(brandClaims.isNotEmpty() && brandClaims.none { it.selected }, "brand is a non-selected proposal claim")
+        assertEquals("Some Vendor", brandClaims.first().claimedValue)
+    }
 }
