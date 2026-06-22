@@ -109,7 +109,7 @@ class CatalogImportService(
         val site = requireSite(obs.sourceSiteCode)
         if (!site.importAllowed()) throw ImportGateException(site.code)
         // The run is a transaction invariant, not an audit field (decision #137-C4): load+lock it and prove
-        // it is THIS site's run, still running, robots-allowed, and on the same parser before staging.
+        // it is THIS site's run, still accepting observations, robots-allowed, and on the same parser.
         val run = importRunRepository.findByIdForUpdate(importRunId)
             ?: throw RunStateException("import run $importRunId does not exist")
         val state = ImportRunState.of(run.status)

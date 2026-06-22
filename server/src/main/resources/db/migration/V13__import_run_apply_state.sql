@@ -12,8 +12,8 @@
 -- The active-run partial-unique (V12) referenced status = 'running'; drop it before the values change.
 DROP INDEX IF EXISTS import_run_one_active_uk;
 
--- Drop the old CHECK so the migration can rewrite legacy status values.
-ALTER TABLE import_run DROP CONSTRAINT import_run_status_check;
+-- Drop the old CHECK so the migration can rewrite legacy status values (IF EXISTS for upgrade robustness).
+ALTER TABLE import_run DROP CONSTRAINT IF EXISTS import_run_status_check;
 
 -- Map any legacy rows: a 'running' run can't be resumed safely under the new machine, and a generic
 -- 'succeeded' marker never proved review/apply completeness -- fail both so neither can masquerade as

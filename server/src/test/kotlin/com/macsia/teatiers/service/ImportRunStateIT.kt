@@ -52,10 +52,13 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         RobotsEvidence("allow", "https://a.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash")
 
     private fun obs(code: String, parser: String = "p-1", url: String = "https://$code.example/x") =
+        obsWithId(code, "EX-1", url, parser)
+
+    private fun obsWithId(code: String, externalId: String, url: String, parser: String = "p-1") =
         SourceObservation(
             sourceSiteCode = code,
             canonicalUrl = url,
-            externalId = "EX-1",
+            externalId = externalId,
             retrievedAt = fetchedAt,
             parserVersion = parser,
             facts = ScrapedFacts(names = listOf(ScrapedName("en", "Some Tea", true)), type = "OOLONG"),
@@ -164,6 +167,20 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
         val record = importService.ingest(requireNotNull(run.id), obs("a"))
         matchService.proposeFor(requireNotNull(record.id), run.id) // a pending decision the operator never resolved
+        importService.closeIngestion(run.id!!)
+        assertFailsWith<RunStateException> { reviewService.markReviewed(run.id!!) }
+    }
+
+    @Test
+    fun `markReviewed refuses a run with an ingested-but-never-proposed record (decision 137-C4 completeness)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        // Two DISTINCT records ingested; only one is proposed + decided. The other has NO decision at all --
+        // it must still block review, otherwise a half-proposed run would publish as though fully reviewed.
+        val r1 = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-1", "https://a.example/1"))
+        importService.ingest(run.id!!, obsWithId("a", "EX-2", "https://a.example/2"))
+        val d1 = matchService.proposeFor(requireNotNull(r1.id), run.id)
+        reviewService.approveNew(requireNotNull(d1.id), "op")
         importService.closeIngestion(run.id!!)
         assertFailsWith<RunStateException> { reviewService.markReviewed(run.id!!) }
     }

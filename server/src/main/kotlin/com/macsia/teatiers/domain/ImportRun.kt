@@ -10,7 +10,8 @@ import java.time.Instant
 
 /**
  * One local one-off import run (V8, decision #136). Carries the per-run robots snapshot (re-fetched every
- * run, never one-time) and the running counts. Runs are operator-initiated, never a daemon on prod.
+ * run, never one-time); its [status] lifecycle is governed by ImportRunStateMachine (decision #137-C4).
+ * Runs are operator-initiated, never a daemon on prod.
  */
 @Entity
 @Table(name = "import_run")

@@ -87,15 +87,18 @@ class ReviewService(
     }
 
     /**
-     * Seal review (decision #137-C4): a run can be applied ONLY once every one of its decisions is resolved
-     * (no 'pending'). Moves the run awaiting_review -> reviewed. This is the completeness gate -- you cannot
-     * publish a half-reviewed run.
+     * Seal review (decision #137-C4): a run can be applied ONLY once EVERY record it staged has a terminal
+     * review decision for its current revision -- not just "no pending decision", but "no record left
+     * undecided", so a record that was ingested but never proposed also blocks. Moves the run
+     * awaiting_review -> reviewed. This is the completeness gate -- you cannot publish a half-reviewed run.
      */
     @Transactional
     fun markReviewed(runId: Long): ImportRun {
-        val pending = matchDecisionRepository.countByImportRunIdAndDecision(runId, "pending")
-        if (pending > 0) {
-            throw RunStateException("import run $runId has $pending pending decision(s); resolve them before applying")
+        val unreviewed = sourceRecordRepository.countUnreviewedRecords(runId)
+        if (unreviewed > 0) {
+            throw RunStateException(
+                "import run $runId has $unreviewed record(s) without a terminal review decision; review them before applying",
+            )
         }
         return importRunStateMachine.transition(runId, ImportRunState.REVIEWED)
     }
