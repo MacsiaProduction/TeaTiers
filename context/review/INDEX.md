@@ -9,6 +9,7 @@ this index reflects what is still open against `main`.
   - `2026-06-21-post-scrape-foundation-architecture-review.md` (FND-/AND-/REL-/PRIV-/SRV-/OCR-/OPS-)
   - `2026-06-21-scraper-implementation-readiness-review.md` (SCR-)
   - `2026-06-22-full-architecture-design-review.md` (full re-assessment after #119/#120 merged; P0-1..P0-5, P1-1..P1-14)
+  - `2026-06-22-research-glm-minimax-review.md` (independent re-analysis of the new GLM/MiniMax answers; no decision changes)
 - Status legend: `OPEN` · `WIP` · `PARTIAL` (core landed, contract not fully met) · `REOPEN` (was marked DONE,
   re-opened by a later review) · `DONE` (landed + tested) · `DEFERRED` (gated, not now).
 
@@ -22,7 +23,7 @@ and reopens the rows below. Update Status/Evidence as PRs land.
 |---|---|---|:--:|---|
 | FND-P0-1 / SCR-P0-8 | Stable public id reproducible; numeric→legacy-map; visibility | C1, C3 | DONE (blank rebuild) | #119 — frozen seed UUIDs + `detailByLegacyId` + visibility predicate + `recordOnce` guard. **Verified against blank DB only.** |
 | **P0-1 (2026-06-22)** | **Production-row UUID reconciliation** — prod is still pre-V7; deploying V7 assigns *random* UUIDs to the existing 100 rows and the seeder skips them, so a later rebuild yields the *frozen* UUIDs → orphaned clients | C1 | **REOPEN P0** | needs a V11 reconciliation migration + committed `dedup_key→public_id→legacy_id` mapping artifact + upgrade-from-V6 tests + offline rehearsal on a prod-like backup |
-| **P0-3 (2026-06-22)** | **Compact tombstone** — `detailByPublicId` returns full `toDetail()` (names/desc/images/provenance) for a `retracted` tea and a broken merge chain, defeating withdrawal of unsafe/unlicensed content | C3 | **REOPEN P0** | lifecycle-only DTO (`publicId/status/supersededByPublicId`) for retracted + broken-chain; numeric path same behavior; tests assert no content leaks |
+| **P0-3 (2026-06-22)** | **Compact tombstone** — `detailByPublicId` returns full `toDetail()` (names/desc/images/provenance) for a `retracted` tea and a broken merge chain, defeating withdrawal of unsafe/unlicensed content | C3 | **WIP (PR #122)** | content-free `TeaLifecycleDto` + sealed `CatalogDetail{Full,Tombstone}`; retracted/broken-chain → 410 Gone; numeric path shares it; tests assert no content leaks |
 | AND-P0-1 | v7 Android ref identity must be UUID, not `Long` | C2 | DONE (design) | `context/design/tea-sample-split-v7.md` amendment 2026-06-21; code at v7 impl time |
 | FND-P0-2 / SCR-P0-2,3 | Robots/run-ownership/dry-run gates | C4 | DONE (core) / **REOPEN P0 (full)** | #119 closed the *exploitable* surface (robots `allow` gate, locked `ingest` site/parser/state, dry/blocked/failed cannot apply). **2026-06-22 reopens the fuller contract:** source re-registration must invalidate approval; `allowed_hosts` administered + URL/redirect/SSRF enforced; robots freshness/2xx/hash/UA/parser evidence; enum state machine `created→…→applied`; terminal-state immutability (`finishRun` can rewrite terminal→terminal); ≤1 active run/source; real counters |
 | FND-P0-3 / SCR-P0-4 | Observation revisions stop flowing after first approval | C5 | DONE | branch `harden/scrape-foundation-137-c5c6` — immutable `source_record_revision` (V10), revision-bound decisions, correction flow, stale-approval rejection |
@@ -63,6 +64,17 @@ and reopens the rows below. Update Status/Evidence as PRs land.
 | OPS-P1-2 | Backups: broad creds, no enforced restore evidence | OPEN |
 | OPS-P1-3 | Single-host: SSH `0.0.0.0/0`, no external alerts, no log rotation | OPEN (owner) |
 | OPS-P2-1 | Dependency scan doesn't cover OS/container layers (add Trivy) | OPEN |
+
+## Research ideas (2026-06-22 GLM/MiniMax review) — only 3 worth carrying
+
+The new GLM/MiniMax answers changed no decision (see `2026-06-22-research-glm-minimax-review.md`). Three
+genuinely-new ideas survived the strict filter:
+
+| ID | Idea | Touches | Disposition |
+|---|---|:--:|---|
+| RES-1 | Curated ~300-term tea glossary (Хун, Гунфу, Да Хун Пао…) to guard the dict-gated OCR corrector from mangling domain terms | #123 OCR correction | **ADOPT** — pre-commit before OCR-correction Phase 1 ships (low cost) |
+| RES-2 | MiniMax `scrape_upsert_canonical()` plpgsql as a reference sketch for source-record-keyed upsert | #136/#137 | **SPIKE only** — reconcile with the locked dedup arch (pypinyin + pg_trgm @0.3) before any use |
+| RES-3 | Hilt provider scaffolding for map providers (`@Provides` + named list, configurable style URL) | #9 map abstraction | **ADOPT as reference** when map work resumes post-MVP (M6); not in scope now |
 
 ## Scraper module (SCR-P0-1) — deferred until the "ready for scraper" gate is met
 

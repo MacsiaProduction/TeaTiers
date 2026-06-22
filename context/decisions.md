@@ -2862,3 +2862,18 @@ deviated.
      (R3/R2/R5/R4 + candidate-set matcher) → Phase 2 Android v7/API cutover → Phase 3 release/ops hardening →
      Phase 4 one-source fixture-backed pilot. The scraper stays gated by the review's "Definition of ready for
      scraper." `OPS-P1-1` is urgent: live prod is behind current migrations/contracts.
+
+140. **New GLM + MiniMax research answers reviewed (2026-06-22) → no decision changes, no new run; three
+     small ideas adopted.** An independent parallel re-analysis of the newly-added GLM/MiniMax answers
+     (`context/review/2026-06-22-research-glm-minimax-review.md`; the runs now live in the sibling
+     `researches` repo) confirms the 2026-06-22 architecture review: only 6 of 21 runs even have the new
+     answers (01,02,18,19,20,21), **none overturns a locked decision**, and where they diverge they are
+     wrong (MiniMax: Wikidata=CC-BY-SA — it's CC0, contradicts #10; Yandex/map-as-MVP, contradicts #9/#20;
+     GLM: normalize+match in Spring, contradicts #123). Both models repeatedly fabricate version pins,
+     benchmarks, licenses, and citations → treat any quantitative claim or pin from them as unverified;
+     they function as consensus amplifiers, not new evidence. **Three genuinely-new ideas survive (tracked
+     as RES-1..3 in `INDEX.md`):** (RES-1, ADOPT) pre-commit a curated ~300-term tea glossary to guard the
+     dict-gated OCR corrector (#123) before OCR-correction Phase 1; (RES-2, SPIKE) MiniMax's
+     `scrape_upsert_canonical()` plpgsql as a reference sketch only, reconciled with the locked dedup arch
+     (pypinyin + pg_trgm @0.3) before any use; (RES-3, ADOPT-as-reference) Hilt map-provider scaffolding
+     when map work resumes post-MVP. Run 14 stays the only reserved run.
