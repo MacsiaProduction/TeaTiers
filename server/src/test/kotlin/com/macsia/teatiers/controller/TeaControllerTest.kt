@@ -14,7 +14,7 @@ import com.macsia.teatiers.dto.TeaLifecycleDto
 import com.macsia.teatiers.dto.TeaNameDto
 import com.macsia.teatiers.dto.TeaProvenanceDto
 import com.macsia.teatiers.dto.TeaSummaryDto
-import com.macsia.teatiers.service.FixedWindowRateLimiter
+import com.macsia.teatiers.service.ClientRateLimiter
 import com.macsia.teatiers.service.OcrService
 import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
@@ -59,15 +59,18 @@ class TeaControllerTest {
 
     @Autowired
     @Qualifier("resolveRateLimiter")
-    lateinit var resolveRateLimiter: FixedWindowRateLimiter
+    lateinit var resolveRateLimiter: ClientRateLimiter
 
     @Autowired
     @Qualifier("ocrRateLimiter")
-    lateinit var ocrRateLimiter: FixedWindowRateLimiter
+    lateinit var ocrRateLimiter: ClientRateLimiter
 
     @Autowired
     @Qualifier("searchRateLimiter")
-    lateinit var searchRateLimiter: FixedWindowRateLimiter
+    lateinit var searchRateLimiter: ClientRateLimiter
+
+    @Autowired
+    lateinit var edgeRateBucket: io.github.bucket4j.Bucket
 
     @Autowired
     lateinit var ocrService: OcrService
@@ -87,13 +90,17 @@ class TeaControllerTest {
         fun resolveService(): ResolveService = mockk()
 
         @Bean
-        fun resolveRateLimiter(): FixedWindowRateLimiter = mockk()
+        fun resolveRateLimiter(): ClientRateLimiter = mockk()
 
         @Bean
-        fun ocrRateLimiter(): FixedWindowRateLimiter = mockk()
+        fun ocrRateLimiter(): ClientRateLimiter = mockk()
 
         @Bean
-        fun searchRateLimiter(): FixedWindowRateLimiter = mockk()
+        fun searchRateLimiter(): ClientRateLimiter = mockk()
+
+        // The global edge ceiling for /search + /resolve; mocked so tests can force overload (503).
+        @Bean
+        fun edgeRateBucket(): io.github.bucket4j.Bucket = mockk()
 
         @Bean
         fun ocrService(): OcrService = mockk()
@@ -109,9 +116,11 @@ class TeaControllerTest {
     // to the call under test.
     @BeforeEach
     fun resetMocks() {
-        clearMocks(service, resolveService, resolveRateLimiter, ocrRateLimiter, searchRateLimiter, ocrService)
+        clearMocks(service, resolveService, resolveRateLimiter, ocrRateLimiter, searchRateLimiter, edgeRateBucket, ocrService)
         // Search is now rate-limited; default every test to "allowed" (the limit case overrides).
         every { searchRateLimiter.tryAcquire(any()) } returns true
+        // The global edge ceiling defaults to "allowed"; the overload test overrides it.
+        every { edgeRateBucket.tryConsume(1) } returns true
     }
 
     @Test
@@ -279,6 +288,17 @@ class TeaControllerTest {
             .andExpect(status().isTooManyRequests())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.title").value("Rate limit exceeded"))
+    }
+
+    @Test
+    fun `search returns 503 problem json when the global edge ceiling is saturated (PRIV-P1-1)`() {
+        // The per-client limiter allows this caller, but the churn-immune global edge bucket is exhausted.
+        every { edgeRateBucket.tryConsume(1) } returns false
+
+        mockMvc.perform(get("/api/v1/teas/search").param("q", "long"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("Service overloaded"))
     }
 
     @Test

@@ -11,10 +11,11 @@ import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.TeaSummaryDto
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import com.macsia.teatiers.service.FixedWindowRateLimiter
+import com.macsia.teatiers.service.ClientRateLimiter
 import com.macsia.teatiers.service.OcrService
 import com.macsia.teatiers.service.ResolveService
 import com.macsia.teatiers.service.TeaCatalogService
+import io.github.bucket4j.Bucket
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Size
@@ -36,9 +37,10 @@ import java.util.concurrent.Semaphore
 class TeaController(
     private val service: TeaCatalogService,
     private val resolveService: ResolveService,
-    @Qualifier("resolveRateLimiter") private val resolveRateLimiter: FixedWindowRateLimiter,
-    @Qualifier("ocrRateLimiter") private val ocrRateLimiter: FixedWindowRateLimiter,
-    @Qualifier("searchRateLimiter") private val searchRateLimiter: FixedWindowRateLimiter,
+    @Qualifier("resolveRateLimiter") private val resolveRateLimiter: ClientRateLimiter,
+    @Qualifier("ocrRateLimiter") private val ocrRateLimiter: ClientRateLimiter,
+    @Qualifier("searchRateLimiter") private val searchRateLimiter: ClientRateLimiter,
+    private val edgeRateBucket: Bucket,
     private val ocrConcurrencyGate: Semaphore,
     private val ocrService: OcrService,
     private val ocrProperties: OcrProperties,
@@ -61,6 +63,7 @@ class TeaController(
         servletRequest: HttpServletRequest,
     ): PageDto<TeaSummaryDto> {
         if (!searchRateLimiter.tryAcquire(clientId(servletRequest))) throw RateLimitException()
+        if (!edgeRateBucket.tryConsume(1)) throw EdgeOverloadException() // global ceiling no key churn can reset
         return service.search(q, locale, type, origin, cursor, limit)
     }
 
@@ -101,6 +104,7 @@ class TeaController(
     @PostMapping("/resolve")
     fun resolve(@Valid @RequestBody request: ResolveRequestDto, servletRequest: HttpServletRequest): ResolveResponseDto {
         if (!resolveRateLimiter.tryAcquire(clientId(servletRequest))) throw RateLimitException()
+        if (!edgeRateBucket.tryConsume(1)) throw EdgeOverloadException() // global ceiling no key churn can reset
         return resolveService.resolve(request.name, request.locale, request.sourceText)
     }
 
@@ -154,6 +158,13 @@ class TeaPublicNotFoundException(val publicId: UUID) :
 /** Per-client window budget exhausted on `/resolve` or `/ocr` — maps to 429. */
 class RateLimitException :
     RuntimeException("Rate limit exceeded")
+
+/**
+ * The GLOBAL edge ceiling for `/search` + `/resolve` is saturated (decision #141 / PRIV-P1-1) — the service
+ * is shedding total load (not a per-client fault), so this maps to 503 (transient, retryable).
+ */
+class EdgeOverloadException :
+    RuntimeException("Service is shedding load")
 
 /** The OCR tier is not configured (no sidecar URL) — `/teas/ocr` returns 503. */
 class OcrUnavailableException :

@@ -14,6 +14,10 @@ cyclonedx = "3.2.4"
 # seancfoley IPAddress: strict IPv4/IPv6 parsing + private/loopback/link-local/reserved classification
 # for the scrape SSRF/host gate (decision #141, PR-2). Latest stable, verified on Maven Central 2026-06-22.
 ipaddress = "5.6.2"
+# Bucket4j token-bucket rate limiting (decision #141, PR-6 / PRIV-P1-1) -- refill survives cache eviction,
+# unlike the old fixed-window. The artifact ids are JDK-qualified since 8.11 (bucket4j_jdk17-*); the legacy
+# bucket4j-core is frozen at 8.10.1. Verified on Maven Central 2026-06-23.
+bucket4j = "8.19.0"
 
 [libraries]
 spring-boot-starter-web = { group = "org.springframework.boot", name = "spring-boot-starter-web" }
@@ -31,6 +35,9 @@ jackson-module-kotlin = { group = "com.fasterxml.jackson.module", name = "jackso
 caffeine = { group = "com.github.ben-manes.caffeine", name = "caffeine" }
 # Strict IP parsing + SSRF range classification for scraped/observed URLs (decision #141, PR-2).
 ipaddress = { group = "com.github.seancfoley", name = "ipaddress", version.ref = "ipaddress" }
+# Token-bucket rate limiting + its Caffeine-backed (eviction-safe) per-client store (decision #141, PR-6).
+bucket4j-core = { group = "com.bucket4j", name = "bucket4j_jdk17-core", version.ref = "bucket4j" }
+bucket4j-caffeine = { group = "com.bucket4j", name = "bucket4j_jdk17-caffeine", version.ref = "bucket4j" }
 # Spring Boot 4 modularized auto-configuration: the Flyway starter brings flyway-core plus the
 # autoconfigure module (bare flyway-core no longer triggers migrations on startup).
 spring-boot-starter-flyway = { group = "org.springframework.boot", name = "spring-boot-starter-flyway" }
