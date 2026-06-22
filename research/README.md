@@ -31,7 +31,7 @@ model has no effort knob):
 | `deepseek.md` | `deepseek-v4-flash.md` |
 | `deepseek-flash.md` | `deepseek-v4-flash.md` |
 | `qwen.md` | `qwen3-max-xhigh.md` |
-| `alice.md` | `alice-235b-xhigh.md` |
+| `alice.md` | `alice-235b.md` |
 | `gemini-3.5-flash-rs.md` | `gemini-3.5-flash-high-2.md` |
 | `deepseek-v4-pro-rs.md` | `deepseek-v4-pro-high.md` |
 | `minimax-rs.md` | `minimax-m2-7.md` |
