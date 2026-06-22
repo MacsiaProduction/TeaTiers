@@ -70,6 +70,10 @@ class SourceSite(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 ) {
-    /** The ToS owner-sign-off gate (Ryanair v PR Aviation): a run is allowed only when both hold. */
-    fun importAllowed(): Boolean = active && termsSignedOffAt != null
+    /**
+     * The hard preflight gate: a run is allowed only when the site is active, ToS-signed-off, AND has a
+     * non-empty fetch allowlist (decision #141, PR-2) -- so an unconfigured allowlist denies eligibility
+     * explicitly here, rather than failing opaquely later on the first URL check.
+     */
+    fun importAllowed(): Boolean = active && termsSignedOffAt != null && allowedHosts.isNotEmpty()
 }

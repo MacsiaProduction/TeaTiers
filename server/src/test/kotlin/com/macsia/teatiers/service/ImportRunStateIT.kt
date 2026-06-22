@@ -251,6 +251,67 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `startRun rejects a robots url whose host is off the allowlist (decision 141)`() {
+        eligible("a") // allowlist = [a.example]
+        assertFailsWith<UrlSafetyException> {
+            importService.startRun(
+                "a", "op", "t", "p-1",
+                RobotsEvidence("allow", "https://evil.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash"),
+            )
+        }
+    }
+
+    @Test
+    fun `ingest rejects a fetch envelope with a non-sha256 body hash (decision 141)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val bad = obsWithId("a", "EX-9", "https://a.example/x")
+            .copy(evidence = FetchEvidence(contentHash = "not-a-hash", httpStatus = 200))
+        assertFailsWith<FetchEvidenceException> { importService.ingest(requireNotNull(run.id), bad) }
+    }
+
+    @Test
+    fun `apply fails closed when the bound evidence belongs to a different run (decision 141)`() {
+        eligible("a")
+        eligible("b")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://a.example/x"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
+        // A second REAL run, so the foreign id satisfies the raw_evidence FK; then re-point the envelope at it.
+        val run2 = importService.startRun(
+            "b", "op", "t", "p-1",
+            RobotsEvidence("allow", "https://b.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash"),
+            dryRun = false,
+        )
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow()
+        evidence.importRunId = requireNotNull(run2.id)
+        rawEvidenceRepository.saveAndFlush(evidence)
+
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
+    fun `apply fails closed when the bound evidence has a blank body hash (decision 141)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://a.example/x"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow()
+        evidence.contentHash = ""
+        rawEvidenceRepository.saveAndFlush(evidence)
+
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
     fun `ingest writes and binds an immutable fetch-evidence envelope to the revision (decision 141)`() {
         eligible("a")
         val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)

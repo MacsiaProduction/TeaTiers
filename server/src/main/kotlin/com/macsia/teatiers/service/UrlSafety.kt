@@ -75,10 +75,13 @@ class UrlSafety {
         const val HTTPS_PORT = 443
 
         // Ranges IPAddress has no single predicate for: RFC1918, CGNAT, this-network, link-local,
-        // IPv6 ULA/site-local, and documentation ranges.
+        // TEST-NET/benchmark/documentation, and IPv6 ULA/site-local/doc + the 6to4 and NAT64 tunnel
+        // prefixes (rejected wholesale -- they can embed an internal IPv4, and no legitimate source uses them).
         val FORBIDDEN_CIDRS: List<IPAddress> = listOf(
             "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10",
-            "0.0.0.0/8", "169.254.0.0/16", "fc00::/7", "fec0::/10", "2001:db8::/32",
+            "0.0.0.0/8", "169.254.0.0/16",
+            "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "198.18.0.0/15",
+            "fc00::/7", "fec0::/10", "2001:db8::/32", "2002::/16", "64:ff9b::/96", "64:ff9b:1::/48",
         ).map { IPAddressString(it).address }
     }
 }

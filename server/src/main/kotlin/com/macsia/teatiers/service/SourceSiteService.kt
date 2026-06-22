@@ -86,7 +86,8 @@ class SourceSiteService(
     fun setAllowedHosts(code: String, hosts: List<String>): SourceSite {
         val site = sourceSiteRepository.findByCode(code) ?: throw UnknownSourceSiteException(code)
         val normalized = hosts.map { it.trim().lowercase() }.filter { it.isNotBlank() }.distinct()
-        val changed = site.allowedHosts.toSet() != normalized.toSet()
+        // Normalize BOTH sides so re-setting the same hosts (in any case/order) is a true no-op.
+        val changed = site.allowedHosts.map { it.trim().lowercase() }.toSet() != normalized.toSet()
         site.allowedHosts = normalized.toTypedArray()
         if (changed) {
             site.active = false
