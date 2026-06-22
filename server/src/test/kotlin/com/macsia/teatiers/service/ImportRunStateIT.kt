@@ -1,12 +1,15 @@
 package com.macsia.teatiers.service
 
 import com.macsia.teatiers.AbstractIntegrationTest
+import com.macsia.teatiers.dto.FetchEvidence
 import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
 import com.macsia.teatiers.repository.ImportRunRepository
+import com.macsia.teatiers.repository.RawEvidenceRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
+import com.macsia.teatiers.repository.SourceRecordRevisionRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -39,11 +42,16 @@ class ImportRunStateIT : AbstractIntegrationTest() {
 
     @Autowired lateinit var importRunRepository: ImportRunRepository
 
+    @Autowired lateinit var revisionRepository: SourceRecordRevisionRepository
+
+    @Autowired lateinit var rawEvidenceRepository: RawEvidenceRepository
+
     // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
     private val fetchedAt = Instant.now().minusSeconds(60)
 
     private fun eligible(code: String) {
         siteService.register(code, "Site $code", "https://$code.example")
+        siteService.setAllowedHosts(code, listOf("$code.example")) // before sign-off so invalidation is a no-op
         siteService.signOffTerms(code, "owner@teatiers")
         siteService.setActive(code, true)
     }
@@ -62,6 +70,7 @@ class ImportRunStateIT : AbstractIntegrationTest() {
             retrievedAt = fetchedAt,
             parserVersion = parser,
             facts = ScrapedFacts(names = listOf(ScrapedName("en", "Some Tea", true)), type = "OOLONG"),
+            evidence = FetchEvidence(contentHash = "a".repeat(64), httpStatus = 200, contentType = "text/html"),
         )
 
     @Test
@@ -162,6 +171,14 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `changing an approved source's allowed_hosts invalidates its approval (decision 141)`() {
+        eligible("a") // approved with allowlist [a.example]
+        // Widening the fetch allowlist is a material change -> approval cleared, site deactivated.
+        siteService.setAllowedHosts("a", listOf("a.example", "cdn.a.example"))
+        assertFailsWith<ImportGateException> { importService.startRun("a", "op", "t", "p-1", allow()) }
+    }
+
+    @Test
     fun `markReviewed refuses a run that still has a pending decision (decision 137-C4 completeness)`() {
         eligible("a")
         val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
@@ -213,6 +230,99 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         val linked = sourceRecordRepository.findById(requireNotNull(record.id)).orElseThrow()
         assertEquals("linked", linked.status)
         assertEquals(teaId, linked.teaId)
+    }
+
+    @Test
+    fun `ingest rejects an observation whose host is off the source allowlist (decision 141 SSRF)`() {
+        eligible("a") // allowlist = [a.example]
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        assertFailsWith<UrlSafetyException> {
+            importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://evil.example/x"))
+        }
+    }
+
+    @Test
+    fun `ingest rejects a non-2xx fetch envelope (decision 141 evidence)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val bad = obsWithId("a", "EX-9", "https://a.example/x")
+            .copy(evidence = FetchEvidence(contentHash = "a".repeat(64), httpStatus = 404))
+        assertFailsWith<FetchEvidenceException> { importService.ingest(requireNotNull(run.id), bad) }
+    }
+
+    @Test
+    fun `startRun rejects a robots url whose host is off the allowlist (decision 141)`() {
+        eligible("a") // allowlist = [a.example]
+        assertFailsWith<UrlSafetyException> {
+            importService.startRun(
+                "a", "op", "t", "p-1",
+                RobotsEvidence("allow", "https://evil.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash"),
+            )
+        }
+    }
+
+    @Test
+    fun `ingest rejects a fetch envelope with a non-sha256 body hash (decision 141)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val bad = obsWithId("a", "EX-9", "https://a.example/x")
+            .copy(evidence = FetchEvidence(contentHash = "not-a-hash", httpStatus = 200))
+        assertFailsWith<FetchEvidenceException> { importService.ingest(requireNotNull(run.id), bad) }
+    }
+
+    @Test
+    fun `apply fails closed when the bound evidence belongs to a different run (decision 141)`() {
+        eligible("a")
+        eligible("b")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://a.example/x"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
+        // A second REAL run, so the foreign id satisfies the raw_evidence FK; then re-point the envelope at it.
+        val run2 = importService.startRun(
+            "b", "op", "t", "p-1",
+            RobotsEvidence("allow", "https://b.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash"),
+            dryRun = false,
+        )
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow()
+        evidence.importRunId = requireNotNull(run2.id)
+        rawEvidenceRepository.saveAndFlush(evidence)
+
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
+    fun `apply fails closed when the bound evidence has a blank body hash (decision 141)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://a.example/x"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow()
+        evidence.contentHash = ""
+        rawEvidenceRepository.saveAndFlush(evidence)
+
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
+    fun `ingest writes and binds an immutable fetch-evidence envelope to the revision (decision 141)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-9", "https://a.example/x"))
+
+        val revision = revisionRepository.findById(requireNotNull(record.currentRevisionId)).orElseThrow()
+        val evidence = rawEvidenceRepository.findById(revision.rawEvidenceId).orElseThrow()
+        assertEquals("https://a.example/x", evidence.canonicalUrl)
+        assertEquals(200, evidence.httpStatus)
+        assertEquals(run.id, evidence.importRunId, "evidence is bound to the producing run")
+        assertEquals(revision.rawEvidenceId, record.rawEvidenceId, "the record carries the denormalized pointer")
     }
 
     @Test

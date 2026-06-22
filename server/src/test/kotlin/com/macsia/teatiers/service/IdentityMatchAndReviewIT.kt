@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.FetchEvidence
 import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
@@ -59,6 +60,7 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
 
     private fun eligibleSite() {
         siteService.register("artoftea", "Art of Tea", "https://artoftea.ru", licenseDefault = "facts-only")
+        siteService.setAllowedHosts("artoftea", listOf("artoftea.ru"))
         siteService.signOffTerms("artoftea", "owner@teatiers")
         siteService.setActive("artoftea", true)
         // A real (non-dry) robots-allowed run so approval can write the catalog (decision #137-C4).
@@ -92,6 +94,7 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             retrievedAt = Instant.parse("2026-06-21T10:00:00Z"),
             parserVersion = "artoftea-1",
             facts = ScrapedFacts(names = names, type = "OOLONG", originCountry = "CN", brand = brand),
+            evidence = FetchEvidence(contentHash = "c".repeat(64), httpStatus = 200, contentType = "text/html"),
         )
         val record = importService.ingest(runId, obs)
         return matchService.proposeFor(requireNotNull(record.id), runId)
@@ -225,6 +228,7 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             retrievedAt = Instant.parse("2026-06-21T10:00:00Z"),
             parserVersion = "artoftea-1",
             facts = ScrapedFacts(names = listOf(ScrapedName("en", "Bai Hao Yinzhen", true)), type = "WHITE"),
+            evidence = FetchEvidence(contentHash = "d".repeat(64), httpStatus = 200, contentType = "text/html"),
         )
         val record = importService.ingest(runId, obs)
         matchService.proposeFor(requireNotNull(record.id), runId)
@@ -304,6 +308,7 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
             retrievedAt = Instant.parse("2026-06-21T10:00:00Z"),
             parserVersion = "artoftea-1",
             facts = ScrapedFacts(names = listOf(ScrapedName("ru", "Жоу Гуй", true)), type = "OOLONG", oxidationMax = 5),
+            evidence = FetchEvidence(contentHash = "e".repeat(64), httpStatus = 200, contentType = "text/html"),
         )
         val record = importService.ingest(runId, obs)
         val decision = matchService.proposeFor(requireNotNull(record.id), runId)

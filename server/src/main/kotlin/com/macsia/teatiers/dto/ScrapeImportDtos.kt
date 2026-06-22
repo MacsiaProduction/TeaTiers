@@ -30,10 +30,23 @@ data class ScrapedFacts(
 )
 
 /**
+ * The immutable fetch envelope for ONE observation (decision #141, PR-2). Proves which fetch produced the
+ * facts: [contentHash] is the sha256 of the fetched BODY (distinct from the facts-JSON hash the importer
+ * computes), [httpStatus] must be 2xx, [contentType] is the declared MIME. Persisted as a `RawEvidence` row
+ * and bound to the source_record_revision; canonical apply fails closed if this chain is absent.
+ */
+data class FetchEvidence(
+    val contentHash: String,
+    val httpStatus: Int,
+    val contentType: String? = null,
+)
+
+/**
  * One source observation handed to the importer (typically emitted by the local one-off scraper CLI).
  * Identity for re-import idempotency is (sourceSiteCode, externalId) or, failing that,
  * (sourceSiteCode, canonicalUrl). The importer NEVER creates a canonical tea from this directly -- it
- * stages a source_record + a review candidate.
+ * stages a source_record + a review candidate. [evidence] is mandatory: no observation may be staged
+ * without proof of the fetch that produced it (decision #141, PR-2).
  */
 data class SourceObservation(
     val sourceSiteCode: String,
@@ -42,6 +55,7 @@ data class SourceObservation(
     val retrievedAt: Instant,
     val parserVersion: String,
     val facts: ScrapedFacts,
+    val evidence: FetchEvidence,
 )
 
 /**

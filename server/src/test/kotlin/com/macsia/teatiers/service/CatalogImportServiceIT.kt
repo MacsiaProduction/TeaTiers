@@ -1,6 +1,7 @@
 package com.macsia.teatiers.service
 
 import com.macsia.teatiers.AbstractIntegrationTest
+import com.macsia.teatiers.dto.FetchEvidence
 import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
@@ -32,6 +33,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
 
     private fun eligibleSite(code: String = "artoftea") {
         siteService.register(code, "Art of Tea", "https://artoftea.ru", termsUrl = "https://artoftea.ru/privacy")
+        siteService.setAllowedHosts(code, listOf("artoftea.ru"))
         siteService.signOffTerms(code, "owner@teatiers")
         siteService.setActive(code, true)
     }
@@ -61,6 +63,7 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
             region = region,
             brand = "Art of Tea",
         ),
+        evidence = FetchEvidence(contentHash = "f".repeat(64), httpStatus = 200, contentType = "text/html"),
     )
 
     @Test
