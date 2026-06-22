@@ -37,10 +37,14 @@ class CanonicalUpsertService(
     private val sourceSiteRepository: SourceSiteRepository,
     private val importRunRepository: ImportRunRepository,
     private val rawEvidenceRepository: RawEvidenceRepository,
+    private val factsOnlyGuard: FactsOnlyGuard,
+    private val factsValidator: FactsValidator,
 ) {
 
+    // Strict at apply (decision #141, PR-3): a revision whose stored facts carry an unknown field fails
+    // closed rather than silently dropping it.
     private val factsMapper = jacksonObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
 
     /** Create a brand-new canonical tea from an approved revision. Returns the new tea id. */
     @Transactional
@@ -339,11 +343,21 @@ class CanonicalUpsertService(
         sourceRecordRepository.save(sourceRecord)
     }
 
-    private fun parse(revision: SourceRecordRevision): ScrapedFacts =
-        factsMapper.readValue(revision.rawFacts, ScrapedFacts::class.java)
+    private fun parse(revision: SourceRecordRevision): ScrapedFacts {
+        val facts = factsMapper.readValue(revision.rawFacts, ScrapedFacts::class.java)
+        // Re-run the facts boundary + semantic validation at the WRITE boundary against the exact reviewed
+        // revision (decision #141, PR-3): a revision can never publish content that fails the ingest gates.
+        factsOnlyGuard.validate(facts)
+        factsValidator.validate(facts)
+        return facts
+    }
 
-    private fun teaType(value: String?): TeaType =
-        value?.let { v -> TeaType.entries.firstOrNull { it.name == v.uppercase() } } ?: TeaType.OTHER
+    /** null type -> OTHER (unspecified); a non-null UNKNOWN type fails closed rather than coercing to OTHER. */
+    private fun teaType(value: String?): TeaType {
+        if (value == null) return TeaType.OTHER
+        return TeaType.entries.firstOrNull { it.name == value.uppercase() }
+            ?: throw FactsValidationException("unknown tea type '$value'")
+    }
 
     private fun primaryName(facts: ScrapedFacts): String =
         facts.names.firstOrNull { it.locale == "en" && it.isPrimary }?.value

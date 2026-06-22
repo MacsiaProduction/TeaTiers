@@ -35,8 +35,10 @@ class ReviewService(
     private val importRunStateMachine: ImportRunStateMachine,
 ) {
 
+    // Strict (decision #141, PR-3): stored facts with an unknown field surface rather than silently parse;
+    // the pending-queue projection tolerates a parse failure (runCatching) so review can still proceed.
     private val factsMapper = jacksonObjectMapper()
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
 
     @Transactional(readOnly = true)
     fun pending(limit: Int = DEFAULT_LIMIT): List<PendingMatchDto> =

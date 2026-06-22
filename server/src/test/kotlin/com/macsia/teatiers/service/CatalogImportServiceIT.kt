@@ -116,6 +116,22 @@ class CatalogImportServiceIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `ingest rejects an unknown tea type (decision 141, not coerced to OTHER)`() {
+        eligibleSite()
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
+        val bad = observation().let { it.copy(facts = it.facts.copy(type = "PURPLE")) }
+        assertFailsWith<FactsValidationException> { importService.ingest(requireNotNull(run.id), bad) }
+    }
+
+    @Test
+    fun `ingest rejects a non-ISO origin country (decision 141)`() {
+        eligibleSite()
+        val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
+        val bad = observation().let { it.copy(facts = it.facts.copy(originCountry = "Cathay")) }
+        assertFailsWith<FactsValidationException> { importService.ingest(requireNotNull(run.id), bad) }
+    }
+
+    @Test
     fun `facts-only boundary is enforced at ingest`() {
         eligibleSite()
         val run = importService.startRun("artoftea", "op", "tool-1", "artoftea-1", allowRobots())
