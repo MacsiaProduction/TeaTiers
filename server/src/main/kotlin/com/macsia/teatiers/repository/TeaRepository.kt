@@ -59,27 +59,29 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
     fun distinctOrigins(): List<String>
 
     /**
-     * Identity matcher, exact tier: the distinct tea ids with a name in ANY locale whose normal form
+     * Identity matcher, exact tier: the distinct ACTIVE tea ids with a name in ANY locale whose normal form
      * equals [q] normalized. Uses the SAME lower(f_unaccent(...)) that builds `tea_name.name_norm`
-     * (the shared-normalizer invariant, decision #136) so a scraped name lines up with the catalog.
+     * (the shared-normalizer invariant, decision #136) so a scraped name lines up with the catalog. Filters
+     * `tea.status='active'` (decision #141 / FND-P1-1) so the matcher never proposes a retracted/merged tea.
      */
     @Query(
-        value = "SELECT DISTINCT tea_id FROM tea_name WHERE name_norm = lower(f_unaccent(:q))",
+        value = "SELECT DISTINCT n.tea_id FROM tea_name n JOIN tea t ON t.id = n.tea_id " +
+            "WHERE n.name_norm = lower(f_unaccent(:q)) AND t.status = 'active'",
         nativeQuery = true,
     )
     fun findTeaIdsByExactNameNorm(@Param("q") q: String): List<Long>
 
     /**
-     * Identity matcher, trigram tier: candidate tea ids within a script, best similarity per tea, above
-     * [threshold] (>= 0.3 to stay consistent with the pg_trgm `%` index prefilter). Review-only in the
-     * pilot -- never an auto-merge.
+     * Identity matcher, trigram tier: candidate ACTIVE tea ids within a script, best similarity per tea,
+     * above [threshold] (>= 0.3 to stay consistent with the pg_trgm `%` index prefilter). Review-only in the
+     * pilot -- never an auto-merge. Filters `tea.status='active'` (decision #141 / FND-P1-1).
      */
     @Query(
         value = """
             SELECT n.tea_id AS "teaId",
                    MAX(similarity(n.name_norm, lower(f_unaccent(:q)))) AS "score"
-            FROM tea_name n
-            WHERE n.name_norm % lower(f_unaccent(:q))
+            FROM tea_name n JOIN tea t ON t.id = n.tea_id
+            WHERE n.name_norm % lower(f_unaccent(:q)) AND t.status = 'active'
             GROUP BY n.tea_id
             HAVING MAX(similarity(n.name_norm, lower(f_unaccent(:q)))) >= :threshold
             ORDER BY "score" DESC

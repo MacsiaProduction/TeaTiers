@@ -1,7 +1,9 @@
 package com.macsia.teatiers.service
 
+import com.macsia.teatiers.domain.MatchCandidate
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.NormalizedCandidate
+import com.macsia.teatiers.repository.MatchCandidateRepository
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.NameMatchCandidate
 import com.macsia.teatiers.repository.NormalizedCandidateRepository
@@ -34,10 +36,26 @@ class IdentityMatchService(
     private val teaIdentityAliasRepository: TeaIdentityAliasRepository,
     private val normalizedCandidateRepository: NormalizedCandidateRepository,
     private val matchDecisionRepository: MatchDecisionRepository,
+    private val matchCandidateRepository: MatchCandidateRepository,
     private val sourceRecordRepository: SourceRecordRepository,
 ) {
 
-    data class MatchProposal(val tier: String, val candidateTeaId: Long?, val score: Double?, val kind: String)
+    /** One ranked candidate within the winning tier: a distinct ACTIVE tea + its best score for that tier. */
+    data class RankedCandidate(val teaId: Long, val score: Double?)
+
+    /**
+     * The chosen single-row proposal ([candidateTeaId]/[tier]/[score]/[kind]) PLUS the full ranked
+     * [candidates] set within the winning tier (decision #141 / FND-P1-1). [kind]='conflict' when the top
+     * tier has more than one distinct active owner (ambiguity the operator must resolve with an explicit
+     * target) or on a brand mismatch; never an auto-attach to one of several owners.
+     */
+    data class MatchProposal(
+        val tier: String,
+        val candidateTeaId: Long?,
+        val score: Double?,
+        val kind: String,
+        val candidates: List<RankedCandidate> = emptyList(),
+    )
 
     /**
      * Produce and persist the best pending proposal for a source record's CURRENT revision (decision
@@ -77,44 +95,74 @@ class IdentityMatchService(
         decision.matchScore = score
         decision.importRunId = importRunId
         decision.decision = "pending"
-        return matchDecisionRepository.save(decision)
+        val saved = matchDecisionRepository.save(decision)
+        persistCandidates(requireNotNull(saved.id), proposal)
+        return saved
     }
 
+    /** Replace the decision's ranked candidate set (it is re-pointed in place across revisions, #141). */
+    private fun persistCandidates(decisionId: Long, proposal: MatchProposal) {
+        matchCandidateRepository.deleteByMatchDecisionId(decisionId)
+        proposal.candidates.forEachIndexed { rank, cand ->
+            matchCandidateRepository.save(
+                MatchCandidate(
+                    matchDecisionId = decisionId,
+                    teaId = cand.teaId,
+                    matchTier = proposal.tier,
+                    matchScore = cand.score?.let { BigDecimal.valueOf(it).setScale(4, RoundingMode.HALF_UP) },
+                    rank = rank,
+                ),
+            )
+        }
+    }
+
+    /**
+     * The first tier (in priority order) that yields >=1 distinct ACTIVE candidate wins; its full ranked
+     * candidate set is returned (decision #141 / FND-P1-1) -- no longer collapsed to a single firstOrNull/max.
+     */
     private fun bestProposal(c: NormalizedCandidate): MatchProposal {
         val names = listOfNotNull(c.nameRu, c.nameEn, c.nameZh, c.namePinyin).filter { it.isNotBlank() }
         val translit = listOfNotNull(c.palladiusBridge, c.pinyinFromHanzi).filter { it.isNotBlank() }
 
-        // Tier 0: authoritative alias -> identity.
-        names.forEach { n ->
-            teaIdentityAliasRepository.findAuthoritativeTeaIds(n).firstOrNull()
-                ?.let { return finalize(c, it, "authoritative", 1.0) }
-        }
-        // Tier 1: exact same-script name.
-        names.forEach { n ->
-            teaRepository.findTeaIdsByExactNameNorm(n).firstOrNull()
-                ?.let { return finalize(c, it, "exact", EXACT_SCORE) }
-        }
-        // Tier 3 (exact): the transliteration candidate matches a catalog name exactly.
-        translit.forEach { t ->
-            teaRepository.findTeaIdsByExactNameNorm(t).firstOrNull()
-                ?.let { return finalize(c, it, "transliteration", TRANSLIT_EXACT_SCORE) }
-        }
-        // Tier 2: trigram near-match on a direct name.
-        bestTrigram(names)?.let { return finalize(c, it.teaId, "trigram", it.score) }
-        // Tier 3 (trigram): trigram on the transliteration candidate.
-        bestTrigram(translit)?.let { return finalize(c, it.teaId, "transliteration", it.score) }
+        exactTier(names, 1.0) { teaIdentityAliasRepository.findAuthoritativeTeaIds(it) }
+            ?.let { return finalize(c, "authoritative", it) }
+        exactTier(names, EXACT_SCORE) { teaRepository.findTeaIdsByExactNameNorm(it) }
+            ?.let { return finalize(c, "exact", it) }
+        exactTier(translit, TRANSLIT_EXACT_SCORE) { teaRepository.findTeaIdsByExactNameNorm(it) }
+            ?.let { return finalize(c, "transliteration", it) }
+        trigramTier(names)?.let { return finalize(c, "trigram", it) }
+        trigramTier(translit)?.let { return finalize(c, "transliteration", it) }
 
         return MatchProposal("none", null, null, "create_new")
     }
 
-    private fun bestTrigram(values: List<String>): NameMatchCandidate? =
-        values.flatMap { teaRepository.findTrigramNameCandidates(it, TRIGRAM_THRESHOLD, CANDIDATE_LIMIT) }
-            .maxByOrNull { it.score }
+    /** A fixed-score tier (authoritative/exact): distinct active owners for [values], or null if none. */
+    private inline fun exactTier(values: List<String>, score: Double, lookup: (String) -> List<Long>): List<RankedCandidate>? =
+        values.flatMap(lookup).distinct().sorted().map { RankedCandidate(it, score) }.ifEmpty { null }
 
-    /** Attach unless the candidate's brand conflicts with the matched tea's (never auto-collapse vendors). */
-    private fun finalize(c: NormalizedCandidate, teaId: Long, tier: String, score: Double): MatchProposal {
-        val kind = if (brandConflict(c, teaId)) "conflict" else "attach"
-        return MatchProposal(tier, teaId, score, kind)
+    /** The trigram tier: one entry per distinct active tea (its best score), ranked desc; null if none. */
+    private fun trigramTier(values: List<String>): List<RankedCandidate>? =
+        values.flatMap { teaRepository.findTrigramNameCandidates(it, TRIGRAM_THRESHOLD, CANDIDATE_LIMIT) }
+            .groupBy { it.teaId }
+            .map { (teaId, hits) -> RankedCandidate(teaId, hits.maxOf(NameMatchCandidate::score)) }
+            .sortedWith(compareByDescending<RankedCandidate> { it.score }.thenBy { it.teaId })
+            .take(CANDIDATE_LIMIT)
+            .ifEmpty { null }
+
+    /**
+     * Turn a winning tier's ranked candidate set into a proposal. More than one distinct owner at the top is
+     * ambiguity -> 'conflict' (the operator must pass an explicit target, enforced by ReviewService); a
+     * single owner attaches unless its brand conflicts (the anti-vendor-lot rule). The top candidate is the
+     * default target either way.
+     */
+    private fun finalize(c: NormalizedCandidate, tier: String, candidates: List<RankedCandidate>): MatchProposal {
+        val top = candidates.first()
+        val kind = when {
+            candidates.size > 1 -> "conflict" // multiple distinct active owners: never auto-attach to one
+            brandConflict(c, top.teaId) -> "conflict"
+            else -> "attach"
+        }
+        return MatchProposal(tier, top.teaId, top.score, kind, candidates)
     }
 
     private fun brandConflict(c: NormalizedCandidate, teaId: Long): Boolean {
