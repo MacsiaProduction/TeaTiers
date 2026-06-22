@@ -35,7 +35,7 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 - `app/` — Android client (Kotlin + Compose). See `20-android`.
 - `server/` — backend service (Kotlin + Spring Boot). See `30-backend`.
 - `context/` — source of truth: requirements, locked decisions, architecture, plans. Append-only for locked decisions; ask before editing existing entries.
-- `research/` — deep-research outputs and ratings (see `70-research`).
+- `research/` — pointer only; deep-research runs moved to the sibling `researches` repo under `projects/TeaTiers/` (see `research/README.md`).
 - `scripts/` — automation, incl. `sync-agent-rules.sh`.
 - `task.md` (product spec) and `architecture.md` (high-level architecture) currently live at the repo root.
 
@@ -50,7 +50,7 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 
 ## Research before acting (never guess)
 
-When unsure about an API surface, library version, Android SDK level, or an external tea database's schema: check `research/` first, then the library's official docs/source, then ask the user. Don't invent versions or endpoints. Capture reusable findings under `research/` (see `70-research`).
+When unsure about an API surface, library version, Android SDK level, or an external tea database's schema: check the `researches` repo (`../researches/projects/TeaTiers/`) first, then the library's official docs/source, then ask the user. Don't invent versions or endpoints. Capture reusable findings in the `researches` repo (its `README.md` holds the workflow spec).
 
 
 ## 10-style
@@ -209,30 +209,5 @@ Adapts JVM / OWASP guidance to TeaTiers; reinforces `10-style` (no committed sec
 
 - Don't ship verbose / debug logging in release builds.
 - Don't catch-and-ignore security exceptions; surface them.
-
-
-## 70-research
-
-Source: `.cursor/rules/70-research.mdc`; description: How to create, organize, prompt for, and rate multi-model deep-research runs under research/ — one folder per run, one verbatim prompt sent to every model, one answer file per model, plus RATING.md and a LEADERBOARD.md win tally. Apply when working anywhere under research/.; globs: `research/**/*.md`; alwaysApply: `false`
-
-# Research folder workflow (`research/`)
-
-**Canonical, full spec:** `research/README.md` — follow it for anything under
-`research/`. In Cursor it loads via `@research/README.md`.
-
-Essentials:
-
-- **One folder per run:** `research/<NN>-<slug>/` (zero-padded number + kebab slug;
-  first run is `01`). Start by copying `research/_template/`.
-- **`prompt.md`** = the single prompt, sent **verbatim to every model**. Never
-  tailor it per model (fair comparison).
-- **One answer file per model**, family slug: `opus.md`, `gpt.md`, `gemini.md`,
-  `kimi.md`, `grok.md`, `fable.md`. Mode suffix (`-thinking`, `-deepresearch`,
-  `-fast`, `-2`) only when it changes the output. **Paste output verbatim — never
-  edit a model's text.**
-- **`RATING.md`** ranks the models for that run (winner + why + reuse/discard);
-  then update the win tally in `research/LEADERBOARD.md`.
-- Treat findings as syntheses, not primary sources: **cite by path and verify any
-  version pin / API / library / dataset against the real source** before use.
 
 <!-- sync-agent-rules:generated:end -->

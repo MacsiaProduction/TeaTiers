@@ -1,6 +1,0 @@
-# Example ground-truth file. Copy to `ground_truth.tsv` (gitignored) and edit for your real photos.
-# Format: <filename><TAB><expected key text on the package>   (blank lines + # comments ignored)
-longjing_front.jpg	Лунцзин
-tieguanyin_box.jpg	Тегуаньинь
-da-hong-pao_pouch.jpg	Да Хун Пао
-dragon-well_en.jpg	Dragon Well Green Tea

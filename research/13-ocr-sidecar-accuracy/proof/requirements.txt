@@ -1,8 +1,0 @@
-# Local OCR proof harness — matches the slice-1b sidecar runtime pins (research 13 / decision #100).
-# Run in a Python 3.12 venv (the sidecar target). NOT a server/app dependency.
-rapidocr==3.8.4
-onnxruntime==1.27.0
-pillow==12.2.0
-rapidfuzz==3.14.5
-psutil==7.2.2
-opencv-python-headless==4.13.0.92

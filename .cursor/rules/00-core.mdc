@@ -19,7 +19,7 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 - `app/` — Android client (Kotlin + Compose). See `20-android`.
 - `server/` — backend service (Kotlin + Spring Boot). See `30-backend`.
 - `context/` — source of truth: requirements, locked decisions, architecture, plans. Append-only for locked decisions; ask before editing existing entries.
-- `research/` — deep-research outputs and ratings (see `70-research`).
+- `research/` — pointer only; deep-research runs moved to the sibling `researches` repo under `projects/TeaTiers/` (see `research/README.md`).
 - `scripts/` — automation, incl. `sync-agent-rules.sh`.
 - `task.md` (product spec) and `architecture.md` (high-level architecture) currently live at the repo root.
 
@@ -34,4 +34,4 @@ Goal: an Android app where users catalog teas, rank them into tiers, attach wher
 
 ## Research before acting (never guess)
 
-When unsure about an API surface, library version, Android SDK level, or an external tea database's schema: check `research/` first, then the library's official docs/source, then ask the user. Don't invent versions or endpoints. Capture reusable findings under `research/` (see `70-research`).
+When unsure about an API surface, library version, Android SDK level, or an external tea database's schema: check the `researches` repo (`../researches/projects/TeaTiers/`) first, then the library's official docs/source, then ask the user. Don't invent versions or endpoints. Capture reusable findings in the `researches` repo (its `README.md` holds the workflow spec).

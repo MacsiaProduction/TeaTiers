@@ -1,7 +1,0 @@
-# Real tea-packaging photos stay LOCAL (copyrighted packaging + privacy-first project), matching the
-# proof/corpus policy. The per-photo AI-vision transcriptions (alice.md / deepseek.md) and our OCR
-# output (ours.txt) ARE committed as the eval reference; only the source JPEGs are ignored.
-**/*.jpg
-**/*.jpeg
-**/*.png
-**/*.webp
