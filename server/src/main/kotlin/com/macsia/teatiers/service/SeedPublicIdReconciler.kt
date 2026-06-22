@@ -100,9 +100,13 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
                 "FOREIGN KEY (merged_into_public_id) REFERENCES tea (public_id)",
         )
 
-        // Completeness (decision #139-R1): NO curated (seed-origin) row may be left with a non-frozen UUID.
-        // A drifted/removed dedup_key would otherwise silently keep its V7 random id and orphan clients.
-        failOnIncompleteCuratedReconcile(connection, map.values.toSet())
+        // Completeness (decision #139-R1 + #141-C1.1): no row that SHOULD carry a frozen UUID may be left
+        // with its V7 random one. Two complementary gates:
+        //   (a) every curated (seed-origin) row must be frozen -- catches an orphan curated row the seed forgot;
+        //   (b) every row whose dedup_key is in the seed must be frozen -- catches a row enriched after seeding
+        //       (now source='mixed'/'scrape') that the curated-only scan would skip.
+        failOnUnreconciledCurated(connection, map.values.toSet())
+        failOnUnreconciledSeedKeyed(connection, map)
 
         return Report(map.size, teas, legacy)
     }
@@ -123,7 +127,7 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
     }
 
     /** Fail the migration if any curated (seed-origin) row still holds a non-frozen public_id after reconcile. */
-    private fun failOnIncompleteCuratedReconcile(connection: Connection, frozen: Set<UUID>) {
+    private fun failOnUnreconciledCurated(connection: Connection, frozen: Set<UUID>) {
         val stragglers = mutableListOf<String>()
         connection.prepareStatement("SELECT dedup_key, public_id FROM tea WHERE source = 'curated'").use { ps ->
             ps.executeQuery().use { rs ->
@@ -137,6 +141,31 @@ class SeedPublicIdReconciler(private val seedResource: String = "seed/catalog-se
             throw SeedPublicIdReconcileException(
                 "after reconcile, ${stragglers.size} curated row(s) still hold a non-frozen public_id " +
                     "(dedup_key drift, or a row missing from the seed): ${stragglers.take(10)}",
+            )
+        }
+    }
+
+    /**
+     * Fail the migration if any row -- regardless of `source` -- whose dedup_key is in the frozen seed set
+     * still holds a non-frozen public_id (decision #141-C1.1). A seed row enriched after seeding becomes
+     * source='mixed'/'scrape', so the curated-only scan above would skip it; this catches that case.
+     */
+    private fun failOnUnreconciledSeedKeyed(connection: Connection, map: Map<String, UUID>) {
+        val stragglers = mutableListOf<String>()
+        connection.prepareStatement("SELECT dedup_key, public_id, source FROM tea").use { ps ->
+            ps.executeQuery().use { rs ->
+                while (rs.next()) {
+                    val frozen = map[rs.getString("dedup_key")] ?: continue // not a seed row -> not our concern
+                    val publicId = rs.getObject("public_id", UUID::class.java)
+                    if (publicId != frozen) {
+                        stragglers += "${rs.getString("dedup_key")} (source=${rs.getString("source")}, $publicId, expected $frozen)"
+                    }
+                }
+            }
+        }
+        if (stragglers.isNotEmpty()) {
+            throw SeedPublicIdReconcileException(
+                "after reconcile, ${stragglers.size} seed-keyed row(s) still hold a non-frozen public_id: ${stragglers.take(10)}",
             )
         }
     }

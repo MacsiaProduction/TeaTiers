@@ -17,6 +17,9 @@ interface ImportRunRepository : JpaRepository<ImportRun, Long> {
     @Query("select r from ImportRun r where r.id = :id")
     fun findByIdForUpdate(@Param("id") id: Long): ImportRun?
 
-    /** At most one non-terminal run per source (decision #139-R3); a friendly pre-check before the DB index. */
-    fun existsBySourceSiteIdAndStatus(sourceSiteId: Long, status: String): Boolean
+    /**
+     * At most one ACTIVE (non-terminal) run per source (decision #137-C4); a friendly pre-check before the
+     * DB partial-unique. Pass [com.macsia.teatiers.service.ImportRunState.ACTIVE_CODES].
+     */
+    fun existsBySourceSiteIdAndStatusIn(sourceSiteId: Long, statuses: Collection<String>): Boolean
 }

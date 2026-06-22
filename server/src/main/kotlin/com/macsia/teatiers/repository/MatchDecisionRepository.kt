@@ -12,4 +12,10 @@ interface MatchDecisionRepository : JpaRepository<MatchDecision, Long> {
     fun findByDecisionOrderByCreatedAtAsc(decision: String, limit: Limit): List<MatchDecision>
 
     fun countByDecision(decision: String): Long
+
+    /** Run-scoped review completeness (decision #137-C4): a run may be reviewed only with 0 pending. */
+    fun countByImportRunIdAndDecision(importRunId: Long, decision: String): Long
+
+    /** The approved decisions a run's apply phase must materialize. */
+    fun findByImportRunIdAndDecisionIn(importRunId: Long, decisions: Collection<String>): List<MatchDecision>
 }

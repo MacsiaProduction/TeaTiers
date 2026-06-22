@@ -289,8 +289,10 @@ class CanonicalUpsertService(
     }
 
     /**
-     * The public catalog may be written ONLY from a real, non-dry, non-failed run (decision #137-C4):
-     * a dry run may stage/match/render a patch but its records can never be approved into the catalog.
+     * The public catalog may be written ONLY from a real, non-dry run that is apply-authorized (decision
+     * #137-C4 / refresh ING-P0-1): the run must be in 'reviewed' or 'applying' -- a state reached only after
+     * ingestion was sealed and every decision resolved. A dry run may stage/match/review for rehearsal but
+     * its records can never be applied; a 'running'/'ingesting'/'succeeded' run is NOT apply-authorized.
      */
     private fun requireApplyAllowed(revision: SourceRecordRevision) {
         val run = importRunRepository.findById(revision.importRunId).orElseThrow {
@@ -299,8 +301,11 @@ class CanonicalUpsertService(
         if (run.dryRun) {
             throw CanonicalApplyForbiddenException("run ${run.id} is a dry run; its records cannot be applied to the catalog")
         }
-        if (run.status == "blocked" || run.status == "failed") {
-            throw CanonicalApplyForbiddenException("run ${run.id} is '${run.status}'; its records cannot be applied")
+        val state = ImportRunState.of(run.status)
+        if (state != ImportRunState.REVIEWED && state != ImportRunState.APPLYING) {
+            throw CanonicalApplyForbiddenException(
+                "run ${run.id} is '${run.status}', not apply-authorized (must be reviewed/applying)",
+            )
         }
     }
 

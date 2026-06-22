@@ -5,17 +5,21 @@ import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
+import com.macsia.teatiers.repository.ImportRunRepository
+import com.macsia.teatiers.repository.SourceRecordRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 
 /**
- * Decision #137-C4: the import run is a transaction invariant, not audit metadata. Robots must 'allow'
- * before a run starts; ingest must be bound to the run's site/parser/state; a dry/blocked/failed run can
- * never have its records applied to the public catalog; finishRun rejects unknown/missing states.
+ * Decision #137-C4 / refresh ING-P0-1: the import run is the unit of apply-authorization. Robots must
+ * 'allow' before a run starts; ingest is bound to the run's site/parser/state; and -- the keystone -- the
+ * catalog may be written ONLY from a run that has been sealed (ingestion stopped) and reviewed (every
+ * decision resolved). A dry / ingesting / unreviewed run can never publish.
  *
  * Each test makes at most ONE throwing @Transactional call after its writes, so a doomed (rollback-only)
  * inner transaction never collides with later DB work in the same rolled-back test transaction.
@@ -31,6 +35,10 @@ class ImportRunStateIT : AbstractIntegrationTest() {
 
     @Autowired lateinit var reviewService: ReviewService
 
+    @Autowired lateinit var sourceRecordRepository: SourceRecordRepository
+
+    @Autowired lateinit var importRunRepository: ImportRunRepository
+
     // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
     private val fetchedAt = Instant.now().minusSeconds(60)
 
@@ -44,10 +52,13 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         RobotsEvidence("allow", "https://a.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash")
 
     private fun obs(code: String, parser: String = "p-1", url: String = "https://$code.example/x") =
+        obsWithId(code, "EX-1", url, parser)
+
+    private fun obsWithId(code: String, externalId: String, url: String, parser: String = "p-1") =
         SourceObservation(
             sourceSiteCode = code,
             canonicalUrl = url,
-            externalId = "EX-1",
+            externalId = externalId,
             retrievedAt = fetchedAt,
             parserVersion = parser,
             facts = ScrapedFacts(names = listOf(ScrapedName("en", "Some Tea", true)), type = "OOLONG"),
@@ -67,6 +78,16 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `a fresh run starts at preflight_allowed and the first observation moves it to ingesting`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow())
+        assertEquals(ImportRunState.PREFLIGHT_ALLOWED.code, run.status)
+        importService.ingest(requireNotNull(run.id), obs("a"))
+        val reread = importRunRepository.findById(run.id!!).orElseThrow()
+        assertEquals(ImportRunState.INGESTING.code, reread.status, "the first observation advances the run to ingesting")
+    }
+
+    @Test
     fun `ingest rejects an observation whose site does not match the run`() {
         eligible("a")
         eligible("b")
@@ -82,11 +103,12 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `ingest rejects a finished run`() {
+    fun `ingest rejects a sealed (awaiting_review) run`() {
         eligible("a")
         val run = importService.startRun("a", "op", "t", "p-1", allow())
-        importService.finishRun(requireNotNull(run.id), "succeeded")
-        assertFailsWith<RunStateException> { importService.ingest(run.id!!, obs("a")) }
+        importService.ingest(requireNotNull(run.id), obs("a"))
+        importService.closeIngestion(run.id!!)
+        assertFailsWith<RunStateException> { importService.ingest(run.id!!, obs("a", url = "https://a.example/y")) }
     }
 
     @Test
@@ -96,15 +118,16 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `finishRun rejects an unknown status`() {
-        eligible("a")
-        val run = importService.startRun("a", "op", "t", "p-1", allow())
-        assertFailsWith<RunStateException> { importService.finishRun(requireNotNull(run.id), "done") }
+    fun `failRun rejects a missing run`() {
+        assertFailsWith<RunStateException> { importService.failRun(9_999_999L) }
     }
 
     @Test
-    fun `finishRun rejects a missing run`() {
-        assertFailsWith<RunStateException> { importService.finishRun(9_999_999L, "succeeded") }
+    fun `a terminal run cannot be re-finished (decision 137-C4 immutable terminals)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow())
+        importService.failRun(requireNotNull(run.id))
+        assertFailsWith<RunStateException> { importService.blockRun(run.id!!) }
     }
 
     @Test
@@ -124,18 +147,10 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `a second active run for the same source is rejected (decision 139-R3)`() {
+    fun `a second active run for the same source is rejected (decision 137-C4)`() {
         eligible("a")
         importService.startRun("a", "op", "t", "p-1", allow())
         assertFailsWith<RunStateException> { importService.startRun("a", "op", "t", "p-1", allow()) }
-    }
-
-    @Test
-    fun `finishRun cannot re-finish an already-terminal run (decision 139-R3)`() {
-        eligible("a")
-        val run = importService.startRun("a", "op", "t", "p-1", allow())
-        importService.finishRun(requireNotNull(run.id), "succeeded")
-        assertFailsWith<RunStateException> { importService.finishRun(run.id!!, "failed") }
     }
 
     @Test
@@ -147,16 +162,71 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `a dry run may stage and propose but its records can never be applied`() {
+    fun `markReviewed refuses a run that still has a pending decision (decision 137-C4 completeness)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obs("a"))
+        matchService.proposeFor(requireNotNull(record.id), run.id) // a pending decision the operator never resolved
+        importService.closeIngestion(run.id!!)
+        assertFailsWith<RunStateException> { reviewService.markReviewed(run.id!!) }
+    }
+
+    @Test
+    fun `markReviewed refuses a run with an ingested-but-never-proposed record (decision 137-C4 completeness)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        // Two DISTINCT records ingested; only one is proposed + decided. The other has NO decision at all --
+        // it must still block review, otherwise a half-proposed run would publish as though fully reviewed.
+        val r1 = importService.ingest(requireNotNull(run.id), obsWithId("a", "EX-1", "https://a.example/1"))
+        importService.ingest(run.id!!, obsWithId("a", "EX-2", "https://a.example/2"))
+        val d1 = matchService.proposeFor(requireNotNull(r1.id), run.id)
+        reviewService.approveNew(requireNotNull(d1.id), "op")
+        importService.closeIngestion(run.id!!)
+        assertFailsWith<RunStateException> { reviewService.markReviewed(run.id!!) }
+    }
+
+    @Test
+    fun `apply is rejected before the run is sealed and reviewed (the keystone gate)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obs("a"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op") // a decision exists, but the run is still 'ingesting'
+        // Applying an ingesting (never-sealed, never-reviewed) run is impossible: the state machine forbids it.
+        assertFailsWith<RunStateException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
+    fun `the full lifecycle seals, reviews, and applies an approved decision to the catalog`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(run.id), obs("a"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
+        val applied = reviewService.applyRun(run.id!!)
+
+        assertEquals(1, applied.appliedCount, "the approved decision is materialized")
+        val teaId = assertNotNull(applied.results.single().teaId)
+        val linked = sourceRecordRepository.findById(requireNotNull(record.id)).orElseThrow()
+        assertEquals("linked", linked.status)
+        assertEquals(teaId, linked.teaId)
+    }
+
+    @Test
+    fun `a dry run may stage, propose, and review but can never be applied`() {
         eligible("a")
         val run = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = true)
         val record = importService.ingest(requireNotNull(run.id), obs("a"))
         val decision = matchService.proposeFor(requireNotNull(record.id), run.id)
         assertEquals("pending", decision.decision, "a dry run still stages + proposes for review")
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(run.id!!)
+        reviewService.markReviewed(run.id!!)
 
-        // ...but approval must refuse to write the catalog from a dry-run record.
-        assertFailsWith<CanonicalApplyForbiddenException> {
-            reviewService.approveNew(requireNotNull(decision.id), "operator")
-        }
+        // ...but the apply phase must refuse to write the catalog from a dry-run record.
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
     }
 }

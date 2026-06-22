@@ -128,6 +128,41 @@ class SeedPublicIdReconcileIT : AbstractIntegrationTest() {
         assertFailsWith<SeedPublicIdReconcileException> { runReconcile() }
     }
 
+    @Test
+    fun `a frozen public_id already held by a different semantic row fails the reconcile (collision)`() {
+        val frozen = reconciler.mapping().values.first()
+        // A non-seed row squatting on a frozen seed UUID under a DIFFERENT dedup_key: reassigning over it
+        // would corrupt identity, so the reconcile must fail closed rather than fall back to a random UUID.
+        val squatter = Tea(
+            type = TeaType.OTHER, source = "scrape", dedupKey = "squatter-${UUID.randomUUID()}", verificationStatus = "unverified",
+        ).apply { publicId = frozen }
+        squatter.addName(TeaName(locale = "en", name = "Squatter", isPrimary = true))
+        val saved = teaRepository.saveAndFlush(squatter)
+        legacyIdMap.recordOnce(requireNotNull(saved.id), saved.publicId)
+        entityManager.flush()
+
+        assertFailsWith<SeedPublicIdReconcileException> { runReconcile() }
+    }
+
+    @Test
+    fun `a non-curated row carrying a seed dedup_key is reconciled and the completeness gate covers it (decision 141 C1)`() {
+        // A seed row enriched after seeding becomes source='mixed' -- the curated-only scan would skip it, but
+        // the broadened seed-keyed gate must still require it to carry the frozen UUID.
+        val (dedupKey, frozen) = reconciler.mapping().entries.first()
+        val enriched = Tea(type = TeaType.OTHER, source = "mixed", dedupKey = dedupKey, verificationStatus = "verified")
+            .apply { publicId = UUID.randomUUID() }
+        enriched.addName(TeaName(locale = "en", name = dedupKey, isPrimary = true))
+        val saved = teaRepository.saveAndFlush(enriched)
+        legacyIdMap.recordOnce(requireNotNull(saved.id), saved.publicId)
+        entityManager.flush()
+
+        val report = runReconcile()
+        entityManager.clear()
+
+        assertEquals(1, report.teasReconciled, "the enriched seed-keyed row is reconciled despite source='mixed'")
+        assertEquals(frozen, teaRepository.findById(saved.id!!).orElseThrow().publicId)
+    }
+
     private fun runReconcile(): SeedPublicIdReconciler.Report =
         entityManager.unwrap(Session::class.java)
             .doReturningWork { conn: Connection -> reconciler.reconcile(conn) }

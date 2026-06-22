@@ -1,5 +1,6 @@
 package com.macsia.teatiers.cli
 
+import com.macsia.teatiers.service.CatalogImportService
 import com.macsia.teatiers.service.ReviewService
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
@@ -20,18 +21,27 @@ import org.springframework.stereotype.Component
  * Activated by the `review-cli` Spring profile, which forces a non-web context and skips the catalog
  * seed (see `application-review-cli.yml`). The process runs one command and exits. Usage:
  *
+ * Decide/apply is two-phase (decision #137-C4): approve/reject only RECORD intent; the catalog is written
+ * only when the run is sealed (`close-ingestion`), reviewed (`mark-reviewed`), and applied (`apply-run`).
+ *
  * ```
  * java -jar server.jar --spring.profiles.active=review-cli pending [--limit=50]
  * java -jar server.jar --spring.profiles.active=review-cli count
- * java -jar server.jar --spring.profiles.active=review-cli approve-new  <decisionId> [--reviewer=alice]
+ * java -jar server.jar --spring.profiles.active=review-cli approve-new   <decisionId> [--reviewer=alice]
  * java -jar server.jar --spring.profiles.active=review-cli approve-merge <decisionId> [--target=<teaId>] [--reviewer=alice]
- * java -jar server.jar --spring.profiles.active=review-cli reject       <decisionId> [--reviewer=alice]
+ * java -jar server.jar --spring.profiles.active=review-cli reject        <decisionId> [--reviewer=alice]
+ * java -jar server.jar --spring.profiles.active=review-cli close-ingestion <runId>
+ * java -jar server.jar --spring.profiles.active=review-cli mark-reviewed   <runId>
+ * java -jar server.jar --spring.profiles.active=review-cli apply-run       <runId> [--reviewer=alice]
+ * java -jar server.jar --spring.profiles.active=review-cli fail-run        <runId>
+ * java -jar server.jar --spring.profiles.active=review-cli block-run       <runId>
  * ```
  */
 @Component
 @Profile("review-cli")
 class ReviewCli(
     private val reviewService: ReviewService,
+    private val importService: CatalogImportService,
     private val context: ConfigurableApplicationContext,
 ) : ApplicationRunner {
 
@@ -65,16 +75,21 @@ class ReviewCli(
         when (command) {
             "pending" -> reviewService.pending(limit).also { println("${it.size} pending:") }.forEach { println(it) }
             "count" -> println(reviewService.pendingCount())
-            "approve-new" -> println(reviewService.approveNew(decisionId(positional), reviewer))
-            "approve-merge" -> println(reviewService.approveMerge(decisionId(positional), reviewer, target))
-            "reject" -> println(reviewService.reject(decisionId(positional), reviewer))
+            "approve-new" -> println(reviewService.approveNew(idArg(positional, "decisionId"), reviewer))
+            "approve-merge" -> println(reviewService.approveMerge(idArg(positional, "decisionId"), reviewer, target))
+            "reject" -> println(reviewService.reject(idArg(positional, "decisionId"), reviewer))
+            "close-ingestion" -> importService.closeIngestion(idArg(positional, "runId")).also { println("run ${it.id} -> ${it.status}") }
+            "mark-reviewed" -> reviewService.markReviewed(idArg(positional, "runId")).also { println("run ${it.id} -> ${it.status}") }
+            "apply-run" -> println(reviewService.applyRun(idArg(positional, "runId"), reviewer))
+            "fail-run" -> importService.failRun(idArg(positional, "runId")).also { println("run ${it.id} -> ${it.status}") }
+            "block-run" -> importService.blockRun(idArg(positional, "runId")).also { println("run ${it.id} -> ${it.status}") }
             else -> throw IllegalArgumentException("unknown command '$command'")
         }
     }
 
-    private fun decisionId(positional: List<String>): Long =
+    private fun idArg(positional: List<String>, name: String): Long =
         positional.getOrNull(1)?.toLongOrNull()
-            ?: throw IllegalArgumentException("'${positional.first()}' needs a numeric <decisionId>")
+            ?: throw IllegalArgumentException("'${positional.first()}' needs a numeric <$name>")
 
     private fun defaultReviewer(): String =
         System.getProperty("user.name")?.takeIf { it.isNotBlank() }?.let { "cli:$it" } ?: "cli:operator"
@@ -86,6 +101,7 @@ class ReviewCli(
         const val DEFAULT_LIMIT = 50
         const val USAGE =
             "usage: <pending [--limit=N] | count | approve-new <id> | approve-merge <id> [--target=teaId] " +
-                "| reject <id>> [--reviewer=name]"
+                "| reject <id> | close-ingestion <runId> | mark-reviewed <runId> | apply-run <runId> " +
+                "| fail-run <runId> | block-run <runId>> [--reviewer=name]"
     }
 }

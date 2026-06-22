@@ -89,6 +89,13 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         return requireNotNull(teaRepository.saveAndFlush(tea).id)
     }
 
+    /** Two-phase #137-C4 materialization for the run [id]: seal ingestion, mark reviewed, apply. */
+    private fun sealAndApply(id: Long = runId) = run {
+        importService.closeIngestion(id)
+        reviewService.markReviewed(id)
+        reviewService.applyRun(id)
+    }
+
     // ---- C5: revisions ----
 
     @Test
@@ -105,22 +112,26 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `a correction after approval re-enters review and records a conflict claim`() {
+    fun `a correction in a later run re-enters review and records a conflict claim`() {
         startRun()
         val r1 = importService.ingest(runId, obs("https://s.example/a", externalId = "A", region = "Wuyi"))
         val d1 = matchService.proposeFor(requireNotNull(r1.id), runId)
-        val teaId = assertNotNull(reviewService.approveNew(requireNotNull(d1.id), "op").teaId)
+        reviewService.approveNew(requireNotNull(d1.id), "op")
+        val teaId = assertNotNull(sealAndApply().results.single().teaId) // run 1 -> applied; region = Wuyi (selected)
 
-        // The source corrects region; a NEW revision re-enters review even though it was already approved.
-        val r2 = importService.ingest(runId, obs("https://s.example/a", externalId = "A", region = "Wuyishan"))
+        // A LATER run re-scrapes the same record with a corrected region -> a new immutable revision that
+        // re-enters review even though the record was already approved (decision #137-C5).
+        val run2 = requireNotNull(importService.startRun("s", "op", "t", "p-1", allowRobots(), dryRun = false).id)
+        val r2 = importService.ingest(run2, obs("https://s.example/a", externalId = "A", region = "Wuyishan"))
         assertEquals("reparse_pending", r2.status)
-        val d2 = matchService.proposeFor(r2.id!!, runId)
+        val d2 = matchService.proposeFor(r2.id!!, run2)
         assertTrue(d2.id != d1.id, "a changed revision opens a fresh decision, not the approved one")
-        assertEquals(1, matchDecisionRepository.countByDecision("pending"))
+        assertEquals(1, matchDecisionRepository.countByImportRunIdAndDecision(run2, "pending"))
 
-        // Approving the correction into the same tea succeeds and records the changed value as a conflict
-        // claim (region already had a value, so it is kept, not overwritten).
+        // Approving the correction into the same tea records the changed value as a conflict claim (region
+        // already had a value, so it is kept, not overwritten).
         reviewService.approveMerge(requireNotNull(d2.id), "op", targetTeaId = teaId)
+        sealAndApply(run2)
         val tea = teaRepository.findById(teaId).orElseThrow()
         assertEquals("Wuyi", tea.region, "the existing value is never overwritten by a correction")
         val conflict = provenanceRepository.findByTeaId(teaId)
@@ -189,6 +200,7 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         val decision = matchService.proposeFor(requireNotNull(record.id), runId)
         assertEquals("authoritative", decision.matchTier)
         reviewService.approveMerge(requireNotNull(decision.id), "op")
+        sealAndApply()
 
         val tea = teaRepository.findById(teaId).orElseThrow()
         assertEquals("Fujian", tea.region, "the null field was filled by the merge")
@@ -210,6 +222,7 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         )
         val decision = matchService.proposeFor(requireNotNull(record.id), runId)
         reviewService.approveMerge(requireNotNull(decision.id), "op")
+        sealAndApply()
 
         val tea = teaRepository.findById(teaId).orElseThrow()
         assertEquals("CN", tea.originCountry, "the existing value is unchanged")
@@ -236,8 +249,7 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         // The matcher still proposes the (retracted) target -- candidate-set status filtering is deferred
         // P1 (FND-P1-1) -- so the apply-time guard is the backstop that must refuse it.
         assertEquals("authoritative", decision.matchTier)
-        assertFailsWith<InactiveMergeTargetException> {
-            reviewService.approveMerge(requireNotNull(decision.id), "op")
-        }
+        reviewService.approveMerge(requireNotNull(decision.id), "op") // decide is fine; the guard is at apply
+        assertFailsWith<InactiveMergeTargetException> { sealAndApply() }
     }
 }
