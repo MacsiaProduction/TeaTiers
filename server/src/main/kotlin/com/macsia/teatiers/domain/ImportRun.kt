@@ -51,17 +51,11 @@ class ImportRun(
     @Column(name = "robots_decision")
     var robotsDecision: String? = null,
 
-    @Column(name = "fetched_count", nullable = false)
-    var fetchedCount: Int = 0,
+    @Column(name = "robots_url")
+    var robotsUrl: String? = null,
 
-    @Column(name = "parsed_count", nullable = false)
-    var parsedCount: Int = 0,
-
-    @Column(name = "queued_count", nullable = false)
-    var queuedCount: Int = 0,
-
-    @Column(name = "rejected_count", nullable = false)
-    var rejectedCount: Int = 0,
+    @Column(name = "robots_user_agent")
+    var robotsUserAgent: String? = null,
 
     var notes: String? = null,
 

@@ -31,7 +31,8 @@ class ImportRunStateIT : AbstractIntegrationTest() {
 
     @Autowired lateinit var reviewService: ReviewService
 
-    private val fetchedAt = Instant.parse("2026-06-21T09:00:00Z")
+    // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
+    private val fetchedAt = Instant.now().minusSeconds(60)
 
     private fun eligible(code: String) {
         siteService.register(code, "Site $code", "https://$code.example")
@@ -39,7 +40,8 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         siteService.setActive(code, true)
     }
 
-    private fun allow() = RobotsEvidence("allow", fetchedAt, 200, "robots-hash")
+    private fun allow() =
+        RobotsEvidence("allow", "https://a.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash")
 
     private fun obs(code: String, parser: String = "p-1", url: String = "https://$code.example/x") =
         SourceObservation(
@@ -56,7 +58,10 @@ class ImportRunStateIT : AbstractIntegrationTest() {
         eligible("a")
         for (decision in listOf("disallow", "fail_closed", "not_checked")) {
             assertFailsWith<RobotsGateException> {
-                importService.startRun("a", "op", "t", "p-1", RobotsEvidence(decision, fetchedAt))
+                importService.startRun(
+                    "a", "op", "t", "p-1",
+                    RobotsEvidence(decision, "https://a.example/robots.txt", "TeaTiers/test", fetchedAt),
+                )
             }
         }
     }
@@ -100,6 +105,45 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     @Test
     fun `finishRun rejects a missing run`() {
         assertFailsWith<RunStateException> { importService.finishRun(9_999_999L, "succeeded") }
+    }
+
+    @Test
+    fun `a robots snapshot that is allow but incomplete is rejected (decision 139-R3)`() {
+        eligible("a")
+        val incomplete = RobotsEvidence("allow", "https://a.example/robots.txt", "TeaTiers/test", fetchedAt) // no 2xx/hash
+        assertFailsWith<RobotsGateException> { importService.startRun("a", "op", "t", "p-1", incomplete) }
+    }
+
+    @Test
+    fun `a stale robots snapshot is rejected (decision 139-R3)`() {
+        eligible("a")
+        val stale = RobotsEvidence(
+            "allow", "https://a.example/robots.txt", "TeaTiers/test", Instant.now().minusSeconds(7200), 200, "robots-hash",
+        )
+        assertFailsWith<RobotsGateException> { importService.startRun("a", "op", "t", "p-1", stale) }
+    }
+
+    @Test
+    fun `a second active run for the same source is rejected (decision 139-R3)`() {
+        eligible("a")
+        importService.startRun("a", "op", "t", "p-1", allow())
+        assertFailsWith<RunStateException> { importService.startRun("a", "op", "t", "p-1", allow()) }
+    }
+
+    @Test
+    fun `finishRun cannot re-finish an already-terminal run (decision 139-R3)`() {
+        eligible("a")
+        val run = importService.startRun("a", "op", "t", "p-1", allow())
+        importService.finishRun(requireNotNull(run.id), "succeeded")
+        assertFailsWith<RunStateException> { importService.finishRun(run.id!!, "failed") }
+    }
+
+    @Test
+    fun `re-registering a source with a material change invalidates its approval (decision 139-R3)`() {
+        eligible("a") // register + sign-off + activate
+        // A changed base URL is a material change -> approval cleared, site deactivated.
+        siteService.register("a", "Site a", "https://a-renamed.example")
+        assertFailsWith<ImportGateException> { importService.startRun("a", "op", "t", "p-1", allow()) }
     }
 
     @Test

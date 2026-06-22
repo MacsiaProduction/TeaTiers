@@ -62,7 +62,9 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         siteService.signOffTerms("artoftea", "owner@teatiers")
         siteService.setActive("artoftea", true)
         // A real (non-dry) robots-allowed run so approval can write the catalog (decision #137-C4).
-        val robots = RobotsEvidence("allow", Instant.parse("2026-06-21T09:00:00Z"), 200, "robots-hash")
+        val robots = RobotsEvidence(
+            "allow", "https://artoftea.ru/robots.txt", "TeaTiers/test", Instant.now().minusSeconds(60), 200, "robots-hash",
+        )
         runId = requireNotNull(importService.startRun("artoftea", "op", "tool-1", "artoftea-1", robots, dryRun = false).id)
     }
 
