@@ -2810,3 +2810,55 @@ deviated.
        is a later PR (Flyway `region` table + `tea.region_qid` + a Wikidata region-fetch query + backfill
        the ~40 seed regions' QIDs + the importer region mapping queue + ISO country validation). Locked now
        so the in-flight scrape hardening (#137-C5/C6) does not cement `region` as free text.
+
+139. **Post-merge review (2026-06-22) corrects the #137 closure bar: PRs #119/#120 met the *blank-rebuild /
+     core-invariant* bar, NOT the *production-safe* bar — C1 and C4 are REOPENED, C6/FND-P1-3 are PARTIAL
+     (2026-06-22).** A full architecture/design review against `main` at `399ed92`
+     (`context/review/2026-06-22-full-architecture-design-review.md`) verified the merged work, then applied
+     a stricter production bar. Confirmed against code + a live API probe (prod still returns the pre-public-id
+     shape and 404s `/by-public-id/{frozen-uuid}` → production has NOT applied V7–V10). The review is accurate;
+     the INDEX "DONE" labels overstated closure (corrected in `context/review/INDEX.md`). No new research run is
+     warranted — the 42 newly-added GLM/MiniMax answers add some signal but mostly fabricated benchmarks/IDs;
+     the run-21 re-rating correctly keeps Opus/GPT first and rejects both new answers' auto-approval. **Locked
+     corrections:**
+     - **(R1) C1 reopened P0 — production UUID continuity.** Frozen seed UUIDs only apply to NEW inserts; the
+       seeder skips existing rows (`CatalogSeeder.kt:40`), so the first V7 deploy gives prod's 100 rows *random*
+       UUIDs and a later seed rebuild gives the *frozen* ones → orphaned clients. Add a V11 reconciliation
+       migration + a committed `dedup_key → frozen public_id → legacy numeric id` mapping artifact; reconcile
+       existing rows to their frozen UUID (rebuild the legacy map in FK-safe order); FAIL (never fall back to a
+       random UUID) on a missing/duplicate/mismatched row; rehearse V6→current on a prod-like backup before
+       deploy. Acceptance: identical semantic seed row → identical public UUID after upgrade, rebuild, restore,
+       and seed reorder; every previously-returned numeric id resolves to it.
+     - **(R2) C3 reopened P0 — compact tombstone.** `detailByPublicId` returns full `toDetail()` for a
+       `retracted` tea and a broken merge chain (`TeaCatalogService.kt:81-88`), defeating withdrawal of
+       unsafe/unlicensed content. Return a lifecycle-only shape (`publicId/status/supersededByPublicId`) for
+       retracted + broken-chain; numeric path identical; tests assert no names/descriptions/images/provenance.
+     - **(R3) C4 reopened P0 (full contract).** The exploitable surface is closed, but: source re-registration
+       must invalidate approval + deactivate; `allowed_hosts` administered and enforced (HTTPS/host/redirect/
+       SSRF on every observation+evidence URL); robots evidence must be fresh + 2xx + content-hash + UA +
+       parser/tool-bound, not just `decision='allow'`; an enum state machine (`created→preflight_allowed→
+       ingesting→reviewed→applied`) with CHECK + immutable terminals (`finishRun` must not rewrite a terminal
+       state); apply only from a reviewed/apply-authorized state on the exact reviewed revision; ≤1 active run
+       per source; counters maintained or removed.
+     - **(R4) C6 PARTIAL.** Record `type` on merge; record corroborating claims when incoming==existing;
+       backfill baseline claims for curated rows; `brand` requires a separate reviewed field decision (identity
+       approval must NOT auto-approve every mutable field); vendor stays observation-only; lock/`@Version` the
+       selected-claim swap.
+     - **(R5) FND-P1-3 PARTIAL + FND-P1-4 is P0-before-scraper.** Add decision-row CAS/`findByIdForUpdate` so
+       two CLI processes can't consume the same pending decision. Strict observation validation (ISO-3166
+       country, #138 region QID queue or reject, URL/host/evidence, reject unknown `type`/enum, re-run the facts
+       guard at apply against the exact revision) is a P0 ingestion gate, not optional cleanup.
+     - **(R6) Updater/release (REL-P0-1/2) unchanged-but-restated.** No independent trust root yet; embed an
+       offline Ed25519 key + signed manifest (package/version/size/hash/expiry/rollback) or keep the updater
+       disabled and ship testers via **Obtainium**. No maintained JVM TUF client exists — reuse the TUF threat
+       model, not an abandoned port. Restrict + back up `release.jks` (mode 0644 today) with a tested recovery
+       drill.
+     - **(R7) `AND-P1-1` is READY** (server prereq exists; **R1 must land first**); first consolidate
+       `tea-sample-split-v7.md` to one UUID-only design (drop the obsolete `Long` sketches). New Android
+       findings: enrichment patch violates its blank-only ownership contract; queued enrichment isn't durable
+       (consider WorkManager); image/file reads are unbounded + log URIs/paths.
+     **Ordered plan (review §"Ordered implementation plan"):** Phase 0 protect users+identity (release key;
+     R1 reconciliation + rehearsal; digest-verified deploy + contract probes) → Phase 1 finish ingestion
+     (R3/R2/R5/R4 + candidate-set matcher) → Phase 2 Android v7/API cutover → Phase 3 release/ops hardening →
+     Phase 4 one-source fixture-backed pilot. The scraper stays gated by the review's "Definition of ready for
+     scraper." `OPS-P1-1` is urgent: live prod is behind current migrations/contracts.
