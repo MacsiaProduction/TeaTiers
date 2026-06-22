@@ -4,6 +4,7 @@ import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.CatalogDetail
 import com.macsia.teatiers.repository.LegacyIdReuseException
 import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
@@ -74,13 +75,12 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
     fun `detail by public id resolves an active tea`() {
         val saved = teaRepository.saveAndFlush(newTea(source = "scrape", primary = "Long Jing"))
 
-        val detail = catalogService.detailByPublicId(saved.publicId)
+        val full = catalogService.detailByPublicId(saved.publicId) as CatalogDetail.Full
 
-        assertNotNull(detail)
-        assertEquals(saved.id, detail.id)
-        assertEquals(saved.publicId, detail.publicId)
-        assertEquals("active", detail.status)
-        assertNull(detail.supersededByPublicId)
+        assertEquals(saved.id, full.tea.id)
+        assertEquals(saved.publicId, full.tea.publicId)
+        assertEquals("active", full.tea.status)
+        assertNull(full.tea.supersededByPublicId)
     }
 
     @Test
@@ -92,11 +92,10 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
         }
         val savedMerged = teaRepository.saveAndFlush(merged)
 
-        val detail = catalogService.detailByPublicId(savedMerged.publicId)
-
-        // Resolving the old (merged) public_id returns the survivor's detail so the client re-caches it.
-        assertEquals(survivor.id, detail?.id)
-        assertEquals(survivor.publicId, detail?.publicId)
+        // Resolving the old (merged) public_id returns the survivor's FULL detail so the client re-caches it.
+        val full = catalogService.detailByPublicId(savedMerged.publicId) as CatalogDetail.Full
+        assertEquals(survivor.id, full.tea.id)
+        assertEquals(survivor.publicId, full.tea.publicId)
     }
 
     @Test
@@ -113,22 +112,22 @@ class ScrapeFoundationIT : AbstractIntegrationTest() {
         }
         val savedOld = teaRepository.saveAndFlush(old)
 
-        val detail = catalogService.detailByPublicId(savedOld.publicId)
-
-        assertEquals(survivor.id, detail?.id, "A -> B -> C resolves to terminal C, not the intermediate B")
-        assertEquals(survivor.publicId, detail?.supersededByPublicId, "redirect signals the survivor id to re-cache")
+        val full = catalogService.detailByPublicId(savedOld.publicId) as CatalogDetail.Full
+        assertEquals(survivor.id, full.tea.id, "A -> B -> C resolves to terminal C, not the intermediate B")
+        assertEquals(survivor.publicId, full.tea.supersededByPublicId, "redirect signals the survivor id to re-cache")
     }
 
     @Test
-    fun `a retracted tea returns a tombstone, not a 404`() {
+    fun `a retracted tea returns a content-free tombstone, not a 404 and not its content`() {
         val tea = newTea(source = "scrape", primary = "Gone").apply { status = "retracted" }
         val saved = teaRepository.saveAndFlush(tea)
 
-        val detail = catalogService.detailByPublicId(saved.publicId)
-
-        assertNotNull(detail, "a retracted tea is a tombstone, not absent")
-        assertEquals("retracted", detail.status)
-        assertEquals(saved.id, detail.id)
+        // Decision #139-R2: a retracted tea is a content-free lifecycle tombstone (no names/facts), not a 404.
+        val result = catalogService.detailByPublicId(saved.publicId)
+        assertNotNull(result, "a retracted tea is a tombstone, not absent")
+        val tombstone = result as CatalogDetail.Tombstone
+        assertEquals("retracted", tombstone.lifecycle.status)
+        assertEquals(saved.publicId, tombstone.lifecycle.publicId)
     }
 
     @Test

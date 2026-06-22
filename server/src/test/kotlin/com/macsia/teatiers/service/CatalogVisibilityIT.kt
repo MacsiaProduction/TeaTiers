@@ -4,6 +4,7 @@ import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.Tea
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
+import com.macsia.teatiers.dto.CatalogDetail
 import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
 import org.springframework.beans.factory.annotation.Autowired
@@ -36,9 +37,9 @@ class CatalogVisibilityIT : AbstractIntegrationTest() {
     fun `detailByLegacyId resolves an active tea through the map`() {
         val tea = saveMapped(name = "Alpha", type = TeaType.OOLONG, origin = "XX")
 
-        val detail = assertNotNull(service.detailByLegacyId(requireNotNull(tea.id)))
-        assertEquals(tea.publicId, detail.publicId)
-        assertEquals("active", detail.status)
+        val full = service.detailByLegacyId(requireNotNull(tea.id)) as CatalogDetail.Full
+        assertEquals(tea.publicId, full.tea.publicId)
+        assertEquals("active", full.tea.status)
     }
 
     @Test
@@ -56,16 +57,17 @@ class CatalogVisibilityIT : AbstractIntegrationTest() {
         val merged = saveMapped(name = "OldDup", type = TeaType.OOLONG, origin = "XX", status = "merged") {
             it.mergedIntoPublicId = survivor.publicId
         }
-        val detail = assertNotNull(service.detailByLegacyId(requireNotNull(merged.id)))
-        assertEquals(survivor.publicId, detail.publicId)
-        assertEquals(survivor.publicId, detail.supersededByPublicId, "redirect signals the survivor to re-cache")
+        val full = service.detailByLegacyId(requireNotNull(merged.id)) as CatalogDetail.Full
+        assertEquals(survivor.publicId, full.tea.publicId)
+        assertEquals(survivor.publicId, full.tea.supersededByPublicId, "redirect signals the survivor to re-cache")
     }
 
     @Test
-    fun `detailByLegacyId of a retracted id returns a tombstone, not a 404`() {
+    fun `detailByLegacyId of a retracted id returns a content-free tombstone, not a 404`() {
         val gone = saveMapped(name = "Gone", type = TeaType.BLACK, origin = "XX", status = "retracted")
-        val detail = assertNotNull(service.detailByLegacyId(requireNotNull(gone.id)))
-        assertEquals("retracted", detail.status)
+        val tombstone = service.detailByLegacyId(requireNotNull(gone.id)) as CatalogDetail.Tombstone
+        assertEquals("retracted", tombstone.lifecycle.status)
+        assertEquals(gone.publicId, tombstone.lifecycle.publicId)
     }
 
     // ---- C3: visibility predicate across browse, fuzzy search, and facets ----
