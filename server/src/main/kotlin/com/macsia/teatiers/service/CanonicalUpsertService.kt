@@ -308,6 +308,10 @@ class CanonicalUpsertService(
      * Gating on the applying run (not [SourceRecordRevision.importRunId]) is deliberate: a revision can legitimately
      * be reviewed+applied in a LATER run than the one that produced it (e.g. a revert to an older revision
      * whose original run is already terminal). The evidence-chain check still binds to the revision's own run.
+     *
+     * A dry run is a rehearsal whose observations may NEVER reach the catalog: so BOTH the applying run AND
+     * the revision's PRODUCING run must be non-dry -- otherwise a dry-staged revision could be laundered into
+     * the catalog by re-proposing its decision into a later real run.
      */
     private fun requireApplyAllowed(applyingRunId: Long, revision: SourceRecordRevision) {
         val run = importRunRepository.findById(applyingRunId).orElseThrow {
@@ -320,6 +324,14 @@ class CanonicalUpsertService(
         if (state != ImportRunState.REVIEWED && state != ImportRunState.APPLYING) {
             throw CanonicalApplyForbiddenException(
                 "run ${run.id} is '${run.status}', not apply-authorized (must be reviewed/applying)",
+            )
+        }
+        val producingRun = importRunRepository.findById(revision.importRunId).orElseThrow {
+            CanonicalApplyForbiddenException("revision ${revision.id} references missing run ${revision.importRunId}")
+        }
+        if (producingRun.dryRun) {
+            throw CanonicalApplyForbiddenException(
+                "revision ${revision.id} was produced by dry run ${producingRun.id}; dry-run observations can never be applied",
             )
         }
         requireEvidenceChain(revision)
