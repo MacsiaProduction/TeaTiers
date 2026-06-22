@@ -16,6 +16,18 @@ object DedupKeys {
         return "$name|$slug|${type.name}"
     }
 
+    /**
+     * The dedup key for a curated seed record, using the SAME primary-name rule as [CatalogSeeder]
+     * (en-primary, else the first primary). Shared so the seeder and the V11 public-id reconciliation
+     * derive byte-identical keys (a mismatch would silently skip a row in the migration).
+     */
+    fun ofSeed(seed: SeedTea): String {
+        val primary = seed.names.firstOrNull { it.locale == "en" && it.isPrimary }
+            ?: seed.names.first { it.isPrimary }
+        val pinyin = seed.names.firstOrNull { it.locale == "pinyin" }?.name
+        return of(primary.name, pinyin, seed.type)
+    }
+
     /** Strip diacritics (NFD + combining-mark removal), lowercase, collapse whitespace. */
     private fun normalize(value: String): String =
         Normalizer.normalize(value, Normalizer.Form.NFD)

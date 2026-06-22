@@ -36,7 +36,7 @@ class CatalogSeeder(
         val bundle = loadBundle()
         var inserted = 0
         for (seed in bundle.teas) {
-            val dedupKey = seed.dedupKey()
+            val dedupKey = DedupKeys.ofSeed(seed)
             if (teaRepository.findByDedupKey(dedupKey) != null) continue
             // saveAndFlush so the row (and its public_id) exists before the legacy-map FK insert.
             val saved = teaRepository.saveAndFlush(seed.toEntity(dedupKey))
@@ -51,13 +51,6 @@ class CatalogSeeder(
 
     private fun loadBundle(): SeedBundle =
         ClassPathResource(SEED_PATH).inputStream.use { objectMapper.readValue(it, SeedBundle::class.java) }
-
-    private fun SeedTea.dedupKey(): String {
-        val primary = names.firstOrNull { it.locale == "en" && it.isPrimary }
-            ?: names.first { it.isPrimary }
-        val pinyin = names.firstOrNull { it.locale == "pinyin" }?.name
-        return DedupKeys.of(primary.name, pinyin, type)
-    }
 
     private fun SeedTea.toEntity(dedupKey: String): Tea {
         val tea = Tea(
