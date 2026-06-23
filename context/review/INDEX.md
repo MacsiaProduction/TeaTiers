@@ -70,23 +70,23 @@ change, no new dependency):
 
 | ID | Finding (short) | Surface | Severity | Status |
 |---|---|:--:|:--:|---|
-| SRV-P1-3 | `applyApprovedNew` check-then-insert: dedup_key race poisons whole apply tx (no lock/catch) | server | **P1** | OPEN — catch `DataIntegrityViolationException`→`CanonicalUpsertConflictException` |
-| SRV-P1-5 | `match_decision.import_run_id` has no index (apply-phase filter seq-scans) | server | **P1** | OPEN — add `match_decision_import_run_idx` |
-| SRV-P2-2 | `@Size` params on `TeaController` dead (class not `@Validated`) | server | P2 | OPEN — add `@Validated` |
-| SRV-P2-3 | `findIdByNormalizedName` re-derives normal form, ignores `name_norm` index (hot `/resolve`) | server | P2 | OPEN — query `name_norm = lower(f_unaccent(:q))` |
-| SRV-P2-4 | `ReviewService.pending()` N+1 (per decision + per candidate `findById`) | server | P2 | OPEN — batch `findAllById` |
-| SRV-P2-5 | `match_candidate.match_tier` no CHECK (twin column has one) | server | P2 | OPEN — add CHECK |
-| SRV-P2-6 | `claimContext` `orElse(null)` degrades provenance (FK-unreachable, but wrong default) | server | P2 | OPEN — `orElseThrow` |
-| OE | server trims: HexFormat, 3 dup normalizers, dup 404 handlers, dup claim helpers, dead `CREATED` state, unused low-card indexes / `normalized_candidate` cols | server | trim | OPEN |
-| AND-P1-6 | Update manifest fetched over un-pinned client (live mechanism under REL-P0-2) | android | **P1** | OPEN — OkHttp `CertificatePinner` on `/app/latest` |
-| AND-P1-7 | `resumePending()` re-fires `/resolve` budget token on every board-open | android | **P1** | OPEN — backoff/`lastAttemptAt`, or resume on app-launch only |
-| AND-P2-3 | Verified APK not deleted when install throws/cancels | android | P2 | OPEN — `try/finally` |
-| AND-P2-4 | Backup size constants inconsistent (compressed 200MB < decompressed 256MB) | android | P2 | OPEN — document/derive |
-| OE | android trims: `Sha256` (Okio), `delete` canonical-path, dup copy methods, single-stmt `@Transaction` | android | trim | OPEN |
-| OPS-P1-5 | Backup SA `storage.admin` at folder scope → leaked key can delete tfstate bucket (sharpens OPS-P1-2) | infra | **P1** | OPEN — `storage.uploader` on one bucket |
-| OPS-P2-2 | Dependabot watches Docker only in `/ocr-sidecar`; Caddy/Postgres digests rot | ci | P2 | OPEN — add `/infra/deploy` docker entry |
-| OPS-P2-3 | Backup prune mtime-only, no keep-last-N floor | infra | P2 | OPEN — retain newest 3 |
-| OCR-P2-3 | `description_correct.py` double-parses every candidate with pymorphy3 | ocr | P2 | OPEN — parse once, reuse |
+| SRV-P1-3 | `applyApprovedNew` check-then-insert: dedup_key race poisons whole apply tx (no lock/catch) | server | **P1** | **DONE (#137)** — flush wrapped, `DataIntegrityViolationException`→`CanonicalUpsertConflictException` (race aborts+retries; pre-check quarantines on retry) |
+| SRV-P1-5 | `match_decision.import_run_id` has no index (apply-phase filter seq-scans) | server | **P1** | **DONE (#137)** — V17 `match_decision_import_run_idx` |
+| SRV-P2-2 | `@Size` params on `TeaController` dead (class not `@Validated`) | server | P2 | **DONE (#137)** — `@Validated` + `ConstraintViolationException`→400; `@WebMvcTest` |
+| SRV-P2-3 | `findIdByNormalizedName` re-derives normal form, ignores `name_norm` index (hot `/resolve`) | server | P2 | **DONE (#137)** — queries `name_norm = lower(f_unaccent(:q))` |
+| SRV-P2-4 | `ReviewService.pending()` N+1 (per decision + per candidate `findById`) | server | P2 | OPEN — batch `findAllById` (CLI-only; deferred) |
+| SRV-P2-5 | `match_candidate.match_tier` no CHECK (twin column has one) | server | P2 | **DONE (#137)** — V17 adds the CHECK |
+| SRV-P2-6 | `claimContext` `orElse(null)` degrades provenance (FK-unreachable, but wrong default) | server | P2 | **DONE (#137)** — `orElseThrow` |
+| OE | server trims: HexFormat, 3 dup normalizers, dup 404 handlers, dup claim helpers, dead `CREATED` state, unused low-card indexes / `normalized_candidate` cols | server | trim | OPEN (optional) |
+| AND-P1-6 | Update manifest fetched over un-pinned client (live mechanism under REL-P0-2) | android | **P1** | OPEN — ⚠ leaf-cert pin bricks updates on Let's Encrypt rotation; prefer the REL-P0-2 Ed25519 signed manifest over a TLS pin (owner call) |
+| AND-P1-7 | `resumePending()` re-fires `/resolve` budget token on every board-open | android | **P1** | OPEN — resume on app-launch only / `lastAttemptAt` backoff (next Android PR) |
+| AND-P2-3 | Verified APK not deleted when install throws/cancels | android | P2 | OPEN — `try/finally` (next Android PR) |
+| AND-P2-4 | Backup size constants inconsistent (compressed 200MB < decompressed 256MB) | android | P2 | OPEN — document/derive (next Android PR) |
+| OE | android trims: `Sha256` (Okio), `delete` canonical-path, dup copy methods, single-stmt `@Transaction` | android | trim | OPEN (optional) |
+| OPS-P1-5 | Backup SA `storage.admin` at folder scope → leaked key can delete tfstate bucket (sharpens OPS-P1-2) | infra | **P1** | OPEN — `storage.uploader` on one bucket (Terraform; owner-apply) |
+| OPS-P2-2 | Dependabot watches Docker only in `/ocr-sidecar`; Caddy/Postgres digests rot | ci | P2 | **DONE (#138)** — `/infra/deploy` docker entry |
+| OPS-P2-3 | Backup prune mtime-only, no keep-last-N floor | infra | P2 | **DONE (#138)** — keep newest 3 + age-prune the rest |
+| OCR-P2-3 | `description_correct.py` double-parses every candidate with pymorphy3 | ocr | P2 | **DONE (#138)** — parse once, reuse |
 
 ## Phase-1 harsh review (2026-06-23) — findings against the open PRs #128/#129/#130
 
