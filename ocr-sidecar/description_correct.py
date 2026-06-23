@@ -51,13 +51,6 @@ def _morph():
     return pymorphy3.MorphAnalyzer()
 
 
-def _is_real_word(token: str) -> bool:
-    low = token.lower()
-    if low in _TEA_LEXICON:
-        return True
-    return any(p.is_known for p in _morph().parse(token))
-
-
 def _protected(token: str) -> bool:
     """Genuinely-Latin / non-correctable tokens we must never touch."""
     if not token:
@@ -100,10 +93,13 @@ def _correct_token(token: str) -> str:
     best = None
     best_freq = -1.0
     for cand in _candidates(core):
-        if not _is_real_word(cand):
+        # Parse ONCE and reuse for both the known-check and the score (OCR-P2-3): the rank loop used to
+        # parse every candidate twice (once in _is_real_word, once here) — up to 512 morph parses per token.
+        parses = _morph().parse(cand)
+        if cand.lower() not in _TEA_LEXICON and not any(p.is_known for p in parses):
             continue
         # Rank known candidates by morphological confidence; prefer more-Cyrillic on ties.
-        freq = max((p.score for p in _morph().parse(cand)), default=0.0)
+        freq = max((p.score for p in parses), default=0.0)
         cyr = sum(1 for c in cand if "А" <= c <= "я")
         key = freq + 0.01 * cyr
         if key > best_freq:
