@@ -257,9 +257,9 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
     }
 
     @Test
-    fun `a create_new colliding on dedup_key surfaces a conflict, not a crash`() {
+    fun `a create_new colliding on dedup_key is quarantined and reported, not a crash (decision 141 H3)`() {
         eligibleSite()
-        // Seed a tea sharing the dedup_key a scraped "Rou Gui" computes, but whose NAME the matcher misses.
+        // Seed an ACTIVE tea sharing the dedup_key a scraped "Rou Gui" computes, but whose NAME the matcher misses.
         val collidingKey = DedupKeys.of("Rou Gui", "rou gui", TeaType.OOLONG)
         val seeded = Tea(type = TeaType.OOLONG, source = "curated", dedupKey = collidingKey, verificationStatus = "verified")
         seeded.addName(TeaName(locale = "en", name = "Unrelated Label", isPrimary = true))
@@ -270,8 +270,13 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         )
         assertEquals("create_new", decision.proposedKind)
         reviewService.approveNew(requireNotNull(decision.id), "operator") // decide is fine; the collision is a write-time fact
-        val outcome = runCatching { sealAndApply() }
-        assertTrue(outcome.exceptionOrNull() is CanonicalUpsertConflictException, "collision must surface as a merge hint at apply")
+        // H3: the apply phase quarantines the colliding decision (a merge hint for the operator) instead of one
+        // collision aborting the whole run -- the run completes and the conflict is reported.
+        val applied = sealAndApply()
+        assertEquals(0, applied.appliedCount)
+        assertEquals(1, applied.failures.size)
+        assertEquals(requireNotNull(decision.id), applied.failures.single().decisionId)
+        assertTrue(applied.failures.single().reason.contains("merge"), "the report is a merge hint")
     }
 
     @Test

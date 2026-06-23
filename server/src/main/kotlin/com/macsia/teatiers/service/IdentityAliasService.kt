@@ -60,8 +60,22 @@ class IdentityAliasService(
         )
     }
 
+    /**
+     * Read-only collision check (H3, decision #141 review): the active tea already holding an authoritative
+     * alias for ([locale], [alias]) excluding [teaId] (null = a not-yet-created tea, so exclude nothing), or
+     * null if none. Same query as the [addAuthoritative] guard, so the apply phase can detect a collision and
+     * quarantine just that decision BEFORE writing -- instead of the write throwing mid-batch and rolling the
+     * whole run back. Runs in the caller's apply tx, so it also sees aliases written by earlier decisions.
+     */
+    @Transactional(readOnly = true)
+    fun conflictingOwner(locale: String, alias: String, teaId: Long?): Long? =
+        aliasRepository.findOtherActiveAuthoritativeOwners(locale, alias, teaId ?: NO_TEA).firstOrNull()
+
     private companion object {
         val AUTHORITATIVE_ORIGINS = setOf("curated", "human_confirmed")
+
+        /** Sentinel for "no tea to exclude" -- no real tea has this id, so the check returns every owner. */
+        const val NO_TEA = -1L
     }
 }
 

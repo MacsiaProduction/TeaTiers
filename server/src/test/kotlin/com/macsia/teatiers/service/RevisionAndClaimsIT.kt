@@ -357,4 +357,42 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         assertEquals(dk, tea.dedupKey)
         assertTrue(teaId != retractedId, "a fresh active identity is created, not the retracted one")
     }
+
+    @Test
+    fun `an apply-time alias collision quarantines that decision and the rest of the run still applies (decision 141 H3)`() {
+        startRun()
+        // Two create_new records in ONE run. r1 is "Sen Cha". r2's PRIMARY is "Bai Hao" (distinct dedup_key,
+        // no dedup collision) but it carries a SECOND en name "Sen Cha" -- invisible to the matcher (which keys
+        // on the primary), so it proposes create_new; at apply that second name collides with r1's authoritative
+        // alias. The exact H3 scenario: a same-locale second name's collision surfaces only at write time.
+        val r1 = importService.ingest(runId, obs("https://s.example/h3a", externalId = "H3A"))
+        val r2 = importService.ingest(
+            runId,
+            obs(
+                "https://s.example/h3b",
+                externalId = "H3B",
+                names = listOf(ScrapedName("en", "Bai Hao", true), ScrapedName("en", "Sen Cha", false)),
+            ),
+        )
+        val d1 = matchService.proposeFor(requireNotNull(r1.id), runId)
+        val d2 = matchService.proposeFor(requireNotNull(r2.id), runId)
+        assertEquals("create_new", d1.proposedKind)
+        assertEquals("create_new", d2.proposedKind)
+        reviewService.approveNew(requireNotNull(d1.id), "op")
+        reviewService.approveNew(requireNotNull(d2.id), "op")
+
+        // Whichever applies first mints the "Sen Cha" authoritative alias; the other collides on it (same tx ->
+        // visible to the pre-check) and is QUARANTINED + reported, instead of rolling back the whole run.
+        val applied = sealAndApply()
+        assertEquals(1, applied.appliedCount, "the non-colliding decision still materialized")
+        assertEquals(1, applied.failures.size, "the colliding decision is reported, not fatal")
+        assertTrue(applied.failures.single().decisionId in listOf(requireNotNull(d1.id), requireNotNull(d2.id)))
+        assertTrue(applied.failures.single().reason.contains("Sen Cha"), "the report names the colliding alias")
+        // No duplicate identity minted, and the quarantined record stays unlinked for the operator to merge.
+        assertEquals(1, teaRepository.findTeaIdsByExactNameNorm("Sen Cha").size, "exactly one active 'Sen Cha' identity")
+        val linked = listOf(r1.id, r2.id).count {
+            sourceRecordRepository.findById(requireNotNull(it)).orElseThrow().teaId != null
+        }
+        assertEquals(1, linked, "one record linked; the colliding one left for operator resolution")
+    }
 }
