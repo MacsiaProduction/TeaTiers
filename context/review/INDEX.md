@@ -27,17 +27,20 @@ ranked-candidate matcher → Bucket4j), built with adopted libraries. Update Sta
 ## Phase-1 harsh review (2026-06-23) — findings against the open PRs #128/#129/#130
 
 From `2026-06-23-phase1-harsh-review.md`. H1/H2 are NEW (missed by the per-PR reviews); H3–H5 re-surface
-known residuals. **Plan: merge #128/#129/#130 then fix H1–H5 as one follow-up PR on unified `main`** (the
-fixes are cross-PR-entangled; H1 collides with the in-flight #128 cross-site WIP). H6 is a noted smell, not
-scheduled.
+known residuals. #128/#129/#130 merged; **H1/H2/H4/H5 + the #128 cross-site WIP + H7 landed as one
+follow-up PR ([#131](https://github.com/MacsiaProduction/TeaTiers/pull/131)) on unified `main`**. **H3 is
+the one remaining scheduled follow-up** (it changes the apply atomicity contract — its own PR). H6 is a
+noted smell, not scheduled.
 
 | ID | Finding (short) | PR | Severity | Status |
 |---|---|---|:--:|---|
-| H1 | Apply gate checks the producing run for `dryRun` only — a `blockRun`'d (robots/ToS/SSRF) run's revision can publish via re-proposal | #128 | **MAJOR (new)** | OPEN → fix: reject producing-run `BLOCKED` in `requireApplyAllowed` (keep `FAILED`); negative IT |
-| H2 | Active-only matcher proposes create_new for a name matching only a retracted tea → status-blind `dedup_key` collision → can't create AND can't merge (deadlock) | #129 | **MAJOR (new)** | OPEN → fix: partial-unique `tea_dedup_key WHERE status='active'` + active-scoped `findByDedupKey` |
-| H3 | `DuplicateAuthoritativeAliasException` in `writeNamesAndAliases` rolls back the WHOLE `applyRun` (all decisions), not the one colliding decision | #129 | MAJOR (operability) | OPEN → fix: per-decision try/catch in `applyRun` (quarantine + report) |
-| H4 | Global authoritative-alias invariant is service-layer check-then-act only — no DB index → TOCTOU under concurrent cross-run applies | #129 | MAJOR (concurrency) | OPEN → fix: partial-unique index `(locale, alias_norm) WHERE verified AND origin IN (...)` + demote aliases at tombstone |
-| H5 | `proposeFor` re-points a pending decision without the lock/`@Version` — a concurrent re-propose can clobber a just-committed approval (lost update) | #128/#129 | MINOR (narrow race) | OPEN → fix: `findByIdForUpdate` (or `@Version`) on the reused decision |
+| H1 | Apply gate checks the producing run for `dryRun` only — a `blockRun`'d (robots/ToS/SSRF) run's revision can publish via re-proposal | #128 | **MAJOR (new)** | **DONE (#131)** — `requireApplyAllowed` rejects producing-run `BLOCKED` (keeps `FAILED`); IT in `RevisionAndClaimsIT` |
+| H2 | Active-only matcher proposes create_new for a name matching only a retracted tea → status-blind `dedup_key` collision → can't create AND can't merge (deadlock) | #129 | **MAJOR (new)** | **DONE (#131)** — V16 partial-unique `tea_dedup_key WHERE status='active'` + `findActiveByDedupKey`; IT in `RevisionAndClaimsIT` |
+| H3 | `DuplicateAuthoritativeAliasException` in `writeNamesAndAliases` rolls back the WHOLE `applyRun` (all decisions), not the one colliding decision | #129 | MAJOR (operability) | **OPEN (next PR)** → per-decision isolation in `applyRun` (quarantine + report); changes apply atomicity contract |
+| H4 | Global authoritative-alias invariant is service-layer check-then-act only — no DB index → TOCTOU under concurrent cross-run applies | #129 | MAJOR (concurrency) | **DONE (#131)** — tx-scoped advisory lock on `(locale, alias)` in `addAuthoritative` (a partial index can't reference the owner tea's status; demotion-at-tombstone infra deferred to H3-era) |
+| H5 | `proposeFor` re-points a pending decision without the lock/`@Version` — a concurrent re-propose can clobber a just-committed approval (lost update) | #128/#129 | MINOR (narrow race) | **DONE (#131)** — `findByIdForUpdate` on the reused decision + re-check-then-bail if just consumed |
+| cross-site | A decision's `import_run_id` can be re-pointed with no site check → a record could be applied via a run for a different `source_site` | #128 | MAJOR | **DONE (#131)** — `requireApplyAllowed` refuses a run/record site mismatch; IT in `ImportRunStateIT` |
+| H7 | `deleteByMatchDecisionId` `@Modifying(clearAutomatically)` without `flushAutomatically` discards the re-pointed decision's pending UPDATE → cross-run re-propose silently lost (broke merged `main`) | auto-merge | **CRITICAL (regression)** | **DONE (#131)** — add `flushAutomatically = true` |
 | H6 | Completeness gate keys on `source_record.import_run_id`; apply scopes on `match_decision.import_run_id` — scope mismatch on cross-run re-propose | #128 | MINOR (smell) | NOTED — judged not a publish-bad-content bug (applied decisions are individually approved); not scheduled |
 | OE | Over-engineering (ponytail): `match_candidate` table (~110 LoC, no live consumer), dup-alias repair report, `EdgeOverloadException` | #129/#130 | trim (~-140 LoC) | OPTIONAL — defer surfacing infra until a reviewer surface consumes it (owner's call; FND-P1-1 does mandate ranked candidates) |
 
