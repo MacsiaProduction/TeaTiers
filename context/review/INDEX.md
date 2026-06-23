@@ -30,7 +30,14 @@ From `2026-06-23-phase1-harsh-review.md`. H1/H2 are NEW (missed by the per-PR re
 known residuals. #128/#129/#130 merged; **H1/H2/H4/H5 + the #128 cross-site WIP + H7 landed as one
 follow-up PR ([#131](https://github.com/MacsiaProduction/TeaTiers/pull/131)) on unified `main`**, and **H3
 landed in [#132](https://github.com/MacsiaProduction/TeaTiers/pull/132)** (apply-collision quarantine). All
-scheduled findings are now DONE. H6 is a noted smell, not scheduled.
+scheduled findings are DONE. **H6 re-investigated → confirmed benign, WONT-FIX** (accounting asymmetry, not
+a publish bug; fix would risk the locked cross-run re-propose flow). **OE re-investigated → 2 of 3 ponytail
+flags were false positives** (`match_candidate` + `EdgeOverloadException` are mandated/consumed); the lone
+dead piece is the dup-alias repair query, kept as a security-invariant audit. See the table rows for
+evidence. No further code work outstanding from this review; remaining items are OWNER OPERATIONAL only
+(generate/back-up `release.jks`; rehearse V6→current on a prod-like backup + deploy by verified digest; the
+"before public" Ed25519-signed update manifest per decision #119) — all already wired in-repo as far as code
+allows.
 
 | ID | Finding (short) | PR | Severity | Status |
 |---|---|---|:--:|---|
@@ -41,8 +48,8 @@ scheduled findings are now DONE. H6 is a noted smell, not scheduled.
 | H5 | `proposeFor` re-points a pending decision without the lock/`@Version` — a concurrent re-propose can clobber a just-committed approval (lost update) | #128/#129 | MINOR (narrow race) | **DONE (#131)** — `findByIdForUpdate` on the reused decision + re-check-then-bail if just consumed |
 | cross-site | A decision's `import_run_id` can be re-pointed with no site check → a record could be applied via a run for a different `source_site` | #128 | MAJOR | **DONE (#131)** — `requireApplyAllowed` refuses a run/record site mismatch; IT in `ImportRunStateIT` |
 | H7 | `deleteByMatchDecisionId` `@Modifying(clearAutomatically)` without `flushAutomatically` discards the re-pointed decision's pending UPDATE → cross-run re-propose silently lost (broke merged `main`) | auto-merge | **CRITICAL (regression)** | **DONE (#131)** — add `flushAutomatically = true` |
-| H6 | Completeness gate keys on `source_record.import_run_id`; apply scopes on `match_decision.import_run_id` — scope mismatch on cross-run re-propose | #128 | MINOR (smell) | NOTED — judged not a publish-bad-content bug (applied decisions are individually approved); not scheduled |
-| OE | Over-engineering (ponytail): `match_candidate` table (~110 LoC, no live consumer), dup-alias repair report, `EdgeOverloadException` | #129/#130 | trim (~-140 LoC) | OPTIONAL — defer surfacing infra until a reviewer surface consumes it (owner's call; FND-P1-1 does mandate ranked candidates) |
+| H6 | Completeness gate keys on `source_record.import_run_id`; apply scopes on `match_decision.import_run_id` — scope mismatch on cross-run re-propose | #128 | MINOR (smell) | **NOTED — re-investigated 2026-06-23, confirmed benign, WONT-FIX.** Deep trace: `markReviewed` counts records staged in the run with NO terminal decision for their current revision; `applyRun` applies decisions scoped to the run. On a cross-run re-propose these diverge into an *accounting* asymmetry only — no bad content publishes (every applied decision is individually approved + revision-pinned), nothing is lost (the re-pointed decision applies under its own run), and a pending decision can never seal a run (the gate counts it unreviewed). A "fix" (scoping the gate by `match_decision.import_run_id`) would risk the locked, tested deferred-review / cross-run re-propose flow — risk without a bug. Left as-is with this evidence. |
+| OE | Over-engineering (ponytail): `match_candidate` table, dup-alias repair report, `EdgeOverloadException` | #129/#130 | trim | **RESOLVED — 2 of 3 were false positives.** `match_candidate` is KEPT (mandated by FND-P1-1; written by `IdentityMatchService.persistCandidates`, read by `ReviewService.pending`→`ReviewCli`). `EdgeOverloadException` is KEPT (live path: thrown by `TeaController.search`/`resolve`, handled→503 by `CatalogExceptionHandler`, PRIV-P1-1). Only `findDuplicateActiveAuthoritativeAliases` + `DuplicateAuthoritativeAliasRow` are unconsumed — KEPT as a security-invariant audit (the only way to find pre-existing one-active-owner violations the H4 advisory lock can't heal); owner's call to wire to an ops surface or drop. Net trimmable LoC ≈ the ponytail estimate was wrong; nothing safely cut. |
 
 ## P0 — must close before ANY scraped canonical write (decision #137)
 
