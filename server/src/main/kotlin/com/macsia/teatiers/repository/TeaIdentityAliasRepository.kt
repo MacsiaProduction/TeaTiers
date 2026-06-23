@@ -55,6 +55,17 @@ interface TeaIdentityAliasRepository : JpaRepository<TeaIdentityAlias, Long> {
         nativeQuery = true,
     )
     fun findDuplicateActiveAuthoritativeAliases(): List<DuplicateAuthoritativeAliasRow>
+
+    /**
+     * Serialize concurrent authoritative-alias promotion of the SAME identity key (H4, decision #141 review).
+     * The global one-active-owner invariant is a service-layer check-then-insert with no DB unique index (a
+     * partial index can't reference the owner tea's status, and demotion-at-tombstone infra doesn't exist
+     * yet), so two concurrent cross-run applies could otherwise both pass the check. A transaction-scoped
+     * Postgres advisory lock on the (locale, alias) key makes the check-then-insert atomic across
+     * transactions without a DB constraint. The inner SELECT runs the lock (side effect); the outer returns 1.
+     */
+    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)) AS _lock", nativeQuery = true)
+    fun lockAuthoritativeAliasKey(@Param("key") key: String): Int
 }
 
 /** Repair-report row: an authoritative (locale, normalized alias) held by [teaCount] active teas (>1). */

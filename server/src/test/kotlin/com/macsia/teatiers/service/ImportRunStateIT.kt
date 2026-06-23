@@ -7,6 +7,7 @@ import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
 import com.macsia.teatiers.repository.ImportRunRepository
+import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.RawEvidenceRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.SourceRecordRevisionRepository
@@ -45,6 +46,8 @@ class ImportRunStateIT : AbstractIntegrationTest() {
     @Autowired lateinit var revisionRepository: SourceRecordRevisionRepository
 
     @Autowired lateinit var rawEvidenceRepository: RawEvidenceRepository
+
+    @Autowired lateinit var matchDecisionRepository: MatchDecisionRepository
 
     // Fresh per-test so the run's robots snapshot passes the #139-R3 freshness window.
     private val fetchedAt = Instant.now().minusSeconds(60)
@@ -338,5 +341,33 @@ class ImportRunStateIT : AbstractIntegrationTest() {
 
         // ...but the apply phase must refuse to write the catalog from a dry-run record.
         assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(run.id!!) }
+    }
+
+    @Test
+    fun `apply refuses a record whose decision was re-pointed to a run for a different site`() {
+        eligible("a")
+        eligible("b")
+        // A record staged + approved under site a; its decision points at run a.
+        val runA = importService.startRun("a", "op", "t", "p-1", allow(), dryRun = false)
+        val record = importService.ingest(requireNotNull(runA.id), obsWithId("a", "EX-9", "https://a.example/x"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), runA.id)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+        importService.closeIngestion(runA.id!!)
+        reviewService.markReviewed(runA.id!!)
+        // A separate REAL, reviewed run for a DIFFERENT site b.
+        val runB = importService.startRun(
+            "b", "op", "t", "p-1",
+            RobotsEvidence("allow", "https://b.example/robots.txt", "TeaTiers/test", fetchedAt, 200, "robots-hash"),
+            dryRun = false,
+        )
+        importService.closeIngestion(runB.id!!)
+        reviewService.markReviewed(runB.id!!)
+        // Re-point the site-a decision at run b (import_run_id has no site check) and apply run b: the apply
+        // gate must refuse to write a site-a record via a site-b run.
+        val repointed = matchDecisionRepository.findById(decision.id!!).orElseThrow()
+        repointed.importRunId = requireNotNull(runB.id)
+        matchDecisionRepository.saveAndFlush(repointed)
+
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(runB.id!!) }
     }
 }

@@ -29,6 +29,15 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
     fun findByDedupKey(dedupKey: String): Tea?
 
     /**
+     * Active-scoped dedup lookup for the create-new collision pre-check (H2, decision #141 review): a
+     * retracted/merged tea must NOT block creating a fresh active identity with the same dedup_key (it would
+     * deadlock -- create collides, merge into a tombstone is forbidden). Pairs with the active-only partial
+     * unique `tea_dedup_key_active_uk`.
+     */
+    @Query("select t from Tea t where t.dedupKey = :key and t.status = 'active'")
+    fun findActiveByDedupKey(@Param("key") key: String): Tea?
+
+    /**
      * `/resolve` cache hit: the lowest id whose name in any locale equals [q] once unaccented and
      * lowercased. `unaccent` (enabled in V1) folds Latin diacritics (e.g. pinyin tone marks); it is
      * a no-op for Cyrillic/CJK. Keeps the second user who types a known tea from re-enriching it.
