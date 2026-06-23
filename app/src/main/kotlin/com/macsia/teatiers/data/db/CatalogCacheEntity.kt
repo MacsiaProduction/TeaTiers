@@ -32,12 +32,13 @@ interface CatalogDao {
     suspend fun upsertAll(rows: List<CatalogCacheEntity>)
 
     /**
-     * Offline fallback: rows whose joined names contain [query] (already lowercased by the caller),
-     * most-recently-fetched first. Both sides are pre-lowercased so Cyrillic/CJK match too (SQLite
-     * `LIKE` only case-folds ASCII).
+     * Offline fallback: rows whose joined names contain [query] (already lowercased AND LIKE-escaped by the
+     * caller), most-recently-fetched first. Both sides are pre-lowercased so Cyrillic/CJK match too (SQLite
+     * `LIKE` only case-folds ASCII). `ESCAPE '\'` (AND-P2-1) makes the caller's `\%`/`\_` match a literal
+     * `%`/`_` instead of treating user-typed wildcards as wildcards (a query of `%` matching everything).
      */
     @Query(
-        "SELECT * FROM catalog_cache WHERE searchText LIKE '%' || :query || '%' " +
+        "SELECT * FROM catalog_cache WHERE searchText LIKE '%' || :query || '%' ESCAPE '\\' " +
             "ORDER BY fetchedAtEpochMs DESC LIMIT :limit",
     )
     suspend fun search(query: String, limit: Int): List<CatalogCacheEntity>
