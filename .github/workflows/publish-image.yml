@@ -64,6 +64,15 @@ jobs:
           echo "repo=${repo}" >> "$GITHUB_OUTPUT"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           echo "Pushed: ${tags[*]} @ ${digest}"
+          # Surface the immutable digest so the operator pins it in /opt/teatiers/.env rather than :latest
+          # (OPS-P1-1 / deploy-by-digest). The digest is what cosign signed + the attestation covers.
+          {
+            echo "### Deploy by digest"
+            echo ""
+            echo '```'
+            echo "SERVER_IMAGE=${repo}@${digest}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3

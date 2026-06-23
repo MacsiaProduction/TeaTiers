@@ -101,6 +101,14 @@ jobs:
           echo "repo=${repo}" >> "$GITHUB_OUTPUT"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           echo "Pushed ${repo}:latest + :${GITHUB_SHA::12} @ ${digest}"
+          # Surface the immutable digest for deploy-by-digest pinning in /opt/teatiers/.env (OPS-P1-1).
+          {
+            echo "### Deploy by digest"
+            echo ""
+            echo '```'
+            echo "OCR_SIDECAR_IMAGE=${repo}@${digest}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install cosign
         if: github.event_name == 'push'
