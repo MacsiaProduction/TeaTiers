@@ -163,6 +163,11 @@ class AppUpdateViewModelTest {
         val state = viewModel.state.value
         assertInstanceOf(UpdateUiState.Failed::class.java, state)
         assertEquals("install:declined", (state as UpdateUiState.Failed).reason)
+        // AND-P2-3: cleaned up even when the install fails. The download→install body is now wrapped in
+        // try/finally, so the verified blob is also deleted on the install-throws / coroutine-cancelled
+        // paths that the old post-`when` delete skipped (same finally; exercised here + on the success and
+        // verify-reject `return@launch` paths above).
+        assertFalse(apk.exists())
     }
 
     @Test

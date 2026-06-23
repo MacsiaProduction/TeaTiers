@@ -74,21 +74,27 @@ class AppUpdateViewModel @Inject constructor(
                 _state.value = UpdateUiState.Failed("download", manifest)
                 return@launch
             }
-            when (val verdict = verifier.verify(apk, manifest, BuildConfig.VERSION_CODE.toLong())) {
-                ApkVerification.Ok -> Unit
-                is ApkVerification.Rejected -> {
-                    apk.delete()
-                    _state.value = UpdateUiState.Failed("verify:${verdict.reason}", manifest)
-                    return@launch
+            // Delete the downloaded blob on EVERY exit (AND-P2-3): verify-reject, install success/fail, an
+            // install that throws, OR coroutine cancellation mid-install. Without the finally the verified APK
+            // leaked into cache on the throw/cancel paths. On success the installer has already copied it, so
+            // deleting our cache copy is safe.
+            try {
+                when (val verdict = verifier.verify(apk, manifest, BuildConfig.VERSION_CODE.toLong())) {
+                    ApkVerification.Ok -> Unit
+                    is ApkVerification.Rejected -> {
+                        _state.value = UpdateUiState.Failed("verify:${verdict.reason}", manifest)
+                        return@launch
+                    }
                 }
+                when (val outcome = installer.install(apk)) {
+                    // On success Android installs the new APK; the old process keeps running until
+                    // restarted. Drop back to Idle so the prompt dismisses cleanly either way.
+                    AppInstaller.Outcome.Success -> _state.value = UpdateUiState.Idle
+                    is AppInstaller.Outcome.Failed -> _state.value = UpdateUiState.Failed("install:${outcome.reason}", manifest)
+                }
+            } finally {
+                apk.delete()
             }
-            when (val outcome = installer.install(apk)) {
-                // On success Android installs the new APK; the old process keeps running until
-                // restarted. Drop back to Idle so the prompt dismisses cleanly either way.
-                AppInstaller.Outcome.Success -> _state.value = UpdateUiState.Idle
-                is AppInstaller.Outcome.Failed -> _state.value = UpdateUiState.Failed("install:${outcome.reason}", manifest)
-            }
-            apk.delete() // best-effort cleanup of the verified blob
         }
     }
 
