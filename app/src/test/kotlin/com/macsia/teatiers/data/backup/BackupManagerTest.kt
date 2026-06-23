@@ -5,13 +5,14 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.macsia.teatiers.data.db.BoardEntity
+import com.macsia.teatiers.data.db.CatalogRefEntity
 import com.macsia.teatiers.data.db.FlavorEntity
 import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.SeedEntities
 import com.macsia.teatiers.data.db.TeaDao
-import com.macsia.teatiers.data.db.TeaEntity
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
 import com.macsia.teatiers.data.repository.FakePhotoStore
 import io.mockk.coEvery
@@ -66,8 +67,9 @@ class BackupManagerTest {
     private fun snapshot() = SeedEntities(
         boards = listOf(BoardEntity("b1", "Daily", 0)),
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
+        catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", fetchedAtEpochMs = 0L)),
         teas = listOf(
-            TeaEntity(
+            TeaSampleEntity(
                 "tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice",
                 catalogTeaId = 42L, enrichmentState = "DONE",
             ),

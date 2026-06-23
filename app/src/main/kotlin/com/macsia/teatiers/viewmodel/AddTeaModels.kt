@@ -85,7 +85,8 @@ data class AddTeaForm(
     // is not stored locally or republished), so it is intentionally absent from toTea()/toForm().
     val sourceText: String = "",
 ) {
-    val isValid: Boolean get() = nameRu.isNotBlank()
+    // P1-2 (#132): a sample is valid with ≥1 non-blank name in ANY locale — ru is no longer required.
+    val isValid: Boolean get() = listOf(nameRu, nameEn, pinyin, nameZh).any { it.isNotBlank() }
 }
 
 fun PurchaseDraft.toLocation(): PurchaseLocation? {
@@ -112,7 +113,8 @@ fun AddTeaForm.toTea(): Tea {
         .map { (dimension, intensity) -> FlavorScore(dimension, intensity) }
     return Tea(
         id = "user-${UUID.randomUUID()}",
-        nameRu = nameRu.trim(),
+        // P1-2: a blank ru name becomes null so the display resolver falls through to another locale.
+        nameRu = nameRu.trim().ifBlank { null },
         nameZh = nameZh.trim().ifBlank { null },
         pinyin = pinyin.trim().ifBlank { null },
         nameEn = nameEn.trim().ifBlank { null },
@@ -130,7 +132,7 @@ fun AddTeaForm.toTea(): Tea {
  * placement), so [AddTeaForm.tierId] stays null and is ignored on save.
  */
 fun Tea.toForm(): AddTeaForm = AddTeaForm(
-    nameRu = nameRu,
+    nameRu = nameRu.orEmpty(),
     nameEn = nameEn.orEmpty(),
     pinyin = pinyin.orEmpty(),
     nameZh = nameZh.orEmpty(),

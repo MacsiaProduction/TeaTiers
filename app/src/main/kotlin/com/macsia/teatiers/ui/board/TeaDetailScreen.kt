@@ -178,7 +178,7 @@ private fun TeaDetailBody(
             LiquorSwatch(type = tea.type, size = 64.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(text = tea.nameRu, style = MaterialTheme.typography.headlineMedium)
+                Text(text = tea.displayName, style = MaterialTheme.typography.headlineMedium)
                 if (tea.secondaryName.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
                     Text(

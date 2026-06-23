@@ -45,12 +45,12 @@ fun filterMyTeas(teas: List<Tea>, query: String, type: TeaType?): List<Tea> {
         .asSequence()
         .filter { type == null || it.type == type }
         .filter { needle.isEmpty() || it.matchesQuery(needle) }
-        .sortedBy { it.nameRu.lowercase() }
+        .sortedBy { it.displayName.lowercase() }
         .toList()
 }
 
 private fun Tea.matchesQuery(needle: String): Boolean =
-    nameRu.lowercase().contains(needle) ||
+    nameRu?.lowercase()?.contains(needle) == true ||
         nameEn?.lowercase()?.contains(needle) == true ||
         pinyin?.lowercase()?.contains(needle) == true ||
         nameZh?.contains(needle) == true

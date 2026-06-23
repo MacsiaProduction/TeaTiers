@@ -436,9 +436,15 @@ deviated.
     - **JUnit 5.14.4 + MockK 1.14.9 + Turbine 1.2.1 + kotlinx-coroutines-test 1.11.0**; the
       module runs on the JUnit Platform (`testOptions.unitTests.all { useJUnitPlatform() }`).
       The two Phase-0 tests were migrated JUnit 4 → 5; **drops the JUnit 4 dependency.**
-    - **No Robolectric:** Room verifies its queries/relations at compile time, so the DAO is
-      faked rather than run on a simulated device; this avoids pinning a Robolectric/SDK combo
-      against AGP 9 + JDK 17. Instrumented Room/Compose tests are a later (M-test) milestone.
+    - **No Robolectric** for the bulk of unit tests: Room verifies its queries/relations at compile
+      time, so the DAO is faked rather than run on a simulated device; this avoids pinning a
+      Robolectric/SDK combo against AGP 9 + JDK 17. Instrumented Compose tests are a later milestone.
+      - **Amended 2026-06-23:** the Room *migration* test is the one exception — it runs under
+        Robolectric on the JVM (`TeaDatabaseMigrationTest`, pinned `@Config(sdk=[35])` to stay on
+        JDK 17). A migration is a *runtime* concern compile-time validation can't cover, and GitHub
+        Actions has no emulator quota, so the gate runs off-device. Robolectric's SQLite is proven to
+        enforce real FK CASCADE/constraints (`robolectric_enforcesForeignKeysAndCascade`). See review
+        P1-4 / `tea-sample-split-v7.md` Q8.
     - **Coroutine tests** use `runTest` + `UnconfinedTestDispatcher`; ViewModel tests set the
       Main dispatcher (`Dispatchers.setMain`/`resetMain`) and assert flows with Turbine.
 

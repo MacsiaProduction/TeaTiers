@@ -20,13 +20,14 @@ data class TierPosition(val tierId: String, val position: Int)
 data class PhotoPosition(val photoId: String, val position: Int)
 
 /**
- * Slim projection of a [TeaEntity] used for the resolve-or-create match (decisions.md #42). The
- * Russian-language match has to be Unicode-case-insensitive, and SQLite's built-in `LOWER` is
+ * Slim projection of a [TeaSampleEntity] used for the resolve-or-create match (decisions.md #42).
+ * The Russian-language match has to be Unicode-case-insensitive, and SQLite's built-in `LOWER` is
  * ASCII-only, so we load the candidate set into Kotlin and match there with [String.lowercase].
+ * `nameRu` is nullable since v7 (P1-2 — a sample may have only a zh/en/pinyin name).
  */
 data class TeaMatchKeyRow(
     val id: String,
-    val nameRu: String,
+    val nameRu: String?,
     val nameZh: String?,
     val pinyin: String?,
     val nameEn: String?,
@@ -44,32 +45,35 @@ abstract class TeaDao {
     abstract fun observeBoards(): Flow<List<BoardWithChildren>>
 
     @Transaction
-    @Query("SELECT * FROM teas WHERE id = :teaId")
+    @Query("SELECT * FROM tea_samples WHERE id = :teaId")
     abstract suspend fun loadTea(teaId: String): TeaWithChildren?
 
     /**
-     * Reactive single-tea read (review 2026-06-19): re-emits whenever the tea or its children
-     * change, so the edit screen's photo strip stays fresh even for a tea with zero board
-     * placements (which never appears in the boards flow). Emits null if the tea is gone.
+     * Reactive single-tea read (review 2026-06-19): re-emits whenever the sample or its children
+     * change, so the edit screen's photo strip stays fresh even for a sample with zero board
+     * placements (which never appears in the boards flow). Emits null if the sample is gone.
      */
     @Transaction
-    @Query("SELECT * FROM teas WHERE id = :teaId")
+    @Query("SELECT * FROM tea_samples WHERE id = :teaId")
     abstract fun observeTea(teaId: String): Flow<TeaWithChildren?>
 
     /**
-     * Every user-tea (the cross-board "my teas" collection, decisions.md #27), including teas
+     * Every sample (the cross-board "my teas" collection, decisions.md #27), including samples
      * with no placement left on any board (removed from every board but not deleted — #42).
      * Ordering is cosmetic and applied in Kotlin so Russian uppercase sorts correctly.
      */
     @Transaction
-    @Query("SELECT * FROM teas")
+    @Query("SELECT * FROM tea_samples")
     abstract fun observeAllTeas(): Flow<List<TeaWithChildren>>
 
-    @Query("SELECT id, nameRu, nameZh, pinyin, nameEn FROM teas")
+    @Query("SELECT id, nameRu, nameZh, pinyin, nameEn FROM tea_samples")
     abstract suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow>
 
-    /** The user-tea already linked to this catalog id, if any — the strongest dedup key (#42). */
-    @Query("SELECT id FROM teas WHERE catalogTeaId = :catalogTeaId LIMIT 1")
+    /**
+     * The first sample linked to this catalog id, if any — the strongest dedup key (#42). Since v7
+     * dropped the UNIQUE, many samples may share a ref, so order by id for a stable pick (finding #7).
+     */
+    @Query("SELECT id FROM tea_samples WHERE catalogTeaId = :catalogTeaId ORDER BY id LIMIT 1")
     abstract suspend fun findTeaIdByCatalogId(catalogTeaId: Long): String?
 
     @Query("SELECT COUNT(*) FROM placements WHERE teaId = :teaId")
@@ -79,12 +83,12 @@ abstract class TeaDao {
     abstract suspend fun boardCount(): Int
 
     // Delete a whole board (tier-list). Its tiers + placements cascade via FK (onDelete=CASCADE);
-    // shared teas are NOT board-scoped so they persist (only the board's arrangement is removed).
+    // shared samples are NOT board-scoped so they persist (only the board's arrangement is removed).
     @Query("DELETE FROM boards WHERE id = :boardId")
     abstract suspend fun deleteBoardRow(boardId: String)
 
     // Out-of-Room wipe sentinel (decision #111): numeric-only user-data counts, no content.
-    @Query("SELECT COUNT(*) FROM teas")
+    @Query("SELECT COUNT(*) FROM tea_samples")
     abstract suspend fun teaCount(): Int
 
     @Query("SELECT COUNT(*) FROM tea_photos")
@@ -103,8 +107,20 @@ abstract class TeaDao {
     @Insert
     abstract suspend fun insertTiers(tiers: List<TierEntity>)
 
+    /** Catalog-ref rows. Must be inserted BEFORE the samples that link to them (FK). */
     @Insert
-    abstract suspend fun insertTeas(teas: List<TeaEntity>)
+    abstract suspend fun insertRefs(refs: List<CatalogRefEntity>)
+
+    /**
+     * Idempotent stub for one catalog ref — the FK precondition for any `catalogTeaId` write
+     * (finding #14). `INSERT OR IGNORE` so a ref already cached (with full facts) is not clobbered
+     * back to a stub. fetchedAtEpochMs=0 marks "stub, never refreshed".
+     */
+    @Query("INSERT OR IGNORE INTO catalog_refs (id, type, fetchedAtEpochMs) VALUES (:refId, :type, 0)")
+    abstract suspend fun insertRefStub(refId: Long, type: String)
+
+    @Insert
+    abstract suspend fun insertTeas(teas: List<TeaSampleEntity>)
 
     @Insert
     abstract suspend fun insertPlacements(placements: List<PlacementEntity>)
@@ -143,7 +159,7 @@ abstract class TeaDao {
     @Query("DELETE FROM placements WHERE id = :placementId")
     abstract suspend fun deletePlacement(placementId: String)
 
-    @Query("DELETE FROM teas WHERE id = :teaId")
+    @Query("DELETE FROM tea_samples WHERE id = :teaId")
     abstract suspend fun deleteTeaRow(teaId: String)
 
     @Query("UPDATE tiers SET label = :label WHERE id = :tierId")
@@ -159,16 +175,16 @@ abstract class TeaDao {
     abstract suspend fun deleteTier(tierId: String)
 
     /**
-     * Rewrites only the user-editable scalar columns of a tea. Leaves shortBlurb (catalog/AI)
-     * untouched and never touches placements: edits to a tea ripple to every board it sits on.
+     * Rewrites only the user-editable scalar columns of a sample. Leaves shortBlurb (catalog/AI)
+     * untouched and never touches placements: edits to a sample ripple to every board it sits on.
      */
     @Query(
-        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, " +
+        "UPDATE tea_samples SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, " +
             "nameEn = :nameEn, type = :type, origin = :origin, notes = :notes WHERE id = :teaId",
     )
     abstract suspend fun updateTeaFields(
         teaId: String,
-        nameRu: String,
+        nameRu: String?,
         nameZh: String?,
         pinyin: String?,
         nameEn: String?,
@@ -177,27 +193,28 @@ abstract class TeaDao {
         notes: String?,
     )
 
-    /** The raw tea row (no children) — used by the enrichment patch to merge non-blank fields. */
-    @Query("SELECT * FROM teas WHERE id = :teaId")
-    abstract suspend fun loadTeaRow(teaId: String): TeaEntity?
+    /** The raw sample row (no children) — used by the enrichment patch to merge non-blank fields. */
+    @Query("SELECT * FROM tea_samples WHERE id = :teaId")
+    abstract suspend fun loadTeaRow(teaId: String): TeaSampleEntity?
 
     /** Flips only the enrichment lifecycle column (PENDING/QUEUED/DONE/FAILED) — no field overwrite. */
-    @Query("UPDATE teas SET enrichmentState = :state WHERE id = :teaId")
+    @Query("UPDATE tea_samples SET enrichmentState = :state WHERE id = :teaId")
     abstract suspend fun updateEnrichmentState(teaId: String, state: String)
 
     /**
      * Patches the catalog-derived fields after a successful resolve and stamps the final state.
      * Names/type/origin/blurb are enriched suggestions (#21); the caller merges them with the
      * user's typed values (keeping a non-blank user value when the catalog has none) before writing.
+     * The catalog ref stub must already exist (FK) — [applyEnrichmentPatch] ensures it.
      */
     @Query(
-        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, nameEn = :nameEn, " +
+        "UPDATE tea_samples SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, nameEn = :nameEn, " +
             "type = :type, origin = :origin, shortBlurb = :shortBlurb, catalogTeaId = :catalogTeaId, " +
             "enrichmentState = :state WHERE id = :teaId",
     )
     abstract suspend fun patchEnrichment(
         teaId: String,
-        nameRu: String,
+        nameRu: String?,
         nameZh: String?,
         pinyin: String?,
         nameEn: String?,
@@ -208,41 +225,21 @@ abstract class TeaDao {
         state: String,
     )
 
-    /**
-     * Like [patchEnrichment] but WITHOUT touching `catalogTeaId` — used for a differently-spelled
-     * duplicate that resolved to a catalog row another user-tea already owns (the UNIQUE link can't
-     * be shared, #101). It still gets the catalog's enriched names/blurb so it isn't stranded showing
-     * only the raw typed string (review F6).
-     */
-    @Query(
-        "UPDATE teas SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, nameEn = :nameEn, " +
-            "type = :type, origin = :origin, shortBlurb = :shortBlurb, enrichmentState = :state " +
-            "WHERE id = :teaId",
-    )
-    abstract suspend fun patchEnrichmentSuggestions(
-        teaId: String,
-        nameRu: String,
-        nameZh: String?,
-        pinyin: String?,
-        nameEn: String?,
-        type: String,
-        origin: String?,
-        shortBlurb: String?,
-        state: String,
-    )
-
     /** Teas left mid-enrichment by a prior run (process death / offline) — re-dispatched on launch. */
-    @Query("SELECT * FROM teas WHERE enrichmentState IN ('PENDING', 'QUEUED')")
-    abstract suspend fun teasNeedingEnrichment(): List<TeaEntity>
+    @Query("SELECT * FROM tea_samples WHERE enrichmentState IN ('PENDING', 'QUEUED')")
+    abstract suspend fun teasNeedingEnrichment(): List<TeaSampleEntity>
 
     /**
      * Atomic enrichment merge (review 2026-06-19): load the row, fill only the fields the user left
      * blank with the catalog's `candidate*` values, and write back — all in ONE @Transaction, so a
      * concurrent user edit landing between the read and the write can't be clobbered (the old
      * read-merge-write in the manager had that lost-update window). The catalog is a suggestion that
-     * wins only where the user is blank (#21). If another user-tea already owns this catalog link
-     * (UNIQUE, #101), the enriched names/blurb still merge but the link is left untouched (review F6).
-     * `state` is passed in (not hard-coded) to keep this DAO free of the domain enum.
+     * wins only where the user is blank (#21). `state` is passed in (not hard-coded) to keep this DAO
+     * free of the domain enum.
+     *
+     * Since v7 the link is per-sample (no UNIQUE): every sample resolving to ref R links to R
+     * (findings #14/#16/#23 — the old `linkOwner` branch that left differently-spelled duplicates
+     * unlinked is gone). The catalog_refs stub is created first so the `catalogTeaId` FK holds.
      */
     @Transaction
     open suspend fun applyEnrichmentPatch(
@@ -265,12 +262,8 @@ abstract class TeaDao {
         val origin = candidateOrigin?.takeIf { it.isNotBlank() } ?: current.origin
         val shortBlurb = candidateShortBlurb?.takeIf { it.isNotBlank() } ?: current.shortBlurb
 
-        val linkOwner = findTeaIdByCatalogId(catalogTeaId)
-        if (linkOwner != null && linkOwner != teaId) {
-            patchEnrichmentSuggestions(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, state)
-        } else {
-            patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, catalogTeaId, state)
-        }
+        insertRefStub(catalogTeaId, type)
+        patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, catalogTeaId, state)
     }
 
     @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")
@@ -290,8 +283,11 @@ abstract class TeaDao {
     @Query("SELECT * FROM tiers")
     abstract suspend fun allTiers(): List<TierEntity>
 
-    @Query("SELECT * FROM teas")
-    abstract suspend fun allTeaRows(): List<TeaEntity>
+    @Query("SELECT * FROM catalog_refs")
+    abstract suspend fun allRefs(): List<CatalogRefEntity>
+
+    @Query("SELECT * FROM tea_samples")
+    abstract suspend fun allTeaRows(): List<TeaSampleEntity>
 
     @Query("SELECT * FROM placements")
     abstract suspend fun allPlacements(): List<PlacementEntity>
@@ -308,14 +304,18 @@ abstract class TeaDao {
     @Query("DELETE FROM boards")
     abstract suspend fun deleteAllBoards()
 
-    @Query("DELETE FROM teas")
+    @Query("DELETE FROM tea_samples")
     abstract suspend fun deleteAllTeas()
+
+    @Query("DELETE FROM catalog_refs")
+    abstract suspend fun deleteAllRefs()
 
     @Transaction
     open suspend fun seed(
         boards: List<BoardEntity>,
         tiers: List<TierEntity>,
-        teas: List<TeaEntity>,
+        catalogRefs: List<CatalogRefEntity>,
+        teas: List<TeaSampleEntity>,
         placements: List<PlacementEntity>,
         flavors: List<FlavorEntity>,
         purchases: List<PurchaseLocationEntity>,
@@ -323,6 +323,7 @@ abstract class TeaDao {
     ) {
         insertBoards(boards)
         insertTiers(tiers)
+        if (catalogRefs.isNotEmpty()) insertRefs(catalogRefs) // before samples (FK)
         insertTeas(teas)
         insertPlacements(placements)
         insertFlavors(flavors)
@@ -335,6 +336,7 @@ abstract class TeaDao {
     open suspend fun exportSnapshot(): SeedEntities = SeedEntities(
         boards = allBoards(),
         tiers = allTiers(),
+        catalogRefs = allRefs(),
         teas = allTeaRows(),
         placements = allPlacements(),
         flavors = allFlavors(),
@@ -344,17 +346,20 @@ abstract class TeaDao {
 
     /**
      * Destructive restore (decisions.md #26): wipes the whole catalog and reinserts [data] in one
-     * transaction. Deleting boards then teas cascades tiers/placements/flavors/purchases/photos, so
-     * a half-applied import can never leave a mix of old and new rows. Photo *files* on disk are
-     * the caller's responsibility (restored before this runs; old ones are orphaned).
+     * transaction. Deleting boards then samples cascades tiers/placements/flavors/purchases/photos;
+     * catalog_refs are dropped explicitly (they are parents, not cascaded) so a half-applied import
+     * can never leave a mix of old and new rows. Photo *files* on disk are the caller's responsibility
+     * (restored before this runs; old ones are orphaned).
      */
     @Transaction
     open suspend fun replaceAll(data: SeedEntities) {
         deleteAllBoards()
         deleteAllTeas()
+        deleteAllRefs()
         seed(
             data.boards,
             data.tiers,
+            data.catalogRefs,
             data.teas,
             data.placements,
             data.flavors,
@@ -374,18 +379,20 @@ abstract class TeaDao {
     }
 
     /**
-     * Atomic add: when [tea] is non-null we insert a brand-new user-tea + its flavor and
-     * purchase rows; when null the placement attaches to an existing user-tea (auto-link by
-     * name, decisions.md #42), so we deliberately leave the existing tea's fields untouched.
+     * Atomic add: when [tea] is non-null we insert a brand-new sample + its flavor and purchase
+     * rows (stubbing the catalog ref first when linked, so the FK holds — finding #14); when null
+     * the placement attaches to an existing sample (auto-link by name, decisions.md #42), so we
+     * deliberately leave the existing sample's fields untouched.
      */
     @Transaction
     open suspend fun addTea(
-        tea: TeaEntity?,
+        tea: TeaSampleEntity?,
         flavors: List<FlavorEntity>,
         purchases: List<PurchaseLocationEntity>,
         placement: PlacementEntity,
     ) {
         if (tea != null) {
+            tea.catalogTeaId?.let { insertRefStub(it, tea.type) }
             insertTeas(listOf(tea))
             insertFlavors(flavors)
             insertPurchases(purchases)
@@ -417,7 +424,7 @@ abstract class TeaDao {
     }
 
     /**
-     * Removes a single placement (one tea on one board); the user-tea row stays so any other
+     * Removes a single placement (one sample on one board); the sample row stays so any other
      * boards keep their copy. Used by the per-card "Убрать с подборки" action.
      */
     @Transaction
@@ -426,7 +433,7 @@ abstract class TeaDao {
     }
 
     /**
-     * Deletes the user-tea everywhere: the row goes, FK cascade drops all placements + flavors
+     * Deletes the sample everywhere: the row goes, FK cascade drops all placements + flavors
      * + purchases. Used by the "Удалить чай совсем" action on the detail / edit screens.
      */
     @Transaction
@@ -435,7 +442,7 @@ abstract class TeaDao {
     }
 
     /**
-     * Updates a user-tea's fields and replaces its flavor + purchase rows in one transaction.
+     * Updates a sample's fields and replaces its flavor + purchase rows in one transaction.
      * Child rows are wholesale rebuilt (delete + insert) because edits can add, remove, or
      * reorder any number of them — simpler and just as cheap as diffing for the small lists.
      * Placements and photos stay untouched: edits ripple, drag-to-rank and the photo strip
@@ -444,7 +451,7 @@ abstract class TeaDao {
     @Transaction
     open suspend fun updateTea(
         teaId: String,
-        nameRu: String,
+        nameRu: String?,
         nameZh: String?,
         pinyin: String?,
         nameEn: String?,

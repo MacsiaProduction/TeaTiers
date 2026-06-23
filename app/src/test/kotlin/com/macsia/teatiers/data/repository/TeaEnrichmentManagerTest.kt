@@ -1,6 +1,6 @@
 package com.macsia.teatiers.data.repository
 
-import com.macsia.teatiers.data.db.TeaEntity
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.domain.model.CatalogDescription
 import com.macsia.teatiers.domain.model.CatalogName
 import com.macsia.teatiers.domain.model.CatalogProvenance
@@ -24,7 +24,7 @@ class TeaEnrichmentManagerTest {
 
     private val catalog = mockk<CatalogRepository>()
 
-    private suspend fun TestScope.managerWith(vararg teas: TeaEntity): Pair<TeaEnrichmentManager, FakeTeaDao> {
+    private suspend fun TestScope.managerWith(vararg teas: TeaSampleEntity): Pair<TeaEnrichmentManager, FakeTeaDao> {
         val dao = FakeTeaDao()
         if (teas.isNotEmpty()) dao.insertTeas(teas.toList())
         // Zero poll interval: delay(0) is a no-op, so the enrich/poll loop runs inline under the
@@ -39,7 +39,7 @@ class TeaEnrichmentManagerTest {
         state: EnrichmentState = EnrichmentState.NONE,
         catalogTeaId: Long? = null,
     ) =
-        TeaEntity(
+        TeaSampleEntity(
             id = id, nameRu = name, nameZh = null, pinyin = null, nameEn = null,
             type = "OTHER", origin = null, shortBlurb = null, notes = null,
             catalogTeaId = catalogTeaId, enrichmentState = state.name,
@@ -164,11 +164,12 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
-    fun `a tea resolving to an already-linked catalog id settles DONE without stealing the link`() =
+    fun `two samples resolving to the same catalog ref both link to it (v7, no UNIQUE)`() =
         runTest(UnconfinedTestDispatcher()) {
-            // t1 ("Tieguanyin") already links catalog 5. t2 ("тегуанинь") is a differently-scripted
-            // duplicate the name-matcher can't unify; it resolves server-side to the SAME catalog id 5.
-            // The blind UPDATE used to throw on the UNIQUE catalogTeaId index and dead-end t2 at FAILED.
+            // t1 ("Tieguanyin") already links catalog ref 5. t2 ("тегуанинь") is a differently-scripted
+            // duplicate that resolves server-side to the SAME ref 5. v7 (#132) dropped the catalogTeaId
+            // UNIQUE, so BOTH samples now link to ref 5 (findings #16/#23) — the old code left t2 unlinked
+            // to dodge the UNIQUE throw, stranding a sample that should share the catalog identity.
             coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
             val (manager, dao) = managerWith(
                 teaRow("t1", name = "Tieguanyin", state = EnrichmentState.DONE, catalogTeaId = 5),
@@ -179,16 +180,15 @@ class TeaEnrichmentManagerTest {
             advanceUntilIdle()
 
             val t2 = dao.loadTeaRow("t2")!!
-            assertEquals(EnrichmentState.DONE.name, t2.enrichmentState) // no permanent FAILED dead-end
-            assertEquals(null, t2.catalogTeaId) // did not steal the link (no UNIQUE-constraint throw)
+            assertEquals(EnrichmentState.DONE.name, t2.enrichmentState)
+            assertEquals(5L, t2.catalogTeaId) // v7: the duplicate links to the SHARED ref, no longer stranded
             assertEquals(5L, dao.loadTeaRow("t1")!!.catalogTeaId) // original link untouched
-            // …and the duplicate still gets the catalog's enriched names/blurb (review F6) so it isn't
-            // stranded showing only the raw typed string — same catalog-wins merge as the owner path.
+            // …and it gets the catalog's enriched names/blurb (review F6), same catalog-wins merge.
             assertEquals("Лунцзин", t2.nameRu)
             assertEquals("lóngjǐng", t2.pinyin)
             assertEquals("Зелёный чай из Сиху.", t2.shortBlurb)
 
-            // A retry must not re-dead-end the duplicate either.
+            // A retry stays settled too.
             manager.retry("t2")
             advanceUntilIdle()
             assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("t2")!!.enrichmentState)

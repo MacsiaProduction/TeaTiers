@@ -424,7 +424,7 @@ class AddTeaViewModel @Inject constructor(
                     // redundant). Never an auto-linked existing one. Fire-and-forget on the app scope.
                     // A pasted vendor blurb (#25) grounds the profile; sent once, never stored in Room.
                     if (added.created && tea.catalogTeaId == null) {
-                        enrichmentManager.enrich(added.teaId, tea.nameRu, form.sourceText.trim().ifBlank { null })
+                        enrichmentManager.enrich(added.teaId, tea.displayName, form.sourceText.trim().ifBlank { null })
                     }
                 } else {
                     return@runCatching false

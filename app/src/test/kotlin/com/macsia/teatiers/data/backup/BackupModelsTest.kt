@@ -1,12 +1,13 @@
 package com.macsia.teatiers.data.backup
 
 import com.macsia.teatiers.data.db.BoardEntity
+import com.macsia.teatiers.data.db.CatalogRefEntity
 import com.macsia.teatiers.data.db.FlavorEntity
 import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.SeedEntities
-import com.macsia.teatiers.data.db.TeaEntity
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -18,9 +19,10 @@ class BackupModelsTest {
     private fun snapshot(): SeedEntities = SeedEntities(
         boards = listOf(BoardEntity("b1", "Daily", 0)),
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
+        catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", brand = "Acme", fetchedAtEpochMs = 7L)),
         teas = listOf(
             // Catalog-linked + DONE so the round-trip assertions also guard the v5 enrichment fields.
-            TeaEntity(
+            TeaSampleEntity(
                 "tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice",
                 catalogTeaId = 42L, enrichmentState = "DONE",
             ),
@@ -59,6 +61,7 @@ class BackupModelsTest {
 
         assertEquals(original.boards, restored.boards)
         assertEquals(original.tiers, restored.tiers)
+        assertEquals(original.catalogRefs, restored.catalogRefs)
         assertEquals(original.teas, restored.teas)
         assertEquals(original.placements, restored.placements)
         assertEquals(original.flavors, restored.flavors)

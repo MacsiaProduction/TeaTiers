@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import com.macsia.teatiers.data.diagnostics.DiagnosticsPreferences
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,8 +24,17 @@ interface OnboardingState {
 @Singleton
 class DataStoreOnboardingState @Inject constructor(
     private val dataStore: DataStore<Preferences>,
+    private val diagnostics: DiagnosticsPreferences,
 ) : OnboardingState {
-    override suspend fun isSeeded(): Boolean = dataStore.data.first()[KEY] ?: false
+    override suspend fun isSeeded(): Boolean {
+        // A destructive schema reset (the v7 #132 reset, or any future `fallbackToDestructiveMigration`)
+        // wipes Room but NOT this marker, which would leave an upgraded install empty. The one-shot
+        // reseed flag set by Room's onDestructiveMigration callback re-arms the first-run seed exactly
+        // once so the sample boards repopulate.
+        if (diagnostics.consumeReseedPending()) return false
+        return dataStore.data.first()[KEY] ?: false
+    }
+
     override suspend fun markSeeded() {
         dataStore.edit { it[KEY] = true }
     }

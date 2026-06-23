@@ -11,7 +11,6 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
-import com.macsia.teatiers.BuildConfig
 import com.macsia.teatiers.data.db.CatalogDao
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
@@ -47,22 +46,20 @@ object AppModule {
     fun provideDatabase(@ApplicationContext context: Context): TeaDatabase =
         Room.databaseBuilder(context, TeaDatabase::class.java, "teatiers.db")
             .apply {
-                // v6 is the public baseline (decision #130 / review P0-1). RELEASE builds NEVER
-                // destructively migrate — a missing Migration(6, N) must fail loudly, not silently
-                // wipe a user's only local copy. DEBUG keeps drop-and-reseed for dev ergonomics
-                // (schema churn without writing migrations). Add real Migration(6, N) + a
-                // MigrationTestHelper upgrade test for every future schema bump.
-                if (BuildConfig.DEBUG) {
-                    fallbackToDestructiveMigration(dropAllTables = true)
-                    // "tables were dropped" mark for the out-of-Room wipe sentinel (#111). Only a
-                    // debug build can hit this now; stored outside Room so the wiping migration can't
-                    // erase its own evidence.
-                    addCallback(object : RoomDatabase.Callback() {
-                        override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
-                            DiagnosticsPreferences.markDestructiveMigration(context)
-                        }
-                    })
-                }
+                // v6→v7 (tea/sample split, #132) is a ONE-TIME DESTRUCTIVE reset in every build,
+                // including release: per owner decision (2026-06-23) the shipped v0.1.0 collection is
+                // mock data, so there is no `Migration(6,7)` — Room drops everything and the
+                // SampleBoardProvider reseeds. Once a real collection exists, the next bump goes back
+                // to an explicit `Migration(7, N)` + a MigrationTestHelper test (no destructive
+                // fallback) so a real user's data is never silently wiped.
+                fallbackToDestructiveMigration(dropAllTables = true)
+                // "tables were dropped" mark for the out-of-Room wipe sentinel (#111). Stored outside
+                // Room so the wiping migration can't erase its own evidence.
+                addCallback(object : RoomDatabase.Callback() {
+                    override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                        DiagnosticsPreferences.markDestructiveMigration(context)
+                    }
+                })
             }
             .build()
 

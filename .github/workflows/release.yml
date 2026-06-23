@@ -60,8 +60,9 @@ jobs:
 
       - name: Full check before release (review P1-4)
         # A release must pass the same unit/lint/static-analysis gate as a PR — never publish an APK
-        # that wouldn't pass CI. (Emulator migration tests run on PRs via the `app-instrumented` CI
-        # job; `check` here is the JVM unit + lint + schema-export gate.)
+        # that wouldn't pass CI. `check` is the JVM unit + lint + schema-export gate, and now includes
+        # the Robolectric Room migration test (decision #130 / P1-4) — so a release can't ship a schema
+        # bump whose Migration(6, N) isn't proven lossless. No emulator needed.
         working-directory: app
         run: ./gradlew --no-daemon check
 

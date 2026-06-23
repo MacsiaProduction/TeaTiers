@@ -91,6 +91,9 @@ android {
     }
 
     testOptions {
+        // Robolectric needs merged Android assets/resources on the unit-test classpath so the Room
+        // migration test can read the exported schema JSON (below).
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
             it.useJUnitPlatform()
             // Surface expected/actual on a failed assertion in CI logs (default hides the message).
@@ -101,9 +104,12 @@ android {
         }
     }
 
-    // The exported Room schema JSONs are bundled as androidTest assets so MigrationTestHelper can
-    // open the v6 baseline (and validate future v6→vN upgrades) on-device (decision #130 / P1-4).
-    sourceSets.getByName("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+    // The exported Room schema JSONs go in the DEBUG build-type assets, not main: that's the merged
+    // asset dir Robolectric reads (`mergeDebugAssets`, per the generated test_config.properties), so
+    // MigrationTestHelper can open the v6 baseline and validate future v6→vN upgrades (#130 / P1-4).
+    // Debug-only keeps them out of the released (release-variant) APK. The unit-test source set's own
+    // assets are NOT merged for local tests in AGP 9, so `test` here would silently find nothing.
+    sourceSets.getByName("debug").assets.srcDir(layout.projectDirectory.dir("schemas"))
 }
 
 kotlin {
@@ -176,11 +182,13 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
 
-    // Instrumented (on-device) Room migration tests — JUnit4 + AndroidJUnitRunner (the project's
-    // unit tests are JUnit 5/JVM; instrumented tests must use the Android runner).
-    androidTestImplementation(libs.androidx.room.testing)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.test.ext.junit)
+    // Room migration test runs on the JVM under Robolectric (no emulator; Actions unavailable).
+    // MigrationTestHelper needs an Android Context — AndroidJUnit4 delegates to Robolectric, and
+    // junit-vintage-engine runs the JUnit4 test on our JUnit 5 platform.
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.robolectric)
+    testRuntimeOnly(libs.junit.vintage.engine)
 }
 
 // SBOM for the OSV-Scanner CI gate (decision #102). Scope to what the release APK actually ships

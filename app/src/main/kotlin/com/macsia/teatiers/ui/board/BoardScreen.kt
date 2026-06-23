@@ -308,7 +308,7 @@ private fun FeaturedTea(tea: Tea, onClick: () -> Unit, modifier: Modifier = Modi
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = tea.nameRu,
+                        text = tea.displayName,
                         style = MaterialTheme.typography.headlineSmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -662,7 +662,7 @@ private fun DraggableTeaCard(
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.delete_tea_confirm_title)) },
             text = {
-                Text(stringResource(R.string.delete_tea_confirm_message, placement.tea.nameRu))
+                Text(stringResource(R.string.delete_tea_confirm_message, placement.tea.displayName))
             },
             confirmButton = {
                 TextButton(onClick = {

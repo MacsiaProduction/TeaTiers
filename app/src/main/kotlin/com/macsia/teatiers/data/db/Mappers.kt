@@ -87,19 +87,23 @@ fun PhotoEntity.toDomain(): TeaPhoto = TeaPhoto(
 
 // --- Domain -> entities -------------------------------------------------------------------
 
-/** Flattened rows for one user-tea, ready to insert together. */
+/** Flattened rows for one sample, ready to insert together. */
 data class TeaEntities(
-    val tea: TeaEntity,
+    val tea: TeaSampleEntity,
     val flavors: List<FlavorEntity>,
     val purchases: List<PurchaseLocationEntity>,
     val photos: List<PhotoEntity>,
 )
 
-/** All rows for a first-run seed, grouped by table for batched inserts. */
+/**
+ * All rows for a first-run seed, grouped by table for batched inserts. [catalogRefs] must be
+ * inserted BEFORE [teas] (the `tea_samples.catalogTeaId` FK → `catalog_refs.id`).
+ */
 data class SeedEntities(
     val boards: List<BoardEntity>,
     val tiers: List<TierEntity>,
-    val teas: List<TeaEntity>,
+    val catalogRefs: List<CatalogRefEntity>,
+    val teas: List<TeaSampleEntity>,
     val placements: List<PlacementEntity>,
     val flavors: List<FlavorEntity>,
     val purchases: List<PurchaseLocationEntity>,
@@ -107,7 +111,7 @@ data class SeedEntities(
 )
 
 fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
-    val teaEntity = TeaEntity(
+    val teaEntity = TeaSampleEntity(
         id = rowId,
         nameRu = nameRu,
         nameZh = nameZh,
@@ -165,7 +169,7 @@ fun List<Board>.toSeedEntities(): SeedEntities {
     val placementRows = mutableListOf<PlacementEntity>()
 
     val seenTeaIds = mutableSetOf<String>()
-    val teaRows = mutableListOf<TeaEntity>()
+    val teaRows = mutableListOf<TeaSampleEntity>()
     val flavorRows = mutableListOf<FlavorEntity>()
     val purchaseRows = mutableListOf<PurchaseLocationEntity>()
     val photoRows = mutableListOf<PhotoEntity>()
@@ -198,5 +202,10 @@ fun List<Board>.toSeedEntities(): SeedEntities {
             )
         }
     }
-    return SeedEntities(boardRows, tierRows, teaRows, placementRows, flavorRows, purchaseRows, photoRows)
+    // One catalog_refs stub per DISTINCT linked catalog id (FK target for tea_samples.catalogTeaId);
+    // type comes from a linked sample. Custom/seed teas carry no catalogTeaId, so this is usually empty.
+    val refRows = teaRows.filter { it.catalogTeaId != null }
+        .associate { it.catalogTeaId!! to it.type }
+        .map { (id, type) -> CatalogRefEntity(id = id, type = type, fetchedAtEpochMs = 0L) }
+    return SeedEntities(boardRows, tierRows, refRows, teaRows, placementRows, flavorRows, purchaseRows, photoRows)
 }

@@ -81,7 +81,7 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = tea.nameRu,
+                    text = tea.displayName,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

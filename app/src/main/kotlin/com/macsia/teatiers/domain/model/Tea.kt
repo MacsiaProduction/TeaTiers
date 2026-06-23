@@ -1,14 +1,15 @@
 package com.macsia.teatiers.domain.model
 
 /**
- * A tea as shown on a board. Names are multilingual (decisions.md #5): ru is the primary
- * display name, with optional pinyin + hanzi and an English alias. [catalogTeaId] links the
- * tea to its shared-catalog entry once resolved (#21), and [enrichmentState] tracks the
- * optimistic background enrichment so the card can show its status / a retry (#28).
+ * A tea sample as shown on a board. Names are multilingual (decisions.md #5); since v7 (P1-2) a
+ * sample is valid with ≥1 non-blank name in ANY locale — [nameRu] is no longer required — and the
+ * display title is resolved by [displayName]. [catalogTeaId] links the sample to its cached catalog
+ * ref once resolved (#21/#132), and [enrichmentState] tracks the optimistic background enrichment so
+ * the card can show its status / a retry (#28).
  */
 data class Tea(
     val id: String,
-    val nameRu: String,
+    val nameRu: String? = null,
     val nameZh: String? = null,
     val pinyin: String? = null,
     val nameEn: String? = null,
@@ -22,7 +23,15 @@ data class Tea(
     val catalogTeaId: Long? = null,
     val enrichmentState: EnrichmentState = EnrichmentState.NONE,
 ) {
-    /** Latin/han secondary line shown under the ru name: "Dà Hóng Páo · 大红袍". */
+    /**
+     * The resolved display title, used at every title site (P1-2). Deterministic priority
+     * ru → en → pinyin → zh-Hans (first non-blank); never blank for a valid sample (≥1 name
+     * enforced on add/edit). The device-locale-aware refinement + a per-sample pin ride a later slice.
+     */
+    val displayName: String
+        get() = listOf(nameRu, nameEn, pinyin, nameZh).firstOrNull { !it.isNullOrBlank() }.orEmpty()
+
+    /** Latin/han secondary line shown under the title, excluding whatever became the primary. */
     val secondaryName: String
-        get() = listOfNotNull(pinyin, nameZh).joinToString("  ·  ")
+        get() = listOfNotNull(pinyin, nameZh).filter { it != displayName }.joinToString("  ·  ")
 }

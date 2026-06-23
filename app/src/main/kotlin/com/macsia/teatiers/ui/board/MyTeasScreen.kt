@@ -176,7 +176,7 @@ private fun MyTeaRow(item: MyTeaItem, onClick: () -> Unit, modifier: Modifier = 
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = tea.nameRu,
+                    text = tea.displayName,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

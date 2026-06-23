@@ -42,6 +42,18 @@ class DiagnosticsPreferences @Inject constructor(
         destructiveMigration = prefs.getBoolean(KEY_DESTRUCTIVE, false),
     )
 
+    /**
+     * Read-and-clear the one-shot "the DB was destructively wiped, re-arm the first-run seed" flag
+     * (set by [markDestructiveMigration]). Separate from the sentinel's [KEY_DESTRUCTIVE] so consuming
+     * it here (to reseed mock data after the v7 reset) never erases the wipe evidence the sentinel
+     * reports. Returns true exactly once per destructive migration.
+     */
+    fun consumeReseedPending(): Boolean {
+        val pending = prefs.getBoolean(KEY_RESEED_PENDING, false)
+        if (pending) prefs.edit().putBoolean(KEY_RESEED_PENDING, false).apply()
+        return pending
+    }
+
     /** Persist the new baseline and clear the one-shot destructive-migration flag. */
     fun saveBaseline(appVersionCode: Int, dbVersion: Int, counts: RowCounts) {
         prefs.edit()
@@ -63,6 +75,7 @@ class DiagnosticsPreferences @Inject constructor(
         private const val KEY_TEAS = "last_teas"
         private const val KEY_PHOTOS = "last_photos"
         private const val KEY_DESTRUCTIVE = "destructive_migration"
+        private const val KEY_RESEED_PENDING = "reseed_pending"
 
         /** Sentinel value for "no baseline yet" (a fresh install) — distinct from a real zero count. */
         const val UNKNOWN = -1
@@ -71,10 +84,18 @@ class DiagnosticsPreferences @Inject constructor(
         fun isEnabled(context: Context): Boolean =
             context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)
 
-        /** Set from Room's `onDestructiveMigration` callback — the definitive "tables were dropped" mark. */
+        /**
+         * Set from Room's `onDestructiveMigration` callback — the definitive "tables were dropped" mark.
+         * Also raises the one-shot reseed flag ([consumeReseedPending]) so the next launch repopulates
+         * the sample boards: the wipe clears Room but not the out-of-Room `onboarding_seeded` marker, so
+         * without this an upgraded install would come up empty.
+         */
         fun markDestructiveMigration(context: Context) {
             context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_DESTRUCTIVE, true).apply()
+                .edit()
+                .putBoolean(KEY_DESTRUCTIVE, true)
+                .putBoolean(KEY_RESEED_PENDING, true)
+                .apply()
         }
     }
 }

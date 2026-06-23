@@ -48,26 +48,40 @@ data class TierEntity(
 )
 
 /**
- * The user-tea pool. After the shared-teas reopening this row is no longer tied to any
- * particular board — placement is tracked separately in [PlacementEntity]. [shortBlurb] stays
- * here because it is catalog/AI-derived (decisions.md #25), not user-typed.
+ * The user's physical **sample** (v7 tea/sample split, decision #132). One v6 `teas` row became one
+ * `tea_samples` row; the canonical catalog identity moved to [CatalogRefEntity]. After the
+ * shared-teas reopening this row is not tied to any board — placement is tracked separately in
+ * [PlacementEntity]. [shortBlurb] stays here because it is catalog/AI-derived (decisions.md #25).
  *
- * [catalogTeaId] links the tea to its shared-catalog row once resolved (#21); [enrichmentState]
- * holds the [com.macsia.teatiers.domain.model.EnrichmentState] name driving the optimistic
- * background enrichment status + retry (#28). Both default for custom/seed teas.
+ * **P1-1:** [catalogTeaId] is now a *nullable FK* → [CatalogRefEntity.id] (`ON DELETE SET NULL`) with
+ * **no UNIQUE** — many samples may link to one catalog ref (the v6 one-per-ref invariant is gone), so
+ * a user can keep two physical samples of the same catalog tea with independent notes/flavor/photos.
+ * Evicting a ref never deletes a sample. (Working-core: the auto-reuse policy + "add another sample"
+ * UX still ride a later slice; the schema no longer blocks them.)
  *
- * The UNIQUE index on [catalogTeaId] makes catalog identity a schema-level invariant (second-pass
- * review P1): SQLite treats NULLs as distinct, so unlimited custom (null-id) teas are fine, but two
- * user-teas can never link to the same catalog row — closing the gap the repository check alone left
- * open to concurrent adds / backup import.
+ * **P1-2:** [nameRu] is nullable — a sample is valid with ≥1 non-blank name in any locale
+ * (ru/zh/pinyin/en); the display title is resolved by priority (see `Tea.displayName`).
+ *
+ * [vendor]/[product]/[harvestYear]/[batch]/[grade]/[displayNamePref] are the v7 sample-identity
+ * columns (disambiguate two samples of one ref); they exist now for schema completeness — the add/edit
+ * form wiring rides the deferred UX slice, so they stay null until then. [enrichmentState] holds the
+ * [com.macsia.teatiers.domain.model.EnrichmentState] name driving optimistic background enrichment (#28).
  */
 @Entity(
-    tableName = "teas",
-    indices = [Index(value = ["catalogTeaId"], unique = true)],
+    tableName = "tea_samples",
+    foreignKeys = [
+        ForeignKey(
+            entity = CatalogRefEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["catalogTeaId"],
+            onDelete = ForeignKey.SET_NULL,
+        ),
+    ],
+    indices = [Index("catalogTeaId")],
 )
-data class TeaEntity(
+data class TeaSampleEntity(
     @PrimaryKey val id: String,
-    val nameRu: String,
+    val nameRu: String?,
     val nameZh: String?,
     val pinyin: String?,
     val nameEn: String?,
@@ -77,6 +91,40 @@ data class TeaEntity(
     val notes: String?,
     val catalogTeaId: Long? = null,
     val enrichmentState: String = "NONE",
+    val vendor: String? = null,
+    val product: String? = null,
+    val harvestYear: Int? = null,
+    val batch: String? = null,
+    val grade: String? = null,
+    val displayNamePref: String? = null,
+)
+
+/**
+ * Cached canonical catalog reference (v7, decision #132). Read-only facts mirrored from the server
+ * catalog; the user never owns it. A row is OPTIONAL — custom samples have none. At seed/link time
+ * only [id] + [type] are populated (a stub); the rest is backfilled by the deferred catalog-refresh
+ * writer. Keyed by [id] = server `tea.id` (Long) — the UUID `publicId` switch rides the catalog-wire
+ * slice (#137-C2); no `publicId` exists in the app's catalog client yet.
+ */
+@Entity(tableName = "catalog_refs")
+data class CatalogRefEntity(
+    @PrimaryKey val id: Long,
+    val type: String,
+    val wikidataQid: String? = null,
+    val originCountry: String? = null,
+    val region: String? = null,
+    val cultivar: String? = null,
+    val oxidationMin: Int? = null,
+    val oxidationMax: Int? = null,
+    val brand: String? = null,
+    val verificationStatus: String? = null,
+    val confidence: Double? = null,
+    val enrichmentState: String? = null,
+    val shortBlurb: String? = null,
+    val source: String? = null,
+    val sourceUrl: String? = null,
+    val license: String? = null,
+    val fetchedAtEpochMs: Long,
 )
 
 /**
@@ -97,7 +145,7 @@ data class TeaEntity(
             onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
-            entity = TeaEntity::class,
+            entity = TeaSampleEntity::class,
             parentColumns = ["id"],
             childColumns = ["teaId"],
             onDelete = ForeignKey.CASCADE,
@@ -122,7 +170,7 @@ data class PlacementEntity(
     primaryKeys = ["teaId", "dimension"],
     foreignKeys = [
         ForeignKey(
-            entity = TeaEntity::class,
+            entity = TeaSampleEntity::class,
             parentColumns = ["id"],
             childColumns = ["teaId"],
             onDelete = ForeignKey.CASCADE,
@@ -140,7 +188,7 @@ data class FlavorEntity(
     tableName = "purchase_locations",
     foreignKeys = [
         ForeignKey(
-            entity = TeaEntity::class,
+            entity = TeaSampleEntity::class,
             parentColumns = ["id"],
             childColumns = ["teaId"],
             onDelete = ForeignKey.CASCADE,
@@ -174,7 +222,7 @@ data class PurchaseLocationEntity(
     tableName = "tea_photos",
     foreignKeys = [
         ForeignKey(
-            entity = TeaEntity::class,
+            entity = TeaSampleEntity::class,
             parentColumns = ["id"],
             childColumns = ["teaId"],
             onDelete = ForeignKey.CASCADE,

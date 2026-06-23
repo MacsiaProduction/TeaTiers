@@ -98,6 +98,7 @@ class TeaBoardRepository @Inject constructor(
                     dao.seed(
                         entities.boards,
                         entities.tiers,
+                        entities.catalogRefs,
                         entities.teas,
                         entities.placements,
                         entities.flavors,
@@ -402,17 +403,17 @@ private sealed class MatchKey {
 }
 
 private fun Tea.matchKey(): MatchKey? {
-    nameRu.trim().lowercase().takeIf { it.isNotEmpty() }?.let { return MatchKey.Ru(it) }
+    nameRu?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }?.let { return MatchKey.Ru(it) }
     nameZh?.trim()?.takeIf { it.isNotEmpty() }?.let { return MatchKey.Zh(it) }
     pinyin?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }?.let { return MatchKey.Py(it) }
     return null
 }
 
 private fun TeaMatchKeyRow.matches(candidate: MatchKey): Boolean = when (candidate) {
-    // A Latin-script candidate (typed into the required nameRu, or a pinyin) also matches an existing
-    // row's enriched English name, so "Tieguanyin" dedups against a row catalog-enriched with that
-    // nameEn instead of becoming a second card (review F6). Still exact full-string, so low false-match.
-    is MatchKey.Ru -> nameRu.trim().lowercase() == candidate.value || matchesEn(candidate.value)
+    // A Latin-script candidate (a typed ru name, or a pinyin) also matches an existing row's enriched
+    // English name, so "Tieguanyin" dedups against a row catalog-enriched with that nameEn instead of
+    // becoming a second card (review F6). Still exact full-string, so low false-match.
+    is MatchKey.Ru -> nameRu?.trim()?.lowercase() == candidate.value || matchesEn(candidate.value)
     is MatchKey.Zh -> nameZh?.trim() == candidate.value
     is MatchKey.Py -> pinyin?.trim()?.lowercase() == candidate.value || matchesEn(candidate.value)
 }

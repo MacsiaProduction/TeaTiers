@@ -45,7 +45,7 @@ class PhotoRepositoryTest {
     private suspend fun TestScope.repo(photoStore: FakePhotoStore = FakePhotoStore()): TeaBoardRepository {
         val dao = FakeTeaDao()
         val seed = listOf(seedBoard).toSeedEntities()
-        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+        dao.seed(seed.boards, seed.tiers, seed.catalogRefs, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
         return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
     }
 

@@ -2,14 +2,15 @@ package com.macsia.teatiers.data.repository
 
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
+import com.macsia.teatiers.data.db.CatalogRefEntity
 import com.macsia.teatiers.data.db.FlavorEntity
 import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PlacementWithTea
 import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.TeaDao
-import com.macsia.teatiers.data.db.TeaEntity
 import com.macsia.teatiers.data.db.TeaMatchKeyRow
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TeaWithChildren
 import com.macsia.teatiers.data.db.TierEntity
 import kotlinx.coroutines.flow.Flow
@@ -18,19 +19,19 @@ import kotlinx.coroutines.flow.map
 
 /**
  * In-memory [TeaDao] for JVM unit tests. The inherited @Transaction methods (seed, addTea,
- * applyPlacements, removeTier, removePlacement, deleteTea, updateTea) run unchanged on top of
- * these inserts/updates; [observeBoards] re-emits the rebuilt aggregate after each write,
- * mirroring how Room's relation query reacts to table changes.
+ * applyEnrichmentPatch, applyPlacements, removeTier, removePlacement, deleteTea, updateTea) run
+ * unchanged on top of these inserts/updates; [observeBoards] re-emits the rebuilt aggregate after
+ * each write, mirroring how Room's relation query reacts to table changes.
  *
  * The aggregate now joins through [PlacementEntity] (decisions.md #42), so the boards-side
- * cache key is `boardId` and the per-placement tea reference resolves against the global tea
- * pool.
+ * cache key is `boardId` and the per-placement sample reference resolves against the global pool.
  */
 class FakeTeaDao : TeaDao() {
 
     private val boards = mutableListOf<BoardEntity>()
     private val tiers = mutableListOf<TierEntity>()
-    private val teas = mutableListOf<TeaEntity>()
+    private val catalogRefs = mutableListOf<CatalogRefEntity>()
+    private val teas = mutableListOf<TeaSampleEntity>()
     private val placements = mutableListOf<PlacementEntity>()
     private val flavors = mutableListOf<FlavorEntity>()
     private val purchases = mutableListOf<PurchaseLocationEntity>()
@@ -44,7 +45,7 @@ class FakeTeaDao : TeaDao() {
     override fun observeAllTeas(): Flow<List<TeaWithChildren>> = allTeasState
 
     // Re-emits on every write (refresh() updates allTeasState), mirroring Room's reactive single-row
-    // query — including for a placement-less tea, which still appears in the all-teas projection.
+    // query — including for a placement-less sample, which still appears in the all-teas projection.
     override fun observeTea(teaId: String): Flow<TeaWithChildren?> =
         allTeasState.map { rows -> rows.firstOrNull { it.tea.id == teaId } }
 
@@ -61,8 +62,9 @@ class FakeTeaDao : TeaDao() {
     override suspend fun loadTeaMatchKeys(): List<TeaMatchKeyRow> =
         teas.map { TeaMatchKeyRow(id = it.id, nameRu = it.nameRu, nameZh = it.nameZh, pinyin = it.pinyin, nameEn = it.nameEn) }
 
+    // Stable pick by id (mirrors the real `ORDER BY id LIMIT 1`) now that many samples may share a ref.
     override suspend fun findTeaIdByCatalogId(catalogTeaId: Long): String? =
-        teas.firstOrNull { it.catalogTeaId == catalogTeaId }?.id
+        teas.filter { it.catalogTeaId == catalogTeaId }.minByOrNull { it.id }?.id
 
     override suspend fun placementCountForTea(teaId: String): Int =
         placements.count { it.teaId == teaId }
@@ -72,7 +74,7 @@ class FakeTeaDao : TeaDao() {
     override suspend fun deleteBoardRow(boardId: String) {
         if (boards.removeAll { it.id == boardId }) {
             tiers.removeAll { it.boardId == boardId }       // FK cascade
-            placements.removeAll { it.boardId == boardId }  // FK cascade; teas (shared) persist
+            placements.removeAll { it.boardId == boardId }  // FK cascade; samples (shared) persist
             refresh()
         }
     }
@@ -97,7 +99,18 @@ class FakeTeaDao : TeaDao() {
         refresh()
     }
 
-    override suspend fun insertTeas(teas: List<TeaEntity>) {
+    override suspend fun insertRefs(refs: List<CatalogRefEntity>) {
+        this.catalogRefs += refs
+    }
+
+    // Idempotent stub (INSERT OR IGNORE): no-op if a ref with this id already exists.
+    override suspend fun insertRefStub(refId: Long, type: String) {
+        if (catalogRefs.none { it.id == refId }) {
+            catalogRefs += CatalogRefEntity(id = refId, type = type, fetchedAtEpochMs = 0L)
+        }
+    }
+
+    override suspend fun insertTeas(teas: List<TeaSampleEntity>) {
         this.teas += teas
         refresh()
     }
@@ -126,7 +139,9 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun allTiers(): List<TierEntity> = tiers.toList()
 
-    override suspend fun allTeaRows(): List<TeaEntity> = teas.toList()
+    override suspend fun allRefs(): List<CatalogRefEntity> = catalogRefs.toList()
+
+    override suspend fun allTeaRows(): List<TeaSampleEntity> = teas.toList()
 
     override suspend fun allPlacements(): List<PlacementEntity> = placements.toList()
 
@@ -144,7 +159,7 @@ class FakeTeaDao : TeaDao() {
         refresh()
     }
 
-    // Mirrors Room's ON DELETE CASCADE: teas -> placements + flavors + purchases + photos.
+    // Mirrors Room's ON DELETE CASCADE: samples -> placements + flavors + purchases + photos.
     override suspend fun deleteAllTeas() {
         teas.clear()
         placements.clear()
@@ -152,6 +167,10 @@ class FakeTeaDao : TeaDao() {
         purchases.clear()
         photos.clear()
         refresh()
+    }
+
+    override suspend fun deleteAllRefs() {
+        catalogRefs.clear()
     }
 
     override suspend fun loadPhotos(teaId: String): List<PhotoEntity> =
@@ -219,7 +238,7 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun updateTeaFields(
         teaId: String,
-        nameRu: String,
+        nameRu: String?,
         nameZh: String?,
         pinyin: String?,
         nameEn: String?,
@@ -242,7 +261,7 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
-    override suspend fun loadTeaRow(teaId: String): TeaEntity? = teas.firstOrNull { it.id == teaId }
+    override suspend fun loadTeaRow(teaId: String): TeaSampleEntity? = teas.firstOrNull { it.id == teaId }
 
     override suspend fun updateEnrichmentState(teaId: String, state: String) {
         val index = teas.indexOfFirst { it.id == teaId }
@@ -254,7 +273,7 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun patchEnrichment(
         teaId: String,
-        nameRu: String,
+        nameRu: String?,
         nameZh: String?,
         pinyin: String?,
         nameEn: String?,
@@ -264,14 +283,9 @@ class FakeTeaDao : TeaDao() {
         catalogTeaId: Long?,
         state: String,
     ) {
+        // v7 dropped the catalogTeaId UNIQUE: many samples may link to one ref, so no collision check.
         val index = teas.indexOfFirst { it.id == teaId }
         if (index >= 0) {
-            // Model the teas.catalogTeaId UNIQUE index (Entities.kt): a non-null id already held by a
-            // DIFFERENT tea raises SQLiteConstraintException in Room. A plain map write would silently
-            // allow it, which is why the duplicate-link dead-end went unnoticed in unit tests.
-            if (catalogTeaId != null && teas.any { it.catalogTeaId == catalogTeaId && it.id != teaId }) {
-                throw IllegalStateException("UNIQUE constraint failed: teas.catalogTeaId")
-            }
             teas[index] = teas[index].copy(
                 nameRu = nameRu,
                 nameZh = nameZh,
@@ -287,35 +301,7 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
-    override suspend fun patchEnrichmentSuggestions(
-        teaId: String,
-        nameRu: String,
-        nameZh: String?,
-        pinyin: String?,
-        nameEn: String?,
-        type: String,
-        origin: String?,
-        shortBlurb: String?,
-        state: String,
-    ) {
-        // Merges the catalog suggestions but never touches catalogTeaId (so no UNIQUE-index concern).
-        val index = teas.indexOfFirst { it.id == teaId }
-        if (index >= 0) {
-            teas[index] = teas[index].copy(
-                nameRu = nameRu,
-                nameZh = nameZh,
-                pinyin = pinyin,
-                nameEn = nameEn,
-                type = type,
-                origin = origin,
-                shortBlurb = shortBlurb,
-                enrichmentState = state,
-            )
-            refresh()
-        }
-    }
-
-    override suspend fun teasNeedingEnrichment(): List<TeaEntity> =
+    override suspend fun teasNeedingEnrichment(): List<TeaSampleEntity> =
         teas.filter { it.enrichmentState == "PENDING" || it.enrichmentState == "QUEUED" }
 
     override suspend fun deleteFlavorsFor(teaId: String) {

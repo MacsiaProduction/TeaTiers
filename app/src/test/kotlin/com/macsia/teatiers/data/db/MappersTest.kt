@@ -119,8 +119,8 @@ class MappersTest {
         val tierS = TierEntity("s", "b", "S", 0, null)
         val tierA = TierEntity("a", "b", "A", 1, 0xFF00FF00L)
 
-        val greenTea = TeaEntity("green", "Зелёный", null, null, null, "GREEN", null, null, null)
-        val tray = TeaEntity("x", "Без тира", null, null, null, "WHITE", null, null, null)
+        val greenTea = TeaSampleEntity("green", "Зелёный", null, null, null, "GREEN", null, null, null)
+        val tray = TeaSampleEntity("x", "Без тира", null, null, null, "WHITE", null, null, null)
 
         val greenPlacement = PlacementWithTea(
             placement = PlacementEntity(id = "b-green", boardId = "b", teaId = "green", tierId = "s", position = 0),
@@ -185,7 +185,7 @@ class MappersTest {
     @Test
     fun `placement with a null tier maps to the unranked tray`() {
         val board = BoardEntity("b", "B", 0)
-        val trayTea = TeaEntity("t", "Чай", null, null, null, "BLACK", null, null, null)
+        val trayTea = TeaSampleEntity("t", "Чай", null, null, null, "BLACK", null, null, null)
         val tray = PlacementWithTea(
             placement = PlacementEntity(id = "b-t", boardId = "b", teaId = "t", tierId = null, position = 0),
             tea = listOf(

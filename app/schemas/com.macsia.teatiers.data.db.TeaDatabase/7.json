@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 6,
-    "identityHash": "e7ac9815b0ffef5987de2e2cb291c7c4",
+    "version": 7,
+    "identityHash": "2fe6dcb0db76ea543abb3d778ba6428c",
     "entities": [
       {
         "tableName": "boards",
@@ -100,8 +100,8 @@
         ]
       },
       {
-        "tableName": "teas",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `nameRu` TEXT NOT NULL, `nameZh` TEXT, `pinyin` TEXT, `nameEn` TEXT, `type` TEXT NOT NULL, `origin` TEXT, `shortBlurb` TEXT, `notes` TEXT, `catalogTeaId` INTEGER, `enrichmentState` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "tableName": "tea_samples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `nameRu` TEXT, `nameZh` TEXT, `pinyin` TEXT, `nameEn` TEXT, `type` TEXT NOT NULL, `origin` TEXT, `shortBlurb` TEXT, `notes` TEXT, `catalogTeaId` INTEGER, `enrichmentState` TEXT NOT NULL, `vendor` TEXT, `product` TEXT, `harvestYear` INTEGER, `batch` TEXT, `grade` TEXT, `displayNamePref` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`catalogTeaId`) REFERENCES `catalog_refs`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "id",
@@ -112,8 +112,7 @@
           {
             "fieldPath": "nameRu",
             "columnName": "nameRu",
-            "affinity": "TEXT",
-            "notNull": true
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "nameZh",
@@ -161,6 +160,36 @@
             "columnName": "enrichmentState",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "vendor",
+            "columnName": "vendor",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "product",
+            "columnName": "product",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "harvestYear",
+            "columnName": "harvestYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "batch",
+            "columnName": "batch",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "grade",
+            "columnName": "grade",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "displayNamePref",
+            "columnName": "displayNamePref",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -171,19 +200,132 @@
         },
         "indices": [
           {
-            "name": "index_teas_catalogTeaId",
-            "unique": true,
+            "name": "index_tea_samples_catalogTeaId",
+            "unique": false,
             "columnNames": [
               "catalogTeaId"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_teas_catalogTeaId` ON `${TABLE_NAME}` (`catalogTeaId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tea_samples_catalogTeaId` ON `${TABLE_NAME}` (`catalogTeaId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "catalog_refs",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "catalogTeaId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
           }
         ]
       },
       {
+        "tableName": "catalog_refs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `type` TEXT NOT NULL, `wikidataQid` TEXT, `originCountry` TEXT, `region` TEXT, `cultivar` TEXT, `oxidationMin` INTEGER, `oxidationMax` INTEGER, `brand` TEXT, `verificationStatus` TEXT, `confidence` REAL, `enrichmentState` TEXT, `shortBlurb` TEXT, `source` TEXT, `sourceUrl` TEXT, `license` TEXT, `fetchedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wikidataQid",
+            "columnName": "wikidataQid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originCountry",
+            "columnName": "originCountry",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "region",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cultivar",
+            "columnName": "cultivar",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "oxidationMin",
+            "columnName": "oxidationMin",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "oxidationMax",
+            "columnName": "oxidationMax",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "brand",
+            "columnName": "brand",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verificationStatus",
+            "columnName": "verificationStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "enrichmentState",
+            "columnName": "enrichmentState",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shortBlurb",
+            "columnName": "shortBlurb",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceUrl",
+            "columnName": "sourceUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "license",
+            "columnName": "license",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fetchedAtEpochMs",
+            "columnName": "fetchedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
         "tableName": "placements",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `boardId` TEXT NOT NULL, `teaId` TEXT NOT NULL, `tierId` TEXT, `position` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`teaId`) REFERENCES `teas`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `boardId` TEXT NOT NULL, `teaId` TEXT NOT NULL, `tierId` TEXT, `position` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`boardId`) REFERENCES `boards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`teaId`) REFERENCES `tea_samples`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -264,7 +406,7 @@
             ]
           },
           {
-            "table": "teas",
+            "table": "tea_samples",
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
@@ -278,7 +420,7 @@
       },
       {
         "tableName": "tea_flavors",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`teaId` TEXT NOT NULL, `dimension` TEXT NOT NULL, `intensity` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`teaId`, `dimension`), FOREIGN KEY(`teaId`) REFERENCES `teas`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`teaId` TEXT NOT NULL, `dimension` TEXT NOT NULL, `intensity` INTEGER NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`teaId`, `dimension`), FOREIGN KEY(`teaId`) REFERENCES `tea_samples`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "teaId",
@@ -314,7 +456,7 @@
         },
         "foreignKeys": [
           {
-            "table": "teas",
+            "table": "tea_samples",
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
@@ -328,7 +470,7 @@
       },
       {
         "tableName": "purchase_locations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `teaId` TEXT NOT NULL, `position` INTEGER NOT NULL, `kind` TEXT NOT NULL, `label` TEXT, `value` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`teaId`) REFERENCES `teas`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `teaId` TEXT NOT NULL, `position` INTEGER NOT NULL, `kind` TEXT NOT NULL, `label` TEXT, `value` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`teaId`) REFERENCES `tea_samples`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -385,7 +527,7 @@
         ],
         "foreignKeys": [
           {
-            "table": "teas",
+            "table": "tea_samples",
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
@@ -399,7 +541,7 @@
       },
       {
         "tableName": "tea_photos",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `teaId` TEXT NOT NULL, `uri` TEXT NOT NULL, `position` INTEGER NOT NULL, `source` TEXT NOT NULL, `license` TEXT, `sourceUrl` TEXT, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`teaId`) REFERENCES `teas`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `teaId` TEXT NOT NULL, `uri` TEXT NOT NULL, `position` INTEGER NOT NULL, `source` TEXT NOT NULL, `license` TEXT, `sourceUrl` TEXT, `createdAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`teaId`) REFERENCES `tea_samples`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -467,7 +609,7 @@
         ],
         "foreignKeys": [
           {
-            "table": "teas",
+            "table": "tea_samples",
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
@@ -540,7 +682,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e7ac9815b0ffef5987de2e2cb291c7c4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2fe6dcb0db76ea543abb3d778ba6428c')"
     ]
   }
 }

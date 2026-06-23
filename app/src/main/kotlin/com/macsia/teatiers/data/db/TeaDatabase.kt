@@ -19,24 +19,27 @@ import androidx.room.RoomDatabase
  * v6 (second-pass review): UNIQUE index on `teas.catalogTeaId` so catalog identity is a schema-level
  * invariant (NULLs stay distinct → custom teas unaffected).
  *
- * **v6 is the public migration baseline (decision #130 / review P0-1).** Now that v0.1.0 ships
- * publicly, `exportSchema = true` and `app/schemas/.../6.json` is committed so future migrations have
- * a JSON to diff against, and the prod build NO LONGER destructively migrates ([com.macsia.teatiers.di.AppModule])
- * — a missing `Migration(6, N)` must fail loudly rather than silently wipe a user's only local copy.
- * Every version after 6 needs an explicit `Migration` + a `MigrationTestHelper` upgrade test.
+ * **v7 (tea/sample split, decision #132):** `teas` → [TeaSampleEntity] (`tea_samples`); the canonical
+ * catalog identity moves to [CatalogRefEntity] (`catalog_refs`); the v6 `UNIQUE(catalogTeaId)` is gone
+ * so many samples may share one ref (P1-1), and `nameRu` is nullable (P1-2). **No `Migration(6,7)`:**
+ * per owner decision (2026-06-23) the existing collection is mock data, so v6→v7 is a one-time
+ * *destructive* reset + reseed ([com.macsia.teatiers.di.AppModule] enables `fallbackToDestructiveMigration`
+ * in release for this bump) rather than a lossless migration. v7 is the new schema baseline; once a
+ * real collection lands, the next bump goes back to an explicit `Migration(7, N)` + a test.
  */
 @Database(
     entities = [
         BoardEntity::class,
         TierEntity::class,
-        TeaEntity::class,
+        TeaSampleEntity::class,
+        CatalogRefEntity::class,
         PlacementEntity::class,
         FlavorEntity::class,
         PurchaseLocationEntity::class,
         PhotoEntity::class,
         CatalogCacheEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class TeaDatabase : RoomDatabase() {

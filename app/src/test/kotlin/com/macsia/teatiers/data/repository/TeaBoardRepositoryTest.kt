@@ -55,7 +55,7 @@ class TeaBoardRepositoryTest {
     ): TeaBoardRepository {
         val dao = FakeTeaDao()
         val seed = boards.toSeedEntities()
-        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+        dao.seed(seed.boards, seed.tiers, seed.catalogRefs, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
         return TeaBoardRepository(dao, photoStore, backgroundScope, SampleBoardProvider(), onboarding)
     }
 
@@ -98,7 +98,7 @@ class TeaBoardRepositoryTest {
     fun `deleteBoard removes the board but keeps the shared teas`() = runTest(UnconfinedTestDispatcher()) {
         val dao = FakeTeaDao()
         val seed = listOf(seededBoard).toSeedEntities()
-        dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+        dao.seed(seed.boards, seed.tiers, seed.catalogRefs, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
         val repository = TeaBoardRepository(dao, FakePhotoStore(), backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
         advanceUntilIdle()
         val teasBefore = dao.teaCount()
@@ -539,7 +539,7 @@ class TeaBoardRepositoryTest {
             val knownPath = "/fake/known.jpg"
             val dao = FakeTeaDao()
             val seed = listOf(seededBoard).toSeedEntities()
-            dao.seed(seed.boards, seed.tiers, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+            dao.seed(seed.boards, seed.tiers, seed.catalogRefs, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
             dao.insertPhotos(listOf(PhotoEntity("ph1", "green", knownPath, 0, "USER", null, null, 0L)))
             val photoStore = FakePhotoStore().apply {
                 onDisk += knownPath

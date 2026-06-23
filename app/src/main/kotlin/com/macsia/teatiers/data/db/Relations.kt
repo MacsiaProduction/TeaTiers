@@ -3,9 +3,9 @@ package com.macsia.teatiers.data.db
 import androidx.room.Embedded
 import androidx.room.Relation
 
-/** A user-tea with its flavor scores, purchase locations, and photos. One @Transaction read. */
+/** A user sample with its flavor scores, purchase locations, and photos. One @Transaction read. */
 data class TeaWithChildren(
-    @Embedded val tea: TeaEntity,
+    @Embedded val tea: TeaSampleEntity,
     @Relation(parentColumn = "id", entityColumn = "teaId")
     val flavors: List<FlavorEntity>,
     @Relation(parentColumn = "id", entityColumn = "teaId")
@@ -15,14 +15,14 @@ data class TeaWithChildren(
 )
 
 /**
- * A placement with the user-tea it points at. The tea side is a List by Room convention, but
- * placement → tea is 1:1 (FK + UNIQUE) so the mapper just takes the first element. Drives the
- * nested fetch in [BoardWithChildren].
+ * A placement with the sample it points at. The tea side is a List by Room convention, but
+ * placement → sample is 1:1 (FK + UNIQUE(boardId, teaId)) so the mapper just takes the first
+ * element. Drives the nested fetch in [BoardWithChildren].
  */
 data class PlacementWithTea(
     @Embedded val placement: PlacementEntity,
     @Relation(
-        entity = TeaEntity::class,
+        entity = TeaSampleEntity::class,
         parentColumn = "teaId",
         entityColumn = "id",
     )

@@ -1,7 +1,7 @@
 package com.macsia.teatiers.data.repository
 
 import com.macsia.teatiers.data.db.TeaDao
-import com.macsia.teatiers.data.db.TeaEntity
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.CatalogLocale
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
@@ -62,7 +62,7 @@ class TeaEnrichmentManager @Inject constructor(
     fun retry(teaId: String) {
         scope.launch {
             val row = dao.loadTeaRow(teaId) ?: return@launch
-            runEnrichment(teaId, row.nameRu, sourceText = null)
+            runEnrichment(teaId, row.resolveName() ?: return@launch, sourceText = null)
         }
     }
 
@@ -75,10 +75,17 @@ class TeaEnrichmentManager @Inject constructor(
         if (!resumed.compareAndSet(false, true)) return
         scope.launch {
             dao.teasNeedingEnrichment().forEach { row ->
-                runEnrichment(row.id, row.nameRu, sourceText = null)
+                runEnrichment(row.id, row.resolveName() ?: return@forEach, sourceText = null)
             }
         }
     }
+
+    /**
+     * The name to re-resolve a sample by — its first non-blank locale name (P1-2: `nameRu` may be
+     * null). Null only for a nameless row (shouldn't occur; the add/edit form enforces ≥1 name).
+     */
+    private fun TeaSampleEntity.resolveName(): String? =
+        listOfNotNull(nameRu, nameEn, pinyin, nameZh).firstOrNull { it.isNotBlank() }
 
     private suspend fun runEnrichment(teaId: String, name: String, sourceText: String?) {
         if (!inFlight.add(teaId)) return // already enriching this tea — skip the duplicate dispatch
@@ -141,11 +148,9 @@ class TeaEnrichmentManager @Inject constructor(
     /**
      * Merges the resolved [detail] into the local row (catalog wins only where the user is blank, #21).
      * The load-merge-write is a single Room @Transaction (review 2026-06-19) so a concurrent user edit
-     * landing between the read and the write can't be clobbered. The DAO also owns the duplicate-link
-     * case: `catalogTeaId` is UNIQUE (one user-tea per catalog row), but the local name-matcher can't
-     * unify every differently-scripted duplicate (e.g. "Tieguanyin" / "тегуанинь"), so two user-teas
-     * can resolve to the same catalog id — when another tea already owns the link, the names/blurb
-     * still merge but the link is left untouched (#101 / review F6).
+     * landing between the read and the write can't be clobbered. Since v7 (#132) `catalogTeaId` is no
+     * longer UNIQUE, so every sample resolving to a ref links to it (the DAO stubs the `catalog_refs`
+     * row first so the FK holds); two differently-scripted duplicates may both link to the same ref.
      */
     private suspend fun applyPatch(teaId: String, detail: CatalogTeaDetail) {
         dao.applyEnrichmentPatch(
