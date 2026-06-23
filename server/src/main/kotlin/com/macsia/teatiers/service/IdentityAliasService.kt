@@ -16,7 +16,13 @@ class IdentityAliasService(
     private val aliasRepository: TeaIdentityAliasRepository,
 ) {
 
-    /** Add (or promote) an authoritative alias. Idempotent on (tea, locale, alias). */
+    /**
+     * Add (or promote) an authoritative alias. Idempotent on (tea, locale, alias). Enforces the global
+     * authoritative-alias invariant (decision #141 / FND-P1-1): an authoritative alias may belong to at most
+     * ONE active tea per (locale, normalized form), so Tier-0 identity stays deterministic. A collision with
+     * a DIFFERENT active tea fails closed with [DuplicateAuthoritativeAliasException] -- the operator should
+     * merge the two identities (or repair the duplicate) rather than create a second owner.
+     */
     @Transactional
     fun addAuthoritative(
         teaId: Long,
@@ -27,6 +33,9 @@ class IdentityAliasService(
         source: String? = null,
     ): TeaIdentityAlias {
         require(origin in AUTHORITATIVE_ORIGINS) { "authoritative alias origin must be curated/human_confirmed" }
+        aliasRepository.findOtherActiveAuthoritativeOwners(locale, alias, teaId).firstOrNull()?.let { other ->
+            throw DuplicateAuthoritativeAliasException(locale, alias, other, teaId)
+        }
         val existing = aliasRepository.findByTeaId(teaId).firstOrNull { it.locale == locale && it.alias == alias }
         if (existing != null) {
             existing.origin = origin
@@ -51,3 +60,17 @@ class IdentityAliasService(
         val AUTHORITATIVE_ORIGINS = setOf("curated", "human_confirmed")
     }
 }
+
+/**
+ * An authoritative alias was about to be attached to a second active tea (decision #141 / FND-P1-1) -- the
+ * global one-owner-per-(locale, alias) invariant. The two identities must be merged/repaired instead.
+ */
+class DuplicateAuthoritativeAliasException(
+    val locale: String,
+    val alias: String,
+    val existingTeaId: Long,
+    val attemptedTeaId: Long,
+) : RuntimeException(
+    "authoritative alias '$alias' ($locale) already belongs to active tea $existingTeaId; " +
+        "cannot also assign it to tea $attemptedTeaId -- merge the identities instead",
+)

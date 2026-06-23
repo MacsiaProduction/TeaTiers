@@ -263,10 +263,11 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
             obs("https://s.example/t", externalId = "T", names = listOf(ScrapedName("ru", "Сэн Ча", true))),
         )
         val decision = matchService.proposeFor(requireNotNull(record.id), runId)
-        // The matcher still proposes the (retracted) target -- candidate-set status filtering is deferred
-        // P1 (FND-P1-1) -- so the apply-time guard is the backstop that must refuse it.
-        assertEquals("authoritative", decision.matchTier)
-        reviewService.approveMerge(requireNotNull(decision.id), "op") // decide is fine; the guard is at apply
+        // Active-only matching (decision #141 / FND-P1-1) means the matcher no longer proposes the retracted
+        // tea -- it sees no active match and proposes create_new. The operator then OVERRIDES with an explicit
+        // (retracted) target, and the apply-time tombstone guard is the backstop that must still refuse it.
+        assertEquals("create_new", decision.proposedKind)
+        reviewService.approveMerge(requireNotNull(decision.id), "op", targetTeaId = teaId)
         assertFailsWith<InactiveMergeTargetException> { sealAndApply() }
     }
 

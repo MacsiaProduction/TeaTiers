@@ -6,10 +6,12 @@ import com.macsia.teatiers.domain.ImportRun
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.SourceRecord
 import com.macsia.teatiers.domain.SourceRecordRevision
+import com.macsia.teatiers.dto.CandidateHitDto
 import com.macsia.teatiers.dto.PendingMatchDto
 import com.macsia.teatiers.dto.ReviewResultDto
 import com.macsia.teatiers.dto.RunApplyResultDto
 import com.macsia.teatiers.dto.ScrapedFacts
+import com.macsia.teatiers.repository.MatchCandidateRepository
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.SourceRecordRevisionRepository
@@ -28,6 +30,7 @@ import java.time.Instant
 @Service
 class ReviewService(
     private val matchDecisionRepository: MatchDecisionRepository,
+    private val matchCandidateRepository: MatchCandidateRepository,
     private val sourceRecordRepository: SourceRecordRepository,
     private val revisionRepository: SourceRecordRevisionRepository,
     private val canonicalUpsertService: CanonicalUpsertService,
@@ -161,6 +164,15 @@ class ReviewService(
             candidateTeaId = candidateTeaId,
             names = facts?.names ?: emptyList(),
             candidate = candidateTeaId?.let { catalogService.summary(it) },
+            candidates = matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(requireNotNull(id)).map {
+                CandidateHitDto(
+                    teaId = it.teaId,
+                    matchTier = it.matchTier,
+                    matchScore = it.matchScore,
+                    rank = it.rank,
+                    candidate = catalogService.summary(it.teaId),
+                )
+            },
         )
     }
 

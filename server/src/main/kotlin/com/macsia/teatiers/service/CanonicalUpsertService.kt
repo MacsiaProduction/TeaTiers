@@ -219,6 +219,12 @@ class CanonicalUpsertService(
             writeClaim(teaId, "name:${n.locale}", n.value, selected = true, replaceSelected = false, ctx)
             // The operator approved this identity decision -> promote the scraped name to a human-confirmed
             // alias so future runs reuse it as Tier 0 (decision #137-C6). Idempotent on (tea, locale, alias).
+            // Fail-closed (decision #141 / FND-P1-1): if a name collides with a DIFFERENT active tea's
+            // authoritative alias, addAuthoritative throws DuplicateAuthoritativeAliasException and the whole
+            // apply rolls back to 'reviewed' (a duplicate identity is never minted). The matcher inspects only
+            // the first name per locale, so a second same-locale name's collision can surface here rather than
+            // at decide time -- the operator merges the identities and re-applies. (Surfacing every such
+            // collision pre-apply is a tracked follow-up.)
             identityAliasService.addAuthoritative(
                 teaId = teaId,
                 locale = n.locale,

@@ -3,6 +3,7 @@ package com.macsia.teatiers.service
 import com.macsia.teatiers.AbstractIntegrationTest
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.Tea
+import com.macsia.teatiers.domain.TeaIdentityAlias
 import com.macsia.teatiers.domain.TeaName
 import com.macsia.teatiers.domain.TeaType
 import com.macsia.teatiers.dto.FetchEvidence
@@ -10,6 +11,7 @@ import com.macsia.teatiers.dto.RobotsEvidence
 import com.macsia.teatiers.dto.ScrapedFacts
 import com.macsia.teatiers.dto.ScrapedName
 import com.macsia.teatiers.dto.SourceObservation
+import com.macsia.teatiers.repository.MatchCandidateRepository
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
 import com.macsia.teatiers.repository.TeaFieldProvenanceRepository
@@ -22,6 +24,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -49,6 +52,8 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
     @Autowired lateinit var sourceRecordRepository: SourceRecordRepository
 
     @Autowired lateinit var matchDecisionRepository: MatchDecisionRepository
+
+    @Autowired lateinit var matchCandidateRepository: MatchCandidateRepository
 
     @Autowired lateinit var provenanceRepository: TeaFieldProvenanceRepository
 
@@ -334,5 +339,77 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
         val brandClaims = provenanceRepository.findByTeaId(teaId).filter { it.fieldName == "brand" }
         assertTrue(brandClaims.isNotEmpty() && brandClaims.none { it.selected }, "brand is a non-selected proposal claim")
         assertEquals("Some Vendor", brandClaims.first().claimedValue)
+    }
+
+    @Test
+    fun `the matcher ignores a retracted tea and proposes create_new (active-only, decision 141)`() {
+        eligibleSite()
+        val teaId = seedTea(names = listOf(Triple("en", "Solo Retracted", true)))
+        teaRepository.findById(teaId).orElseThrow().also { it.status = "retracted"; teaRepository.saveAndFlush(it) }
+
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Solo Retracted", true)))
+        assertEquals("none", decision.matchTier, "a retracted tea is not an active match candidate")
+        assertEquals("create_new", decision.proposedKind)
+        assertNull(decision.candidateTeaId)
+    }
+
+    @Test
+    fun `two active teas sharing a name yield a conflict with a ranked candidate set (decision 141 FND-P1-1)`() {
+        eligibleSite()
+        val a = seedTea(names = listOf(Triple("en", "Long Jing", true)))
+        val b = seedTea(names = listOf(Triple("en", "Long Jing", true)))
+
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Long Jing", true)))
+        assertEquals("exact", decision.matchTier)
+        assertEquals("conflict", decision.proposedKind, "two distinct active owners must not auto-attach to one")
+        assertTrue(decision.candidateTeaId in setOf(a, b), "a default target is offered, but the operator must choose")
+
+        // The ranked candidate set is surfaced to the operator so they can pick an explicit merge target.
+        val pending = reviewService.pending().first { it.decisionId == decision.id }
+        assertEquals(setOf(a, b), pending.candidates.map { it.teaId }.toSet())
+        assertEquals(listOf(0, 1), pending.candidates.map { it.rank }, "candidates are ranked, best first")
+        assertTrue(pending.candidates.all { it.matchTier == "exact" })
+    }
+
+    @Test
+    fun `an authoritative alias cannot be assigned to a second active tea, but may move after the first retracts (decision 141)`() {
+        val a = seedTea(names = listOf(Triple("pinyin", "alias owner a", true)))
+        val b = seedTea(names = listOf(Triple("pinyin", "alias owner b", true)))
+        aliasService.addAuthoritative(a, "ru", "Дубль")
+
+        assertFailsWith<DuplicateAuthoritativeAliasException> { aliasService.addAuthoritative(b, "ru", "Дубль") }
+
+        // Once the first owner is retracted, the identity is free to move to an active tea.
+        teaRepository.findById(a).orElseThrow().also { it.status = "retracted"; teaRepository.saveAndFlush(it) }
+        val moved = aliasService.addAuthoritative(b, "ru", "Дубль")
+        assertEquals(b, moved.teaId)
+    }
+
+    @Test
+    fun `re-proposing rebuilds the ranked candidate set in place without duplicating it (decision 141)`() {
+        eligibleSite()
+        seedTea(names = listOf(Triple("en", "Re Propose Tea", true)))
+        val decision = stageAndPropose(listOf(ScrapedName("en", "Re Propose Tea", true)))
+        assertEquals("exact", decision.matchTier)
+        assertEquals(1, matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(requireNotNull(decision.id)).size)
+
+        // Re-propose the same still-pending record: persistCandidates must delete+reinsert (re-point in
+        // place), not stack a second rank-0 row (which would trip the (decision, rank) unique).
+        matchService.proposeFor(decision.sourceRecordId, runId)
+        assertEquals(1, matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(decision.id!!).size)
+    }
+
+    @Test
+    fun `the duplicate-authoritative-alias repair report finds an existing cross-tea violation (decision 141)`() {
+        val a = seedTea(names = listOf(Triple("pinyin", "dup a", true)))
+        val b = seedTea(names = listOf(Triple("pinyin", "dup b", true)))
+        // Insert the duplicate directly (bypassing the addAuthoritative guard) to simulate a pre-invariant DB.
+        listOf(a, b).forEach {
+            aliasRepository.save(TeaIdentityAlias(teaId = it, locale = "ru", alias = "Повтор", origin = "curated", verified = true))
+        }
+        aliasRepository.flush()
+
+        val report = aliasRepository.findDuplicateActiveAuthoritativeAliases()
+        assertTrue(report.any { it.teaCount == 2L }, "the repair report surfaces the (locale, alias) owned by two active teas")
     }
 }

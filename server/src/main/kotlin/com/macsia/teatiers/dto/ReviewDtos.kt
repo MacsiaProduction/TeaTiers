@@ -14,6 +14,18 @@ data class PendingMatchDto(
     // The observed names (facts), so the operator can judge without opening the source.
     val names: List<ScrapedName>,
     val candidate: TeaSummaryDto?,
+    // The full ranked candidate set within the winning tier (decision #141 / FND-P1-1). On a 'conflict'
+    // proposal the operator picks an explicit target from here; empty for a create_new. Best first.
+    val candidates: List<CandidateHitDto> = emptyList(),
+)
+
+/** One ranked match candidate the operator can choose among (decision #141 / FND-P1-1). [rank] 0 = best. */
+data class CandidateHitDto(
+    val teaId: Long,
+    val matchTier: String,
+    val matchScore: BigDecimal?,
+    val rank: Int,
+    val candidate: TeaSummaryDto?,
 )
 
 /**
