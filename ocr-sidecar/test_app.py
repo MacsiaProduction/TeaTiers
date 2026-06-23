@@ -129,3 +129,52 @@ def test_timeout_after_a_wedged_request_the_service_stays_responsive(monkeypatch
     r2 = client.post("/ocr", files={"file": ("x.png", _png(40, 20), "image/png")})
     assert r2.status_code == 200
     assert r2.json() == {"text": "fast", "corrected": "fast"}  # "fast" is Latin -> corrector leaves it
+
+
+def test_health_reflects_readiness_flag(monkeypatch):
+    # /health is honest: `loading` until the worker is ready, `ok` once it is (OCR-P2-1).
+    monkeypatch.setattr(app_module, "_ready", False)
+    assert client.get("/health").json()["status"] == "loading"
+    monkeypatch.setattr(app_module, "_ready", True)
+    assert client.get("/health").json()["status"] == "ok"
+
+
+def test_swap_executor_marks_loading_and_replaces_the_pool(monkeypatch):
+    # A wedged/broken worker pool is swapped out and the service reports `loading` until re-warmed
+    # (OCR-P2-1) — instead of the stale `ok` left over from startup.
+    monkeypatch.setattr(app_module, "_ready", True)
+    sentinel = object()
+    monkeypatch.setattr(app_module, "_new_executor", lambda: sentinel)
+
+    class FakeStale:
+        def __init__(self):
+            self.shut = False
+
+        def shutdown(self, wait=False):
+            self.shut = True
+
+    stale = FakeStale()
+    monkeypatch.setattr(app_module, "_executor", stale)  # monkeypatch restores the real executor after
+    app_module._swap_executor(app_module._executor, kill=False)
+
+    assert app_module._ready is False
+    assert app_module._executor is sentinel
+    assert stale.shut is True
+    assert client.get("/health").json()["status"] == "loading"
+
+
+def test_swap_executor_is_a_noop_without_a_real_pool(monkeypatch):
+    # In-process executor (None) -> nothing to replace; readiness untouched.
+    monkeypatch.setattr(app_module, "_ready", True)
+    app_module._swap_executor(None, kill=True)
+    assert app_module._ready is True
+
+
+def test_a_successful_inference_re_arms_readiness(monkeypatch):
+    # After a respawn the service is `loading`; the next successful inference proves the worker warmed
+    # and flips it back to `ok` (OCR-P2-1).
+    monkeypatch.setattr(app_module, "_recognize", lambda data: "ok text")
+    monkeypatch.setattr(app_module, "_ready", False)
+    r = client.post("/ocr", files={"file": ("x.png", _png(20, 20), "image/png")})
+    assert r.status_code == 200
+    assert app_module._ready is True

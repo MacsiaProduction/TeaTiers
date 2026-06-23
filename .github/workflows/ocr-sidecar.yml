@@ -37,7 +37,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          # Match the runtime image's Python (Dockerfile: python:3.14-slim) so tests run on what we ship (OCR-P2-2).
+          python-version: "3.14"
       # Full runtime deps + test deps; the recognizer is stubbed in the tests, so the heavy ONNX
       # models are never loaded (rapidocr is imported lazily inside _build_engine).
       - name: Install deps

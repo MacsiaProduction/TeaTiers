@@ -1,6 +1,6 @@
 # TeaTiers OCR sidecar (slice 1b; research 13 / decision #105).
 # Base pinned by digest (rule 40-devops); tag kept for readability.
-# Refresh with: docker manifest inspect --verbose python:3.12-slim | jq '.[0].Descriptor.digest'
+# Refresh with: docker manifest inspect --verbose python:3.14-slim | jq '.[0].Descriptor.digest'
 
 # --- Stage 1: fetch + SHA256-verify the pinned ONNX models. -------------------------------------
 # Keeps curl/apt out of the runtime image and fails the build on any checksum mismatch
