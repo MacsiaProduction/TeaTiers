@@ -18,6 +18,8 @@ dependencies {
     implementation(libs.jackson.module.kotlin)
     implementation(libs.caffeine)
     implementation(libs.ipaddress)
+    implementation(libs.bucket4j.core)
+    implementation(libs.bucket4j.caffeine)
     implementation(libs.spring.boot.starter.flyway)
     runtimeOnly(libs.flyway.database.postgresql)
     runtimeOnly(libs.postgresql)

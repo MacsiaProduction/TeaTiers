@@ -31,6 +31,12 @@ class CatalogExceptionHandler {
             title = "Rate limit exceeded"
         }
 
+    @ExceptionHandler(EdgeOverloadException::class)
+    fun handleEdgeOverload(ex: EdgeOverloadException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.message ?: "Service is shedding load").apply {
+            title = "Service overloaded"
+        }
+
     @ExceptionHandler(OcrUnavailableException::class)
     fun handleOcrUnavailable(ex: OcrUnavailableException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.message ?: "OCR unavailable").apply {
