@@ -131,6 +131,23 @@ def _kill_executor(ex: ProcessPoolExecutor) -> None:
     ex.shutdown(wait=False, cancel_futures=True)
 
 
+def _swap_executor(stale: ProcessPoolExecutor | None, *, kill: bool) -> None:
+    """Replace a wedged/broken worker pool and mark the service NOT ready until the next request
+    re-warms it (OCR-P2-1). The new pool's worker spawns + builds/warms its engine lazily on the next
+    submit, so `/health` must report `loading` in the meantime instead of the stale `ok` left over from
+    startup; a successful inference flips `_ready` back to True. No-op (and stays ready) when there is no
+    real pool to replace — e.g. unit tests on the default in-process executor (`_executor is None`)."""
+    global _executor, _ready
+    if stale is None:
+        return
+    _ready = False
+    _executor = _new_executor()
+    if kill:
+        _kill_executor(stale)
+    else:
+        stale.shutdown(wait=False)
+
+
 def within_pixel_budget(image_bytes: bytes) -> bool:
     """
     Header-only check that the DECODED pixel count is within budget — runs before the big RGB
@@ -220,7 +237,7 @@ async def health() -> JSONResponse:
 
 @app.post("/ocr")
 async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
-    global _executor
+    global _executor, _ready
     # Cheap early-out: reject a grossly oversized upload by its declared Content-Length BEFORE
     # spooling the whole body. The authoritative byte cap (post-read, below) still applies; this just
     # avoids buffering a huge body. A missing/garbage header falls through to the post-read check.
@@ -257,22 +274,18 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
             # Safe under the lock — no sibling future is on the pool. `_executor` is None in unit tests
             # (default in-process executor; nothing to kill).
             log.warning("OCR timed out after %ss (%d bytes); killing + respawning the worker", INFERENCE_DEADLINE_S, len(data))
-            stale = _executor
-            if stale is not None:
-                _executor = _new_executor()
-                _kill_executor(stale)
+            _swap_executor(_executor, kill=True)  # SIGKILL the wedged worker; /health -> loading until re-warmed
             raise HTTPException(status_code=504, detail="recognition timed out")
         except BrokenProcessPool:
             # A worker died unexpectedly (OOM-kill, native segfault, a failed respawn-init). The pool is
             # permanently broken, so rebuild it for the NEXT request instead of 500-ing forever (N6).
             log.warning("OCR worker pool broke (%d bytes); rebuilding", len(data))
-            stale = _executor
-            if stale is not None:
-                _executor = _new_executor()
-                stale.shutdown(wait=False)
+            _swap_executor(_executor, kill=False)  # rebuild; /health -> loading until re-warmed
             raise HTTPException(status_code=500, detail="recognition failed")
         except Exception:
             log.exception("OCR recognition failed (%d bytes)", len(data))
             raise HTTPException(status_code=500, detail="recognition failed")
+    # A successful inference proves the worker is warmed (re-arms readiness after a respawn; OCR-P2-1).
+    _ready = True
     log.info("ocr ok: %d bytes -> %d chars in %d ms", len(data), len(result["text"]), int(1000 * (time.time() - started)))
     return JSONResponse(result)

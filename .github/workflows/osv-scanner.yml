@@ -59,13 +59,14 @@ jobs:
             -L=app/build/reports/cyclonedx/bom.json
 
   ocr-sidecar:
-    name: ocr-sidecar deps + OSV (Python 3.12)
+    name: ocr-sidecar deps + OSV (Python 3.14)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          # Match the runtime image's Python (Dockerfile: python:3.14-slim) so the scanned graph is what we ship (OCR-P2-2).
+          python-version: "3.14"
       # Resolve the FULL transitive set (pip freeze) and scan it with --no-resolve, so coverage is
       # complete and deterministic (no live deps.dev resolution) — mirrors the Gradle SBOM approach.
       - name: Resolve full dependency set
