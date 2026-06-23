@@ -94,13 +94,14 @@ fun AddTeaScreen(
     modifier: Modifier = Modifier,
     teaId: String? = null,
     catalogTeaId: Long? = null,
+    forceNew: Boolean = false,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
     // Stable per-entry token: survives rotation/process-death via rememberSaveable, so a re-fired
     // bind() on recreation preserves the in-progress form instead of wiping it (review N5).
     val entryToken = rememberSaveable { java.util.UUID.randomUUID().toString() }
-    LaunchedEffect(boardId, teaId, catalogTeaId, entryToken) {
-        viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId, entryToken = entryToken)
+    LaunchedEffect(boardId, teaId, catalogTeaId, forceNew, entryToken) {
+        viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId, forceNew = forceNew, entryToken = entryToken)
     }
     val form by viewModel.form.collectAsStateWithLifecycle()
     val tiers by viewModel.tiers.collectAsStateWithLifecycle()

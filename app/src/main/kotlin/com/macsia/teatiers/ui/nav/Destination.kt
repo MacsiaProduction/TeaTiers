@@ -24,8 +24,12 @@ sealed interface Destination {
     data class Board(val boardId: String) : Destination
     data class TeaDetail(val teaId: String) : Destination
 
-    /** Add a tea to [boardId]; [catalogTeaId] (set when entered from browse) pre-picks that tea. */
-    data class AddTea(val boardId: String, val catalogTeaId: Long? = null) : Destination
+    /**
+     * Add a tea to [boardId]; [catalogTeaId] (set when entered from browse) pre-picks that tea.
+     * [forceNew] is the P1-1 "add another sample" path (#132): create a NEW sample of the same catalog
+     * ref instead of reusing the existing one. Only meaningful with a [catalogTeaId].
+     */
+    data class AddTea(val boardId: String, val catalogTeaId: Long? = null, val forceNew: Boolean = false) : Destination
     data class EditTea(val teaId: String) : Destination
     data class TierEditor(val boardId: String) : Destination
 }
@@ -38,8 +42,8 @@ private fun Destination.encode(): String = when (this) {
     Destination.BrowseCatalog -> "browse-catalog"
     is Destination.Board -> "board:$boardId"
     is Destination.TeaDetail -> "tea:$teaId"
-    // boardId is a ':'-free uuid slug, so '|' safely separates the optional catalog id.
-    is Destination.AddTea -> "add:$boardId" + (catalogTeaId?.let { "|$it" } ?: "")
+    // boardId is a ':'-free uuid slug, so '|' safely separates the optional catalog id (+ "|new" flag).
+    is Destination.AddTea -> "add:$boardId" + (catalogTeaId?.let { "|$it" + (if (forceNew) "|new" else "") } ?: "")
     is Destination.EditTea -> "edit-tea:$teaId"
     is Destination.TierEditor -> "tiers:$boardId"
 }
@@ -58,10 +62,10 @@ private fun String.decodeDestination(): Destination {
         "board" -> arg?.let(Destination::Board) ?: Destination.Boards
         "tea" -> arg?.let(Destination::TeaDetail) ?: Destination.Boards
         "add" -> arg?.let { a ->
-            // "boardId" or "boardId|catalogId" (browse entry); a malformed id falls back to no pre-pick.
-            val board = a.substringBefore("|")
-            val catalogId = a.substringAfter("|", "").toLongOrNull()
-            Destination.AddTea(board, catalogId)
+            // "boardId" | "boardId|catalogId" (browse) | "boardId|catalogId|new" (add-another); a
+            // malformed id falls back to no pre-pick.
+            val parts = a.split("|")
+            Destination.AddTea(parts[0], parts.getOrNull(1)?.toLongOrNull(), forceNew = parts.getOrNull(2) == "new")
         } ?: Destination.Boards
         "edit-tea" -> arg?.let(Destination::EditTea) ?: Destination.Boards
         "tiers" -> arg?.let(Destination::TierEditor) ?: Destination.Boards

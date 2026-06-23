@@ -100,6 +100,7 @@ private data class PlacementMenuActions(
     val onRemoveFromBoard: (placementId: String) -> Unit,
     val onDeleteEverywhere: (teaId: String) -> Unit,
     val onRetryEnrichment: (teaId: String) -> Unit,
+    val onAddAnother: (catalogTeaId: Long) -> Unit,
 )
 
 @Composable
@@ -108,6 +109,7 @@ fun BoardScreen(
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
     onAddTea: () -> Unit,
+    onAddAnother: (catalogTeaId: Long) -> Unit,
     onEditTiers: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: BoardViewModel = hiltViewModel(),
@@ -122,6 +124,7 @@ fun BoardScreen(
         onBack = onBack,
         onOpenTea = onOpenTea,
         onAddTea = onAddTea,
+        onAddAnother = onAddAnother,
         onEditTiers = onEditTiers,
         onMove = viewModel::movePlacement,
         onRemovePlacement = viewModel::removePlacement,
@@ -139,6 +142,7 @@ private fun BoardContent(
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
     onAddTea: () -> Unit,
+    onAddAnother: (Long) -> Unit,
     onEditTiers: () -> Unit,
     onMove: (String, String?, Int) -> Unit,
     onRemovePlacement: (String) -> Unit,
@@ -169,6 +173,7 @@ private fun BoardContent(
         onRemoveFromBoard = onRemovePlacement,
         onDeleteEverywhere = onDeleteTea,
         onRetryEnrichment = onRetryEnrichment,
+        onAddAnother = onAddAnother,
     )
 
     Box(modifier.fillMaxSize()) {
@@ -644,6 +649,17 @@ private fun DraggableTeaCard(
                         confirmDelete = true
                     },
                 )
+                // P1-1 "add another sample" (#132): only for catalog-linked teas — a custom add already
+                // always creates a new sample, so reuse isn't in play there.
+                placement.tea.catalogTeaId?.let { catalogTeaId ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_add_another_sample)) },
+                        onClick = {
+                            menuExpanded = false
+                            menuActions.onAddAnother(catalogTeaId)
+                        },
+                    )
+                }
                 if (placement.tea.enrichmentState == EnrichmentState.FAILED) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.action_retry_enrichment)) },

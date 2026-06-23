@@ -210,6 +210,35 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `addTea forceNew creates a second independent sample of the same catalog ref (P1-1)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
+            val repository = repositoryWithSeed(listOf(seededBoard, board2))
+            advanceUntilIdle()
+
+            val first = repository.addTea(
+                "b",
+                Tea("c1", nameRu = "Лунцзин", type = TeaType.GREEN, catalogTeaId = 77L, notes = "первый"),
+                tierId = "s",
+            )!!
+            // "Add another sample": same catalog ref, but forceNew bypasses reuse -> a distinct sample.
+            val second = repository.addTea(
+                "b2",
+                Tea("c2", nameRu = "Лунцзин", type = TeaType.GREEN, catalogTeaId = 77L, notes = "второй", vendor = "Лавка"),
+                tierId = "b2-s",
+                forceNew = true,
+            )!!
+
+            assertTrue(first.created)
+            assertTrue(second.created) // a NEW sample, not a reuse
+            assertTrue(first.teaId != second.teaId) // two distinct samples
+            assertEquals("первый", repository.tea(first.teaId)?.notes) // independent personal data
+            assertEquals("второй", repository.tea(second.teaId)?.notes)
+            assertEquals("Лавка", repository.tea(second.teaId)?.vendor)
+            assertEquals(77L, repository.tea(second.teaId)?.catalogTeaId) // both link the shared ref
+        }
+
+    @Test
     fun `tea lookup resolves a user-tea by id from any board`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()

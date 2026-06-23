@@ -121,6 +121,10 @@ class AddTeaViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogDetailUiState.Hidden)
 
     private val boardId = MutableStateFlow<String?>(null)
+
+    // P1-1 "add another sample" (#132): when set, submit() bypasses reuse so a 2nd sample of the same
+    // catalog ref is created. Set per-entry in bind(); plain field (not flow) — only read at submit.
+    private var forceNew = false
     private val _editingTeaId = MutableStateFlow<String?>(null)
     val editingTeaId: StateFlow<String?> = _editingTeaId.asStateFlow()
 
@@ -171,6 +175,7 @@ class AddTeaViewModel @Inject constructor(
         boardId: String? = null,
         teaId: String? = null,
         catalogTeaId: Long? = null,
+        forceNew: Boolean = false,
         entryToken: String = UUID.randomUUID().toString(),
     ) {
         // Preserve the in-progress form across a config change / recreation (review N5). The screen
@@ -181,6 +186,7 @@ class AddTeaViewModel @Inject constructor(
         // it re-binds — edit mode reloads from teaId; an in-progress ADD is reset (acceptable, rare).
         if (entryToken == lastEntryToken) return
         lastEntryToken = entryToken
+        this.forceNew = forceNew
         this.boardId.value = boardId
         _editingTeaId.value = teaId
         _form.value = AddTeaForm()
@@ -411,7 +417,7 @@ class AddTeaViewModel @Inject constructor(
                     repository.updateTea(editing, form.toTea())
                 } else if (board != null) {
                     val tea = form.toTea()
-                    val added = repository.addTea(board, tea, form.tierId) ?: return@runCatching false
+                    val added = repository.addTea(board, tea, form.tierId, forceNew) ?: return@runCatching false
                     // A failed copy on any single picked URI surfaces as a snackbar but does
                     // not abort the save: the tea row is already in DB.
                     _draftPhotos.value.forEach { draft ->

@@ -72,6 +72,9 @@ fun TeaTiersApp() {
                     onBack = ::pop,
                     onOpenTea = { teaId -> navigate(Destination.TeaDetail(teaId)) },
                     onAddTea = { navigate(Destination.AddTea(current.boardId)) },
+                    onAddAnother = { catalogTeaId ->
+                        navigate(Destination.AddTea(current.boardId, catalogTeaId, forceNew = true))
+                    },
                     onEditTiers = { navigate(Destination.TierEditor(current.boardId)) },
                 )
 
@@ -88,6 +91,7 @@ fun TeaTiersApp() {
                     onBack = ::pop,
                     onSaved = ::pop,
                     catalogTeaId = current.catalogTeaId,
+                    forceNew = current.forceNew,
                 )
 
             is Destination.EditTea ->

@@ -118,6 +118,7 @@
     <string name="action_remove_from_board">Убрать с подборки</string>
     <string name="action_delete_tea_forever">Удалить чай совсем</string>
     <string name="action_retry_enrichment">Повторить уточнение</string>
+    <string name="action_add_another_sample">Добавить ещё образец</string>
 
     <!-- Optimistic catalog-enrichment status shown on the tea card (decisions.md #21/#28). -->
     <string name="enrichment_status_pending">Уточняем…</string>

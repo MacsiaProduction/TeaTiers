@@ -191,10 +191,12 @@ class TeaBoardRepository @Inject constructor(
      * off background enrichment for a genuinely new tea (#21), never an auto-linked existing one.
      * Null when [boardId] is unknown (and nothing was written).
      */
-    suspend fun addTea(boardId: String, tea: Tea, tierId: String?): AddedTea? {
+    suspend fun addTea(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean = false): AddedTea? {
         val board = board(boardId) ?: return null
         val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
-        val existingTeaId = resolveTeaIdForMatch(tea)
+        // forceNew is the P1-1 "add another sample" path (#132): bypass reuse so a second sample of the
+        // same catalog ref is created with its own notes/flavor/photos, instead of resolving to the first.
+        val existingTeaId = if (forceNew) null else resolveTeaIdForMatch(tea)
 
         // Always generate a fresh teaId for new teas: the candidate id from the form is a
         // throwaway UUID, but a sample/test caller may pass a sticky id and we don't want
