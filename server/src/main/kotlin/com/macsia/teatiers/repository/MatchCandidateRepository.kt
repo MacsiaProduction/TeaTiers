@@ -12,6 +12,13 @@ interface MatchCandidateRepository : JpaRepository<MatchCandidate, Long> {
     fun findByMatchDecisionIdOrderByRankAsc(matchDecisionId: Long): List<MatchCandidate>
 
     /**
+     * The ranked candidate sets for many decisions in ONE query (SRV-P2-4): the review queue groups these
+     * by decision in memory instead of issuing a [findByMatchDecisionIdOrderByRankAsc] per pending item.
+     * Ordered by rank so a per-decision grouping preserves best-first.
+     */
+    fun findByMatchDecisionIdInOrderByRankAsc(matchDecisionIds: Collection<Long>): List<MatchCandidate>
+
+    /**
      * Clear a decision's candidate set before re-pointing it (the decision is reused in place across
      * revisions). A bulk DELETE so the (match_decision_id, rank) unique can't see stale rows on reinsert.
      * `flushAutomatically` is REQUIRED with `clearAutomatically` (H7): the caller saves the (possibly

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
+import java.util.HexFormat
 
 /**
  * Stages source observations into the ingest layer (decision #136). This NEVER creates a canonical tea:
@@ -346,8 +347,7 @@ class CatalogImportService(
         sourceSiteRepository.findByCode(code) ?: throw UnknownSourceSiteException(code)
 
     private fun sha256(value: String): String =
-        MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)))
 
     companion object {
         const val ROBOTS_ALLOW = "allow"

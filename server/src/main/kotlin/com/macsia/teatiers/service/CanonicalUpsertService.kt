@@ -115,7 +115,7 @@ class CanonicalUpsertService(
         if (facts.originCountry != null) selectClaim(teaId, "origin_country", facts.originCountry, ctx)
         if (facts.region != null) selectClaim(teaId, "region", facts.region, ctx)
         if (facts.cultivar != null) selectClaim(teaId, "cultivar", facts.cultivar, ctx)
-        if (facts.brand != null) proposalClaim(teaId, "brand", facts.brand, ctx)
+        if (facts.brand != null) nonSelectedClaim(teaId, "brand", facts.brand, ctx)
         oxidationValue(facts.oxidationMin?.toShort(), facts.oxidationMax?.toShort())
             ?.let { selectClaim(teaId, "oxidation", it, ctx) }
         writeNamesAndAliases(teaId, facts, ctx)
@@ -161,7 +161,7 @@ class CanonicalUpsertService(
         // type is identity (never changed by a merge), but corroboration/conflict is still recorded.
         facts.type?.let { recordCorroborationOrConflict(targetTeaId, "type", tea.type.name, teaType(it).name, ctx) }
         // brand is never auto-filled by a merge (decision #139-R4) -- only ever proposed for an explicit decision.
-        facts.brand?.let { proposalClaim(targetTeaId, "brand", it, ctx) }
+        facts.brand?.let { nonSelectedClaim(targetTeaId, "brand", it, ctx) }
 
         // A tea assembled from more than one origin is 'mixed' (unless it was already scrape-only).
         if (tea.source != SOURCE_SCRAPE) tea.source = SOURCE_MIXED
@@ -201,10 +201,13 @@ class CanonicalUpsertService(
         }
     }
 
-    /** An incoming value for an already-set field: corroboration if it agrees, conflict if it differs. */
-    private fun recordCorroborationOrConflict(teaId: Long, field: String, existing: String, incoming: String, ctx: ClaimContext) {
-        if (existing == incoming) corroborationClaim(teaId, field, incoming, ctx) else conflictClaim(teaId, field, incoming, ctx)
-    }
+    /**
+     * An incoming value for an already-set field: kept as a non-selected claim either way -- a corroboration
+     * if it agrees with the selected value, a conflict if it differs (both persist identically; the value
+     * itself distinguishes them).
+     */
+    private fun recordCorroborationOrConflict(teaId: Long, field: String, existing: String, incoming: String, ctx: ClaimContext) =
+        nonSelectedClaim(teaId, field, incoming, ctx)
 
     /** Oxidation is a pair filled atomically (only when the combined bounds stay ordered, else kept). */
     private fun mergeOxidation(teaId: Long, tea: Tea, facts: ScrapedFacts, ctx: ClaimContext) {
@@ -280,22 +283,14 @@ class CanonicalUpsertService(
     private fun selectClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
         writeClaim(teaId, field, value, selected = true, replaceSelected = true, ctx)
 
-    /** A non-selected conflict claim: the incoming value lost to an existing one but is kept as evidence. */
-    private fun conflictClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
-        writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
-
     /**
-     * A non-selected corroboration claim: an independent source confirms the already-selected value
-     * (decision #139-R4). Distinguishable from a conflict because its value equals the selected claim's.
+     * A non-selected claim: kept as evidence but never the current value. Covers all three non-selected
+     * cases -- a CONFLICT (incoming value lost to an existing one), a CORROBORATION (an independent source
+     * confirms the selected value; distinguishable because its value equals the selected claim's), and a
+     * PROPOSAL (e.g. brand, which must NOT be auto-accepted from identity approval and awaits an explicit
+     * operator field decision; decision #139-R4). All three persist identically.
      */
-    private fun corroborationClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
-        writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
-
-    /**
-     * A non-selected proposal claim: a value (e.g. brand) that must NOT be auto-accepted from identity
-     * approval (decision #139-R4) -- it awaits an explicit operator field decision before it can be selected.
-     */
-    private fun proposalClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
+    private fun nonSelectedClaim(teaId: Long, field: String, value: String, ctx: ClaimContext) =
         writeClaim(teaId, field, value, selected = false, replaceSelected = false, ctx)
 
     private fun writeClaim(

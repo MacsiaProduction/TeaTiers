@@ -3,6 +3,7 @@ package com.macsia.teatiers.service
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.macsia.teatiers.domain.ImportRun
+import com.macsia.teatiers.domain.MatchCandidate
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.SourceRecord
 import com.macsia.teatiers.domain.SourceRecordRevision
@@ -12,6 +13,7 @@ import com.macsia.teatiers.dto.PendingMatchDto
 import com.macsia.teatiers.dto.ReviewResultDto
 import com.macsia.teatiers.dto.RunApplyResultDto
 import com.macsia.teatiers.dto.ScrapedFacts
+import com.macsia.teatiers.dto.TeaSummaryDto
 import com.macsia.teatiers.repository.MatchCandidateRepository
 import com.macsia.teatiers.repository.MatchDecisionRepository
 import com.macsia.teatiers.repository.SourceRecordRepository
@@ -45,10 +47,34 @@ class ReviewService(
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
 
     @Transactional(readOnly = true)
-    fun pending(limit: Int = DEFAULT_LIMIT): List<PendingMatchDto> =
-        matchDecisionRepository
+    fun pending(limit: Int = DEFAULT_LIMIT): List<PendingMatchDto> {
+        val decisions = matchDecisionRepository
             .findByDecisionOrderByCreatedAtAsc("pending", Limit.of(limit.coerceIn(1, MAX_LIMIT)))
-            .map { it.toPendingDto() }
+        if (decisions.isEmpty()) return emptyList()
+
+        // Batch the per-item lookups (SRV-P2-4): instead of a findById + summary() per decision and a
+        // summary() per ranked candidate row (hundreds of round-trips per page), load all source records,
+        // all ranked candidate rows, and all needed tea summaries up front, then map purely in memory.
+        val decisionIds = decisions.mapNotNull { it.id }
+        val recordsById = sourceRecordRepository
+            .findAllById(decisions.map { it.sourceRecordId }).associateBy { it.id }
+        val candidatesByDecision = matchCandidateRepository
+            .findByMatchDecisionIdInOrderByRankAsc(decisionIds).groupBy { it.matchDecisionId }
+        // Every tea id the page needs a summary for: each decision's candidate + every ranked candidate row.
+        val summaryIds = buildSet {
+            decisions.forEach { it.candidateTeaId?.let(::add) }
+            candidatesByDecision.values.forEach { hits -> hits.forEach { add(it.teaId) } }
+        }
+        val summaries = catalogService.summaries(summaryIds)
+
+        return decisions.map { decision ->
+            decision.toPendingDto(
+                record = recordsById[decision.sourceRecordId],
+                candidateRows = candidatesByDecision[decision.id].orEmpty(),
+                summaries = summaries,
+            )
+        }
+    }
 
     @Transactional(readOnly = true)
     fun pendingCount(): Long = matchDecisionRepository.countByDecision("pending")
@@ -167,8 +193,16 @@ class ReviewService(
         matchDecisionRepository.save(decision)
     }
 
-    private fun MatchDecision.toPendingDto(): PendingMatchDto {
-        val record = sourceRecordRepository.findById(sourceRecordId).orElse(null)
+    /**
+     * Project one pending decision from pre-batched context (SRV-P2-4). [record], [candidateRows], and
+     * [summaries] are loaded once per page in [pending]; a missing record or a missing summary maps to the
+     * exact same null/empty value the per-item findById/summary() produced, so the DTO shape is identical.
+     */
+    private fun MatchDecision.toPendingDto(
+        record: SourceRecord?,
+        candidateRows: List<MatchCandidate>,
+        summaries: Map<Long, TeaSummaryDto>,
+    ): PendingMatchDto {
         val facts = record?.let { runCatching { factsMapper.readValue(it.rawFacts, ScrapedFacts::class.java) }.getOrNull() }
         return PendingMatchDto(
             decisionId = requireNotNull(id),
@@ -179,14 +213,14 @@ class ReviewService(
             matchScore = matchScore,
             candidateTeaId = candidateTeaId,
             names = facts?.names ?: emptyList(),
-            candidate = candidateTeaId?.let { catalogService.summary(it) },
-            candidates = matchCandidateRepository.findByMatchDecisionIdOrderByRankAsc(requireNotNull(id)).map {
+            candidate = candidateTeaId?.let { summaries[it] },
+            candidates = candidateRows.map {
                 CandidateHitDto(
                     teaId = it.teaId,
                     matchTier = it.matchTier,
                     matchScore = it.matchScore,
                     rank = it.rank,
-                    candidate = catalogService.summary(it.teaId),
+                    candidate = summaries[it.teaId],
                 )
             },
         )

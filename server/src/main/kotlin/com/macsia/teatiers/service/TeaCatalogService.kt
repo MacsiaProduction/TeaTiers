@@ -85,6 +85,17 @@ class TeaCatalogService(
     fun summary(id: Long): TeaSummaryDto? = teaRepository.findById(id).map { it.toSummary() }.orElse(null)
 
     /**
+     * Batched compact summaries by id (SRV-P2-4): one query (with names fetch-joined) instead of a
+     * [summary] per id. Used by the review queue to resolve every pending item's candidate(s) in a single
+     * round-trip. Missing ids are simply absent from the map -- callers treat a miss exactly like
+     * [summary] returning null.
+     */
+    fun summaries(ids: Collection<Long>): Map<Long, TeaSummaryDto> {
+        if (ids.isEmpty()) return emptyMap()
+        return teaRepository.findAllWithNames(ids).associate { requireNotNull(it.id) to it.toSummary() }
+    }
+
+    /**
      * Resolve by the stable public id (V7, decision #136 + #139-R2). 'active' -> full detail. 'merged' with a
      * resolvable terminal survivor -> the survivor's full detail carrying `supersededByPublicId` so the
      * client re-caches. 'retracted', or 'merged' with a broken/cyclic chain -> a content-free
