@@ -239,11 +239,18 @@ class DefaultCatalogRepository @Inject constructor(
         limit: Int,
         networkFailure: CatalogSearchResult,
     ): CatalogSearchResult {
-        val cached = catalogDao.search(query.lowercase(), limit).map { it.toDomain() }
+        val cached = catalogDao.search(escapeLike(query.lowercase()), limit).map { it.toDomain() }
         return if (cached.isNotEmpty()) {
             CatalogSearchResult.Loaded(cached, fromCache = true)
         } else {
             networkFailure
         }
     }
+
+    /**
+     * Escape SQLite LIKE wildcards so a user query of `%` or `_` matches literally, not as a wildcard
+     * (AND-P2-1). Pairs with the DAO's `ESCAPE '\'`; the escape char itself is escaped first.
+     */
+    private fun escapeLike(q: String): String =
+        q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 }
