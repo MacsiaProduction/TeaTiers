@@ -3,6 +3,7 @@ package com.macsia.teatiers.controller
 import com.macsia.teatiers.dto.ClientDiagnosticReportDto
 import com.macsia.teatiers.service.ClientDiagnosticsService
 import com.macsia.teatiers.service.DiagnosticsDailyBudget
+import jakarta.validation.Valid
 import java.security.MessageDigest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -38,7 +39,7 @@ class ClientDiagnosticsController(
     @PostMapping
     fun report(
         @RequestHeader(name = "X-Diagnostics-Token", required = false) token: String?,
-        @RequestBody report: ClientDiagnosticReportDto,
+        @Valid @RequestBody report: ClientDiagnosticReportDto,
     ): ResponseEntity<Void> {
         if (!props.enabled || props.token.isBlank()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build()

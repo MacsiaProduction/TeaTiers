@@ -18,10 +18,17 @@
 		-Server
 	}
 
-	# Cap request bodies at the edge so an oversized upload is rejected before it reaches the app
-	# (the /teas/ocr image cap is 8 MB; 10 MB leaves multipart headroom). Defense-in-depth with the
-	# server's multipart limit and the sidecar's own byte cap.
-	request_body {
+	# Cap request bodies at the edge so an oversized upload is rejected before it reaches the app.
+	# Defense-in-depth with the server's multipart limit, the DTO @Valid caps, and the sidecar byte cap.
+	# Per-route (SRV-P2-1): the opt-in diagnostics report is tiny first-party JSON, so cap it far below
+	# the OCR-image ceiling (the /teas/ocr image cap is 8 MB; 10 MB leaves multipart headroom). The two
+	# matchers are mutually exclusive, so every request hits exactly one request_body limit.
+	@diagnostics path /api/v1/client-diagnostics
+	request_body @diagnostics {
+		max_size 64KB
+	}
+	@notdiagnostics not path /api/v1/client-diagnostics
+	request_body @notdiagnostics {
 		max_size 10MB
 	}
 
