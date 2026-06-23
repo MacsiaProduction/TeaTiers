@@ -3,9 +3,11 @@
 # a dedicated backup SA so that upload can actually be turned on. Matters because /resolve now writes
 # catalog rows that aren't in the committed seed, so the DB is no longer reproducible from VCS alone.
 
-# Dedicated SA whose static key the VM uses to upload dumps. storage.admin (folder) so it can create
-# the bucket below with its own key (the bootstrap tfstate SA uses the same pattern); could be tightened
-# to storage.uploader on just this bucket once it exists.
+# Dedicated SA whose static key the VM uses to upload dumps. Scoped to storage.uploader (OPS-P1-5):
+# the static key lives on the VM in backup.env, so a leak must NOT be able to delete buckets — uploader
+# can only PUT objects (the `aws s3 cp` the backup script does), never create/delete a bucket, so a leaked
+# key can't wipe this bucket OR the Terraform state bucket. The bucket itself is created/managed by the
+# provider's operator token (YC_TOKEN, folder storage.admin) below, not by this SA's key.
 resource "yandex_iam_service_account" "backup" {
   name        = "teatiers-backup"
   description = "Uploads VM Postgres dumps to the off-box backups bucket."
@@ -13,19 +15,19 @@ resource "yandex_iam_service_account" "backup" {
 
 resource "yandex_resourcemanager_folder_iam_member" "backup_storage" {
   folder_id = var.folder_id
-  role      = "storage.admin"
+  role      = "storage.uploader"
   member    = "serviceAccount:${yandex_iam_service_account.backup.id}"
 }
 
 resource "yandex_iam_service_account_static_access_key" "backup" {
   service_account_id = yandex_iam_service_account.backup.id
-  description        = "S3 static key for off-box DB backups (BACKUP_S3 creds on the VM)."
+  description        = "S3 static key for off-box DB backups (BACKUP_S3 creds on the VM); upload-only."
 }
 
 resource "yandex_storage_bucket" "backups" {
-  access_key = yandex_iam_service_account_static_access_key.backup.access_key
-  secret_key = yandex_iam_service_account_static_access_key.backup.secret_key
-  bucket     = var.backup_bucket
+  # No access_key/secret_key here (OPS-P1-5): the bucket is created + configured via the provider's
+  # operator IAM token (YC_TOKEN). The upload-only backup SA can't manage buckets, by design.
+  bucket = var.backup_bucket
 
   anonymous_access_flags {
     read = false
