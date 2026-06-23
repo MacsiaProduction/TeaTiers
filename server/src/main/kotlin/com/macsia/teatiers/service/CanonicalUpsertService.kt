@@ -159,7 +159,7 @@ class CanonicalUpsertService(
         mergeScalar(targetTeaId, "cultivar", tea.cultivar, facts.cultivar, ctx) { tea.cultivar = it }
         mergeOxidation(targetTeaId, tea, facts, ctx)
         // type is identity (never changed by a merge), but corroboration/conflict is still recorded.
-        facts.type?.let { recordCorroborationOrConflict(targetTeaId, "type", tea.type.name, teaType(it).name, ctx) }
+        facts.type?.let { recordCorroborationOrConflict(targetTeaId, "type", teaType(it).name, ctx) }
         // brand is never auto-filled by a merge (decision #139-R4) -- only ever proposed for an explicit decision.
         facts.brand?.let { nonSelectedClaim(targetTeaId, "brand", it, ctx) }
 
@@ -197,7 +197,7 @@ class CanonicalUpsertService(
             setter(incoming)
             selectClaim(teaId, field, incoming, ctx)
         } else {
-            recordCorroborationOrConflict(teaId, field, existing, incoming, ctx)
+            recordCorroborationOrConflict(teaId, field, incoming, ctx)
         }
     }
 
@@ -206,7 +206,7 @@ class CanonicalUpsertService(
      * if it agrees with the selected value, a conflict if it differs (both persist identically; the value
      * itself distinguishes them).
      */
-    private fun recordCorroborationOrConflict(teaId: Long, field: String, existing: String, incoming: String, ctx: ClaimContext) =
+    private fun recordCorroborationOrConflict(teaId: Long, field: String, incoming: String, ctx: ClaimContext) =
         nonSelectedClaim(teaId, field, incoming, ctx)
 
     /** Oxidation is a pair filled atomically (only when the combined bounds stay ordered, else kept). */
@@ -224,7 +224,7 @@ class CanonicalUpsertService(
             // Existing bounds already cover it, or the combined bounds invert -> keep existing; record the
             // incoming value as corroboration (agrees) or conflict (differs).
             val existing = oxidationValue(tea.oxidationMin, tea.oxidationMax)
-            if (existing != null) recordCorroborationOrConflict(teaId, "oxidation", existing, incoming, ctx)
+            if (existing != null) recordCorroborationOrConflict(teaId, "oxidation", incoming, ctx)
         }
     }
 
