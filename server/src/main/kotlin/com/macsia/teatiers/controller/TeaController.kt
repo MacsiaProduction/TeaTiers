@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Size
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -33,6 +34,9 @@ import java.util.concurrent.Semaphore
 
 /** Catalog API (plan.md sections 5-6): read-only search/detail + the `/resolve` enrich-on-miss flow. */
 @RestController
+// @Validated enables the @Size param caps below; without it Spring skips method-param validation and the
+// caps on q/locale/origin silently never run (SRV-P2-2).
+@Validated
 @RequestMapping("/api/v1/teas")
 class TeaController(
     private val service: TeaCatalogService,

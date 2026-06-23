@@ -149,6 +149,15 @@ class TeaControllerTest {
     }
 
     @Test
+    fun `search rejects an over-cap q with 400 (SRV-P2-2 — @Validated enforces the @Size cap)`() {
+        // q longer than MAX_QUERY_LEN (100) must be rejected at the param-validation boundary, not reach the
+        // service. Without @Validated the cap silently never runs.
+        mockMvc.perform(get("/api/v1/teas/search").param("q", "x".repeat(101)))
+            .andExpect(status().isBadRequest())
+        verify(exactly = 0) { service.search(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `detail returns the tea`() {
         // The numeric route resolves through the legacy map (decision #137-C1) and returns a sealed result.
         every { service.detailByLegacyId(7) } returns CatalogDetail.Full(

@@ -1,5 +1,6 @@
 package com.macsia.teatiers.controller
 
+import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -65,5 +66,13 @@ class CatalogExceptionHandler {
     fun handleOcrBadRequest(ex: OcrBadRequestException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.message ?: "Bad request").apply {
             title = "Bad request"
+        }
+
+    // @Validated param caps (e.g. @Size on TeaController's q/locale/origin, SRV-P2-2) throw this; map it
+    // to 400 problem+json rather than the default 500.
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun handleConstraintViolation(ex: ConstraintViolationException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.message ?: "Invalid request parameter").apply {
+            title = "Invalid request"
         }
 }
