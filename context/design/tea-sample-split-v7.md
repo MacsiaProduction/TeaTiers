@@ -36,7 +36,9 @@ Implementation baseline: server `21fda80` (decision #136 foundation landed). **I
 > - **Q3 → custom add is ALWAYS create-new** (name-match is a non-blocking suggestion, never auto-merge).
 > - **Q5 → KEEP `placements.teaId` column name** (defer the cosmetic `sampleId` rename).
 > - **Q6 → repo-enforced single `isPrimary`** per sample (no partial unique index).
-> - **Q8 → Gradle Managed Device** for the migration CI gate (faithful SQLite/FK semantics).
+> - **Q8 → Robolectric / JVM** for the `Migration(6,7)` test (revised 2026-06-23: GitHub Actions quota is
+>   depleted, so the gate runs LOCALLY off-device; a Gradle Managed Device / emulator run is an optional
+>   later add for faithful SQLite-FK semantics). Validate the migration before merging straight to `main`.
 > - **Updater (REL-P0-2) → Obtainium / GitHub releases is the trusted channel** until an offline Ed25519
 >   signed manifest exists; the in-app updater is NOT the primary path and gets NO TLS leaf pin (a Let's
 >   Encrypt rotation would brick it). Tracked outside this doc.
