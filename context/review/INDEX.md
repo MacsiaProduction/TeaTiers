@@ -12,6 +12,7 @@ this index reflects what is still open against `main`.
   - `2026-06-22-research-glm-minimax-review.md` (independent re-analysis of the new GLM/MiniMax answers; no decision changes)
   - `2026-06-22-post-hardening-current-state-refresh.md` (refresh after #121/#122/#124; reopens the incomplete C4 apply-state contract)
   - `2026-06-22-oss-reuse-architecture-review.md` (same reopen via an open-source-reuse lens; library decisions in #141)
+  - `2026-06-23-phase1-harsh-review.md` (harsh whole-project review of main + open PRs #128/#129/#130; findings H1–H6 below)
 - Status legend: `OPEN` · `WIP` · `PARTIAL` (core landed, contract not fully met) · `REOPEN` (was marked DONE,
   re-opened by a later review) · `DONE` (landed + tested) · `DEFERRED` (gated, not now).
 
@@ -22,6 +23,23 @@ C4's apply-state portion: safe preflight/terminal handling landed, but no review
 exists and `allowed_hosts`/SSRF is unenforced. **Decision #141 locks Phase 1 (everything) as the next
 workstream** — a sequence of PRs (C4 state machine → SSRF/evidence → strict validation → review CAS →
 ranked-candidate matcher → Bucket4j), built with adopted libraries. Update Status/Evidence as PRs land.
+
+## Phase-1 harsh review (2026-06-23) — findings against the open PRs #128/#129/#130
+
+From `2026-06-23-phase1-harsh-review.md`. H1/H2 are NEW (missed by the per-PR reviews); H3–H5 re-surface
+known residuals. **Plan: merge #128/#129/#130 then fix H1–H5 as one follow-up PR on unified `main`** (the
+fixes are cross-PR-entangled; H1 collides with the in-flight #128 cross-site WIP). H6 is a noted smell, not
+scheduled.
+
+| ID | Finding (short) | PR | Severity | Status |
+|---|---|---|:--:|---|
+| H1 | Apply gate checks the producing run for `dryRun` only — a `blockRun`'d (robots/ToS/SSRF) run's revision can publish via re-proposal | #128 | **MAJOR (new)** | OPEN → fix: reject producing-run `BLOCKED` in `requireApplyAllowed` (keep `FAILED`); negative IT |
+| H2 | Active-only matcher proposes create_new for a name matching only a retracted tea → status-blind `dedup_key` collision → can't create AND can't merge (deadlock) | #129 | **MAJOR (new)** | OPEN → fix: partial-unique `tea_dedup_key WHERE status='active'` + active-scoped `findByDedupKey` |
+| H3 | `DuplicateAuthoritativeAliasException` in `writeNamesAndAliases` rolls back the WHOLE `applyRun` (all decisions), not the one colliding decision | #129 | MAJOR (operability) | OPEN → fix: per-decision try/catch in `applyRun` (quarantine + report) |
+| H4 | Global authoritative-alias invariant is service-layer check-then-act only — no DB index → TOCTOU under concurrent cross-run applies | #129 | MAJOR (concurrency) | OPEN → fix: partial-unique index `(locale, alias_norm) WHERE verified AND origin IN (...)` + demote aliases at tombstone |
+| H5 | `proposeFor` re-points a pending decision without the lock/`@Version` — a concurrent re-propose can clobber a just-committed approval (lost update) | #128/#129 | MINOR (narrow race) | OPEN → fix: `findByIdForUpdate` (or `@Version`) on the reused decision |
+| H6 | Completeness gate keys on `source_record.import_run_id`; apply scopes on `match_decision.import_run_id` — scope mismatch on cross-run re-propose | #128 | MINOR (smell) | NOTED — judged not a publish-bad-content bug (applied decisions are individually approved); not scheduled |
+| OE | Over-engineering (ponytail): `match_candidate` table (~110 LoC, no live consumer), dup-alias repair report, `EdgeOverloadException` | #129/#130 | trim (~-140 LoC) | OPTIONAL — defer surfacing infra until a reviewer surface consumes it (owner's call; FND-P1-1 does mandate ranked candidates) |
 
 ## P0 — must close before ANY scraped canonical write (decision #137)
 
