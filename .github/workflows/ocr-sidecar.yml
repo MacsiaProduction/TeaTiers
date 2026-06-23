@@ -58,6 +58,18 @@ jobs:
       - name: Build image (fetches + SHA-verifies the pinned models)
         run: docker build -t teatiers-ocr-sidecar:ci ocr-sidecar
 
+      # OS/base-layer CVE scan (OPS-P2-1): OSV covers Python deps; Trivy covers the OS packages in the
+      # image it can't see. Report-only baseline (exit-code 0) so it surfaces findings without blocking;
+      # flip to "1" to gate once the first scan is triaged. Pinned by commit SHA (supply-chain).
+      - name: Scan image for OS/library CVEs (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: teatiers-ocr-sidecar:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+          format: table
+
       - name: Smoke test — boots, loads models, /health green
         run: |
           set -euo pipefail
