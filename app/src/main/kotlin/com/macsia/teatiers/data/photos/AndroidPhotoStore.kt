@@ -86,7 +86,7 @@ class AndroidPhotoStore @Inject constructor(
     override suspend fun delete(path: String): Boolean = withContext(Dispatchers.IO) {
         val file = File(path)
         if (!file.exists()) return@withContext true
-        if (!file.path.startsWith(rootDir.path)) {
+        if (!isContainedInRoot(file)) {
             // Refuse to touch anything outside our own dir; an external URI here is a bug.
             Log.w(TAG, "Refusing to delete out-of-root path $path")
             return@withContext false
@@ -109,6 +109,19 @@ class AndroidPhotoStore @Inject constructor(
             if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan ${file.name}")
         }
         deleted
+    }
+
+    /**
+     * Canonical-path containment so a `..`-traversal path can't escape the photos root. A plain
+     * `path.startsWith(rootDir.path)` prefix check would accept e.g. `<root>/../../etc/x`; resolving
+     * to canonical paths first collapses `..` segments. If canonicalisation throws (broken symlink,
+     * I/O error) we treat the file as NOT contained and refuse the delete.
+     */
+    private fun isContainedInRoot(file: File): Boolean = try {
+        file.canonicalFile.toPath().startsWith(rootDir.canonicalFile.toPath())
+    } catch (e: IOException) {
+        Log.w(TAG, "Could not canonicalise ${file.path}; refusing delete", e)
+        false
     }
 
     private fun extensionFor(uri: Uri): String {
