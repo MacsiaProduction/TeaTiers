@@ -13,6 +13,7 @@ this index reflects what is still open against `main`.
   - `2026-06-22-post-hardening-current-state-refresh.md` (refresh after #121/#122/#124; reopens the incomplete C4 apply-state contract)
   - `2026-06-22-oss-reuse-architecture-review.md` (same reopen via an open-source-reuse lens; library decisions in #141)
   - `2026-06-23-phase1-harsh-review.md` (harsh whole-project review of main + open PRs #128/#129/#130; findings H1–H6 below)
+  - `2026-06-23-current-architecture-oss-reuse-review.md` (full current-state + OSS-reuse pass at `971af4d`; verdict: architecture is right, remaining gaps are implement/deploy/verify; triage below)
 - Status legend: `OPEN` · `WIP` · `PARTIAL` (core landed, contract not fully met) · `REOPEN` (was marked DONE,
   re-opened by a later review) · `DONE` (landed + tested) · `DEFERRED` (gated, not now).
 
@@ -23,6 +24,41 @@ C4's apply-state portion: safe preflight/terminal handling landed, but no review
 exists and `allowed_hosts`/SSRF is unenforced. **Decision #141 locks Phase 1 (everything) as the next
 workstream** — a sequence of PRs (C4 state machine → SSRF/evidence → strict validation → review CAS →
 ranked-candidate matcher → Bucket4j), built with adopted libraries. Update Status/Evidence as PRs land.
+
+## Architecture / OSS-reuse review (2026-06-23, at `971af4d`)
+
+From `2026-06-23-current-architecture-oss-reuse-review.md`. **Verdict: the architecture is right; the
+remaining gaps are implement/deploy/verify, not design.** No new research run. Triage below — `DONE` items
+already closed this pass, `CODEABLE` are in-repo work not yet scheduled, `OWNER` need the VM/secrets/deploy.
+
+**Closed this pass:**
+- **REL-P0-1 (key perms)** — **DONE (ops):** `chmod 600` applied to `…/context/git/TeaTiers/release.jks` (was world/group-readable `0644`). Offline backup + signing-recovery drill still OWNER.
+- **SRV-P1-1 (alias lock normalization)** — **DONE ([#133](https://github.com/MacsiaProduction/TeaTiers/pull/133)):** advisory lock keys on `hashtext(:locale || ':' || lower(f_unaccent(:alias)))`, the exact `alias_norm` form, via `lockAuthoritativeAlias(locale, alias)`; accent/case variants now serialize on one lock. IT in `IdentityMatchAndReviewIT`.
+
+| ID | Finding (short) | Surface | Severity | Status / disposition |
+|---|---|---|:--:|---|
+| OPS-P0-1 | Prod serves the OLD catalog contract (no `publicId`, `/by-public-id/{uuid}`→404); deploy by digest + pre/post contract probes | deploy | **P0** | **OWNER** — needs the VM; the server *code* already exposes the new contract. Pair with OPS-P1-1 deploy script. |
+| REL-P0-1 | `release.jks` `0644`; recovery unproven | ops | **P0** | **DONE (chmod)** + OWNER (offline backup + recovery drill) |
+| REL-P0-2 | Custom updater trusts server-selected `apkSha256`/`signingCertSha256` (code-exec channel) | android/server | **P0** | **CODEABLE / decision #119** — short path: point users to Obtainium/GitHub releases; full path: offline-pinned Ed25519 detached-signed manifest (+ `packageName`/`versionCode`/`sequence`/`expiresAt`/`keyId`, downgrade+expiry+size reject). Was "before public" deferral; review escalates it. |
+| AND-P0-1 | Android DTOs decode numeric id only → contract split-brain (no `publicId`/`status`/`supersededByPublicId`, no `by-public-id` client) | android | **P0** | **CODEABLE** — add DTO fields + `GET teas/by-public-id/{uuid}`; keep numeric for v6 reconcile; frozen JSON fixtures both modules |
+| AND-P0-2 | Room v7 sample/reference split is design-only; flat `TeaEntity.catalogTeaId: Long?`; v7 design doc has stale `Long` examples | android | **P0** | **CODEABLE (large)** — clean `tea-sample-split-v7.md` first, then `catalog_refs(publicId)` + `tea_samples`, legacy-ref reconcile, migration tests |
+| AND-P1-1 | Enrichment patch overwrites nonblank user names/type (DAO comment says "blank only") | android | P1 | **CODEABLE** — patch only blank fields / per-field ownership; best fixed by v7 split |
+| AND-P1-2 | "Queued" enrichment is app-scope retry, not durable (survives nav, not process death) | android | P1 | **CODEABLE** — WorkManager 2.11.2 (minSdk 26 ok) or honest "retries when app opens" copy |
+| AND-P1-3 | Unbounded file I/O + URI/path logging (OCR read, photo copy/delete, APK download) | android | P1 | **CODEABLE** — one bounded-copy helper (cap+tmp+fsync+atomic rename), canonical-path delete, MIME check, redact logs |
+| SRV-P1-1 | Alias advisory lock key ≠ invariant normal form | server | P1 | **DONE (#133)** |
+| SRV-P1-2 | `region` is free text; must not auto-canonicalize from scraped writes until QID work | server | P1 | **DEFERRED** — no action until the scraper pilot; keep region null/QID-gated then |
+| PRIV-P1-1 | Miss-log keeps popular raw query strings indefinitely (no true max age) | server | P1 | **CODEABLE / policy** — hard-delete raw miss text after max age + keep aggregate, OR disclose the behavior. (No IP/device ids — good.) |
+| SRV-P2-1 | Diagnostics binds DTO without `@Valid`/size caps; truncates after binding (body-memory, not just table) | server | P2 | **CODEABLE** — `@Valid` + Bean Validation size caps + request-size limit at proxy |
+| AND-P2-1 | Offline catalog `LIKE` treats `%`/`_` as wildcards | android | P2 | **CODEABLE (tiny)** — escape `%`/`_`/esc-char + `ESCAPE '\'` |
+| OPS-P1-1 | Deploy provenance exists but is manual (`:latest`, manual compose) | ops/infra | P1 | **CODEABLE (script) + OWNER** — one `deploy <repo@sha256:digest>` script: cosign + `gh attestation verify`, pg_dump, probes; reject `:latest` |
+| OPS-P1-2 | Backups default same-disk; S3 optional; backup SA has folder-wide `storage.admin` | infra | P1 | **OWNER + CODEABLE** — enable off-box upload, tighten IAM to bucket-scoped, restore-rehearsal artifact |
+| OPS-P1-3 | SSH open to world, serial console on, no Docker log rotation, no external alerting | infra/server | P1 | **MIXED** — Docker `json-file` max-size/file + Micrometer Prometheus registry are CODEABLE; SSH-restrict/bastion + blackbox probe need OWNER (their IP/infra) |
+| OPS-P1-4 | 4GB VM caps (~3.4GiB) tight with OCR on the hot host; OCR `cpus:1.5` on ~1 vCPU | infra | P1 | **OWNER** — OCR best-effort/off hot path; lower heap or raise VM; add load-smoke |
+| OCR-P2-1 | OCR `/health` can lie after worker rebuild (`_ready` stays true, new worker unwarmed) | ocr | P2 | **CODEABLE** — on rebuild set `_ready=False`, warm, then true; or split `/live` vs `/ready` |
+| OCR-P2-2 | Dockerfile Python 3.14 vs tests/OSV 3.12; stale comment | ocr/ci | P2 | **CODEABLE (tiny)** — align test/OSV to runtime major.minor; fix comment |
+| OPS-P2-1 | OSV covers Gradle/Python deps, not OS/container layers | ci | P2 | **CODEABLE** — add pinned Trivy action for server + OCR images |
+
+**Do-not-build (confirmed):** keep PG `pg_trgm` (no Meilisearch/ES), keep Bucket4j + IPAddress + Ackpine + local enum state machine (no Spring Statemachine), no CMS/admin UI, no Kafka/Rabbit/Redis, no scraper crawler until deploy/API/Android gates close.
 
 ## Phase-1 harsh review (2026-06-23) — findings against the open PRs #128/#129/#130
 
