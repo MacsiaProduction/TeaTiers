@@ -1,6 +1,6 @@
 <!-- NOTE: original sketch. The current, authoritative architecture + decisions live in
-context/plan.md and context/decisions.md. Notably evolved since: the "linux server" is a
-Yandex Cloud VM (Terraform), plus a tea catalog + AI enrichment. -->
+context/plan.md and context/decisions.md. Notably evolved since: the "linux server" is now
+pelican-node (Docker Compose, Komodo-managed — see deploy/), plus a tea catalog + AI enrichment. -->
 
 we want to have
 1 mobile client.
