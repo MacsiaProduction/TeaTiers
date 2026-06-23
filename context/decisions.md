@@ -2456,7 +2456,7 @@ deviated.
      https://tea.macsia.fun/api/v1/teas/ocr` returns `{"text","corrected"}` with the correction applied live
      (`Хyн→Хун`, `KYCTOB→КУСТОВ`); server + sidecar `/health` UP on the new images. The app side (Review
      prefills corrected) ships in the **next APK build**. Remaining OCR work: the **pelican migration**
-     (separate task — re-A/B the server detector there + the ArgoCD/GitOps question).
+     (separate task — re-A/B the server detector there + the ArgoCD/GitOps question → **resolved #142**).
 
 128. **First signed APK release — v0.1.0 (2026-06-20).** Cut the first GitHub release: tagged `v0.1.0`
      (versionCode 1, on main `33e15a5`) → `release.yml` built `assembleRelease`, signed from the 4 keystore
@@ -2934,3 +2934,27 @@ deviated.
        today); rehearse V6→current on a prod-like backup then deploy the exact tested digest with pre/post
        contract probes (live prod still serves the pre-public-id shape — OPS-P1-1 urgent); no independent
        updater trust root yet (Obtainium for testers until the signed manifest exists).
+
+142. **GitOps for the pelican-node migration: resolved → `systemd timer + git pull`, NOT ArgoCD
+     (2026-06-23).** Closes the "ArgoCD/GitOps question" deferred in #126/#127. For **one
+     docker-compose stack on one node**, ArgoCD is the wrong tool twice over: it reconciles
+     **Kubernetes**, so adopting it means dropping **k3s** on `pelican-node` (heavy; competes with
+     Wings + the VPN control plane for the box), and the only usability you'd actually exercise —
+     git = source of truth, auto-sync, rollback — needs no daemon at all. **Decision: a systemd
+     oneshot + timer running `git pull --ff-only && docker compose up -d --remove-orphans`.**
+     - **Why it wins here:** zero new **listening port** (egress-only `git pull`) on a node that
+       holds `secrets/subscriptions.json` + the bot bridge socket + Wings — this directly honors the
+       co-tenancy blast-radius warning (Task 4). Reboot-persistent via systemd; rollback = `git
+       revert && push`; status = `docker compose ps`. `git push` → live within the timer interval
+       (~5 min). `--ff-only` fails loud on a force-push/dirty tree instead of silently diverging;
+       `--remove-orphans` gives the "reconcile to git" drift cleanup.
+     - **Artifact (≈15 lines):** `teatiers-sync.service` (`Type=oneshot`, `WorkingDirectory=/opt/teatiers`,
+       two `ExecStart`: `git pull --ff-only`, then `docker compose up -d --remove-orphans`) +
+       `teatiers-sync.timer` (`OnBootSec=2min`, `OnUnitActiveSec=5min`). Not yet written to a repo —
+       wire it only **after** the Task-4 co-tenancy call decides *which* box it lives on.
+     - **When to climb (not now):** **Komodo** (the real "ArgoCD for Docker": git-backed, webhooks,
+       multi-server agents, UI/alerting) only once there's a **second node** to manage; **Dockge** (a
+       compose-manager web UI) only if a UI becomes a hard requirement — and even then weigh that it
+       opens a web port on the control-plane node. Both rejected today as overkill for 1 app / 1 node.
+     - **Still gated on the Task-4 design call:** co-tenancy (TeaTiers on `pelican-node` vs a separate
+       small VM). This decision settles the *how-to-deploy*, not the *where*.
