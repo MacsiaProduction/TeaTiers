@@ -38,15 +38,18 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
     fun findActiveByDedupKey(@Param("key") key: String): Tea?
 
     /**
-     * `/resolve` cache hit: the lowest id whose name in any locale equals [q] once unaccented and
-     * lowercased. `unaccent` (enabled in V1) folds Latin diacritics (e.g. pinyin tone marks); it is
-     * a no-op for Cyrillic/CJK. Keeps the second user who types a known tea from re-enriching it.
+     * `/resolve` cache hit: the lowest id whose name in any locale equals [q] in the shared normal form.
+     * Matches the indexed generated column `tea_name.name_norm` (`lower(f_unaccent(name))`, V4) instead of
+     * re-deriving `lower(unaccent(name))` per row (SRV-P2-3) -- same value (f_unaccent wraps unaccent), but
+     * index-usable and consistent with the matcher's `findTeaIdsByExactNameNorm`. `f_unaccent` folds Latin
+     * diacritics (e.g. pinyin tone marks); a no-op for Cyrillic/CJK. Keeps the second user who types a known
+     * tea from re-enriching it.
      */
     @Query(
         value = "SELECT t.id FROM tea t JOIN tea_name n ON n.tea_id = t.id " +
             // Visibility (decision #137-C3): a resolve cache hit never lands on a merged/retracted tea
             // (a PENDING/FAILED stub IS a valid hit -- the resolver re-arms/polls it).
-            "WHERE lower(unaccent(n.name)) = lower(unaccent(:q)) AND t.status = 'active' ORDER BY t.id LIMIT 1",
+            "WHERE n.name_norm = lower(f_unaccent(:q)) AND t.status = 'active' ORDER BY t.id LIMIT 1",
         nativeQuery = true,
     )
     fun findIdByNormalizedName(@Param("q") q: String): Long?

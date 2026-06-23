@@ -16,6 +16,7 @@ import com.macsia.teatiers.repository.SourceSiteRepository
 import com.macsia.teatiers.repository.TeaFieldProvenanceRepository
 import com.macsia.teatiers.repository.TeaLegacyIdMapRepository
 import com.macsia.teatiers.repository.TeaRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -94,7 +95,16 @@ class CanonicalUpsertService(
             val isPrimary = n.isPrimary && primaryLocales.add(n.locale)
             tea.addName(TeaName(locale = n.locale, name = n.value, isPrimary = isPrimary, source = SOURCE_SCRAPE))
         }
-        val saved = teaRepository.saveAndFlush(tea)
+        // The findActiveByDedupKey check above is racy: a concurrent apply of the SAME dedup_key can commit
+        // between it and this flush, so the active-scoped partial-unique can still fire (SRV-P1-3). Surface
+        // the domain conflict instead of a raw DataIntegrityViolationException. The flush has already doomed
+        // this tx, so the run aborts and leaves 'reviewed' to retry; on retry the now-committed tea is visible
+        // to applyRun's pre-check and the decision is quarantined cleanly.
+        val saved = try {
+            teaRepository.saveAndFlush(tea)
+        } catch (e: DataIntegrityViolationException) {
+            throw CanonicalUpsertConflictException(dedupKey, existingTeaId = null, cause = e)
+        }
         val teaId = requireNotNull(saved.id)
         legacyIdMapRepository.recordOnce(teaId, saved.publicId)
 
@@ -324,7 +334,11 @@ class CanonicalUpsertService(
     }
 
     private fun claimContext(sourceRecord: SourceRecord, revision: SourceRecordRevision, decisionId: Long?, reviewer: String): ClaimContext {
-        val site = sourceSiteRepository.findById(sourceRecord.sourceSiteId).orElse(null)
+        // The FK guarantees the site exists; assert it rather than silently dropping CC-license + scrape:<site>
+        // provenance to null on an "impossible" miss (SRV-P2-6).
+        val site = sourceSiteRepository.findById(sourceRecord.sourceSiteId).orElseThrow {
+            IllegalStateException("source_site ${sourceRecord.sourceSiteId} missing for source_record ${sourceRecord.id}")
+        }
         return ClaimContext(
             recordId = sourceRecord.id,
             revisionId = revision.id,
@@ -332,8 +346,8 @@ class CanonicalUpsertService(
             reviewer = reviewer,
             siteId = sourceRecord.sourceSiteId,
             url = sourceRecord.canonicalUrl,
-            license = site?.licenseDefault,
-            siteCode = site?.code,
+            license = site.licenseDefault,
+            siteCode = site.code,
         )
     }
 
@@ -463,10 +477,16 @@ class CanonicalUpsertService(
 
 /**
  * An approved create-new collided with an existing tea on `dedup_key` -- it is really the same canonical
- * tea. The operator should merge into [existingTeaId] instead of creating a duplicate.
+ * tea. The operator should merge into [existingTeaId] instead of creating a duplicate. [existingTeaId] is
+ * null when the collision surfaced from a concurrent insert (the unique constraint, SRV-P1-3) rather than
+ * the pre-check, so the colliding id isn't known (the tx is already doomed and can't be re-queried).
  */
-class CanonicalUpsertConflictException(val dedupKey: String, val existingTeaId: Long) :
-    RuntimeException("create_new collides with existing tea $existingTeaId on dedup_key '$dedupKey'; merge instead")
+class CanonicalUpsertConflictException(val dedupKey: String, val existingTeaId: Long?, cause: Throwable? = null) :
+    RuntimeException(
+        "create_new collides with ${existingTeaId?.let { "existing tea $it" } ?: "a concurrently-created tea"} " +
+            "on dedup_key '$dedupKey'; merge instead",
+        cause,
+    )
 
 /** Approval tried to write the catalog from a dry/blocked/failed run (decision #137-C4) -- forbidden. */
 class CanonicalApplyForbiddenException(message: String) : RuntimeException(message)
