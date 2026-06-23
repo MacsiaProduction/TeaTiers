@@ -14,14 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice
 class CatalogExceptionHandler {
 
-    @ExceptionHandler(TeaNotFoundException::class)
-    fun handleNotFound(ex: TeaNotFoundException): ProblemDetail =
-        ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.message ?: "Tea not found").apply {
-            title = "Tea not found"
-        }
-
-    @ExceptionHandler(TeaPublicNotFoundException::class)
-    fun handlePublicNotFound(ex: TeaPublicNotFoundException): ProblemDetail =
+    // Both the numeric-id and public-id "tea not found" cases map to the same 404 problem+json (OE trim).
+    @ExceptionHandler(TeaNotFoundException::class, TeaPublicNotFoundException::class)
+    fun handleNotFound(ex: RuntimeException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.message ?: "Tea not found").apply {
             title = "Tea not found"
         }
