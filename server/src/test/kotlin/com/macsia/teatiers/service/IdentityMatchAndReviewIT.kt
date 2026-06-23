@@ -391,6 +391,18 @@ class IdentityMatchAndReviewIT : AbstractIntegrationTest() {
     }
 
     @Test
+    fun `an accent or case variant of an authoritative alias collides with the same identity (SRV-P1-1)`() {
+        val a = seedTea(names = listOf(Triple("pinyin", "accent owner a", true)))
+        val b = seedTea(names = listOf(Triple("pinyin", "accent owner b", true)))
+        aliasService.addAuthoritative(a, "en", "Café Noir")
+
+        // "cafe noir" unaccents+lowercases to the same alias_norm as "Café Noir" -> one identity, rejected.
+        // The advisory lock now keys on the SAME lower(f_unaccent(...)) form (SRV-P1-1), so a concurrent add of
+        // either variant serializes on one lock rather than both passing the check.
+        assertFailsWith<DuplicateAuthoritativeAliasException> { aliasService.addAuthoritative(b, "en", "cafe noir") }
+    }
+
+    @Test
     fun `re-proposing rebuilds the ranked candidate set in place without duplicating it (decision 141)`() {
         eligibleSite()
         seedTea(names = listOf(Triple("en", "Re Propose Tea", true)))

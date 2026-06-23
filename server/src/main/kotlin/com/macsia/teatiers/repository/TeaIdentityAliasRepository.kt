@@ -57,15 +57,23 @@ interface TeaIdentityAliasRepository : JpaRepository<TeaIdentityAlias, Long> {
     fun findDuplicateActiveAuthoritativeAliases(): List<DuplicateAuthoritativeAliasRow>
 
     /**
-     * Serialize concurrent authoritative-alias promotion of the SAME identity key (H4, decision #141 review).
-     * The global one-active-owner invariant is a service-layer check-then-insert with no DB unique index (a
-     * partial index can't reference the owner tea's status, and demotion-at-tombstone infra doesn't exist
-     * yet), so two concurrent cross-run applies could otherwise both pass the check. A transaction-scoped
-     * Postgres advisory lock on the (locale, alias) key makes the check-then-insert atomic across
-     * transactions without a DB constraint. The inner SELECT runs the lock (side effect); the outer returns 1.
+     * Serialize concurrent authoritative-alias promotion of the SAME identity (H4 / SRV-P1-1, decision #141
+     * review). The global one-active-owner invariant is a service-layer check-then-insert with no DB unique
+     * index (a partial index can't reference the owner tea's status, and demotion-at-tombstone infra doesn't
+     * exist yet), so two concurrent cross-run applies could otherwise both pass the check. A transaction-scoped
+     * Postgres advisory lock makes that check-then-insert atomic across transactions. The lock key is built in
+     * SQL from the EXACT normal form the invariant compares on -- `:locale` (matched verbatim, as in
+     * [findOtherActiveAuthoritativeOwners]) joined to `lower(f_unaccent(:alias))` (the same expression that
+     * defines `alias_norm`) -- so accent/case variants that collapse to ONE identity also collapse to ONE lock
+     * (SRV-P1-1). A Kotlin `lowercase()` key would miss accents and let two colliding variants take different
+     * locks, defeating the lock. The inner SELECT runs the lock (side effect); the outer returns 1.
      */
-    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)) AS _lock", nativeQuery = true)
-    fun lockAuthoritativeAliasKey(@Param("key") key: String): Int
+    @Query(
+        value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(" +
+            "hashtext(:locale || ':' || lower(f_unaccent(:alias)))::bigint)) AS _lock",
+        nativeQuery = true,
+    )
+    fun lockAuthoritativeAlias(@Param("locale") locale: String, @Param("alias") alias: String): Int
 }
 
 /** Repair-report row: an authoritative (locale, normalized alias) held by [teaCount] active teas (>1). */
