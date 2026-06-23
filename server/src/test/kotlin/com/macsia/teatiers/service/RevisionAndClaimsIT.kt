@@ -316,4 +316,45 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         reviewService.markReviewed(runB)
         assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(runB) }
     }
+
+    @Test
+    fun `a BLOCKED producing run's revision can never be applied, even re-proposed into a clean run (decision 141 H1)`() {
+        // Run A stages + proposes, then is BLOCKED -- the compliance abort (robots/ToS/host/SSRF), so its
+        // facts are tainted. (Contrast the FAILED case above, which is operational and stays applyable.)
+        startRun()
+        val record = importService.ingest(runId, obs("https://s.example/b", externalId = "B"))
+        matchService.proposeFor(requireNotNull(record.id), runId)
+        importService.blockRun(runId)
+
+        val runB = requireNotNull(importService.startRun("s", "op", "t", "p-1", allowRobots(), dryRun = false).id)
+        val d = matchService.proposeFor(requireNotNull(record.id), runB)
+        reviewService.approveNew(requireNotNull(d.id), "op")
+        importService.closeIngestion(runB)
+        reviewService.markReviewed(runB)
+        assertFailsWith<CanonicalApplyForbiddenException> { reviewService.applyRun(runB) }
+    }
+
+    @Test
+    fun `a name matching only a retracted tea creates a fresh active identity, not a deadlock (decision 141 H2)`() {
+        startRun()
+        // A RETRACTED tea occupies the dedup_key the scrape will compute (primary "Sen Cha", null pinyin, OOLONG).
+        val dk = DedupKeys.of("Sen Cha", null, TeaType.OOLONG)
+        val retracted = Tea(type = TeaType.OOLONG, source = "curated", dedupKey = dk, verificationStatus = "verified", status = "retracted")
+        retracted.addName(TeaName(locale = "en", name = "Sen Cha", isPrimary = true))
+        val retractedId = requireNotNull(teaRepository.saveAndFlush(retracted).id)
+
+        val record = importService.ingest(runId, obs("https://s.example/h2", externalId = "H2"))
+        val decision = matchService.proposeFor(requireNotNull(record.id), runId)
+        // The active-only matcher ignores the retracted tea -> create_new (not a doomed merge into a tombstone).
+        assertEquals("create_new", decision.proposedKind)
+        reviewService.approveNew(requireNotNull(decision.id), "op")
+
+        // Apply must NOT deadlock: the active-scoped dedup check + the active-only partial unique let a fresh
+        // active tea take the dedup_key the retracted one still holds.
+        val teaId = assertNotNull(sealAndApply().results.single().teaId)
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertEquals("active", tea.status)
+        assertEquals(dk, tea.dedupKey)
+        assertTrue(teaId != retractedId, "a fresh active identity is created, not the retracted one")
+    }
 }

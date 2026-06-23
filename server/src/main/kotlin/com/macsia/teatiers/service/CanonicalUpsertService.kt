@@ -55,7 +55,7 @@ class CanonicalUpsertService(
         reviewer: String,
         applyingRunId: Long,
     ): Long {
-        requireApplyAllowed(applyingRunId, revision)
+        requireApplyAllowed(applyingRunId, sourceRecord, revision)
         // A source record links to exactly one canonical tea; approving twice must never mint a duplicate.
         require(sourceRecord.teaId == null) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -66,9 +66,11 @@ class CanonicalUpsertService(
         val pinyin = facts.names.firstOrNull { it.locale == "pinyin" }?.value
         val dedupKey = DedupKeys.of(primary, pinyin, type)
 
-        // create_new only matches on tea_name; dedup_key (primary+pinyin+type) can still collide. Surface a
-        // clear conflict so the operator merges, instead of aborting the tx on the unique index.
-        teaRepository.findByDedupKey(dedupKey)?.let {
+        // create_new only matches on tea_name; dedup_key (primary+pinyin+type) can still collide with an
+        // ACTIVE tea -> surface a clear conflict so the operator merges, instead of aborting the tx on the
+        // unique index. Active-scoped (H2): a retracted/merged tea with the same dedup_key must NOT block this
+        // (the matcher is active-only, so it wouldn't have proposed merging into it -- that would deadlock).
+        teaRepository.findActiveByDedupKey(dedupKey)?.let {
             throw CanonicalUpsertConflictException(dedupKey, requireNotNull(it.id))
         }
 
@@ -126,7 +128,7 @@ class CanonicalUpsertService(
         targetTeaId: Long,
         applyingRunId: Long,
     ): Long {
-        requireApplyAllowed(applyingRunId, revision)
+        requireApplyAllowed(applyingRunId, sourceRecord, revision)
         // Re-affirming the same link is fine; silently re-pointing a linked record elsewhere is not.
         require(sourceRecord.teaId == null || sourceRecord.teaId == targetTeaId) {
             "source_record ${sourceRecord.id} is already linked to tea ${sourceRecord.teaId}"
@@ -317,11 +319,23 @@ class CanonicalUpsertService(
      *
      * A dry run is a rehearsal whose observations may NEVER reach the catalog: so BOTH the applying run AND
      * the revision's PRODUCING run must be non-dry -- otherwise a dry-staged revision could be laundered into
-     * the catalog by re-proposing its decision into a later real run.
+     * the catalog by re-proposing its decision into a later real run. The producing run must also not be
+     * BLOCKED (H1, decision #141 review): blockRun is the compliance abort (a robots/ToS/host/SSRF gate
+     * tripped), so its staged facts are tainted and must never publish, even via re-proposal into a clean run.
+     * (FAILED is operational -- a runner/operator error -- and stays applyable so deferred review still works.)
+     *
+     * The applying run must also belong to the SAME source_site as the record it applies. A decision's
+     * import_run_id can be re-pointed by the matching pipeline with no site check, so without this a record
+     * scraped under site X could be applied via a run for site Y -- provenance confusion across sites.
      */
-    private fun requireApplyAllowed(applyingRunId: Long, revision: SourceRecordRevision) {
+    private fun requireApplyAllowed(applyingRunId: Long, sourceRecord: SourceRecord, revision: SourceRecordRevision) {
         val run = importRunRepository.findById(applyingRunId).orElseThrow {
             CanonicalApplyForbiddenException("apply run $applyingRunId not found")
+        }
+        if (run.sourceSiteId != sourceRecord.sourceSiteId) {
+            throw CanonicalApplyForbiddenException(
+                "apply run ${run.id} is for site ${run.sourceSiteId}, but source_record ${sourceRecord.id} is from site ${sourceRecord.sourceSiteId}",
+            )
         }
         if (run.dryRun) {
             throw CanonicalApplyForbiddenException("run ${run.id} is a dry run; its records cannot be applied to the catalog")
@@ -338,6 +352,12 @@ class CanonicalUpsertService(
         if (producingRun.dryRun) {
             throw CanonicalApplyForbiddenException(
                 "revision ${revision.id} was produced by dry run ${producingRun.id}; dry-run observations can never be applied",
+            )
+        }
+        if (ImportRunState.of(producingRun.status) == ImportRunState.BLOCKED) {
+            throw CanonicalApplyForbiddenException(
+                "revision ${revision.id} was produced by BLOCKED run ${producingRun.id} (a compliance abort); " +
+                    "its facts are tainted and can never be applied",
             )
         }
         requireEvidenceChain(revision)

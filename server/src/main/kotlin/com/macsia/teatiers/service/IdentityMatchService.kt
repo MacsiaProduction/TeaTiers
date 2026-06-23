@@ -81,7 +81,14 @@ class IdentityMatchService(
         val proposal = bestProposal(candidate)
         val score = proposal.score?.let { BigDecimal.valueOf(it).setScale(4, RoundingMode.HALF_UP) }
 
+        // Re-point the open pending decision in place -- but LOCK it first (H5): the PR-4 single-consumer CAS
+        // guards approve-vs-approve, not propose-vs-approve. Without the lock a concurrent re-propose could
+        // read a still-`pending` row, an approve commits it terminal, and our `save` below would clobber that
+        // approval back to `pending` (lost update). Lock, then re-check: if it was just consumed, return it
+        // unchanged rather than reverting it.
         val existingPending = decisions.firstOrNull { it.decision == "pending" }
+            ?.let { matchDecisionRepository.findByIdForUpdate(requireNotNull(it.id)) }
+        if (existingPending != null && existingPending.decision != "pending") return existingPending
         val decision = existingPending ?: MatchDecision(
             sourceRecordId = sourceRecordId,
             matchTier = proposal.tier,
