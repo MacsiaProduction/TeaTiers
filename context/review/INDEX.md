@@ -28,15 +28,15 @@ ranked-candidate matcher → Bucket4j), built with adopted libraries. Update Sta
 
 From `2026-06-23-phase1-harsh-review.md`. H1/H2 are NEW (missed by the per-PR reviews); H3–H5 re-surface
 known residuals. #128/#129/#130 merged; **H1/H2/H4/H5 + the #128 cross-site WIP + H7 landed as one
-follow-up PR ([#131](https://github.com/MacsiaProduction/TeaTiers/pull/131)) on unified `main`**. **H3 is
-the one remaining scheduled follow-up** (it changes the apply atomicity contract — its own PR). H6 is a
-noted smell, not scheduled.
+follow-up PR ([#131](https://github.com/MacsiaProduction/TeaTiers/pull/131)) on unified `main`**, and **H3
+landed in [#132](https://github.com/MacsiaProduction/TeaTiers/pull/132)** (apply-collision quarantine). All
+scheduled findings are now DONE. H6 is a noted smell, not scheduled.
 
 | ID | Finding (short) | PR | Severity | Status |
 |---|---|---|:--:|---|
 | H1 | Apply gate checks the producing run for `dryRun` only — a `blockRun`'d (robots/ToS/SSRF) run's revision can publish via re-proposal | #128 | **MAJOR (new)** | **DONE (#131)** — `requireApplyAllowed` rejects producing-run `BLOCKED` (keeps `FAILED`); IT in `RevisionAndClaimsIT` |
 | H2 | Active-only matcher proposes create_new for a name matching only a retracted tea → status-blind `dedup_key` collision → can't create AND can't merge (deadlock) | #129 | **MAJOR (new)** | **DONE (#131)** — V16 partial-unique `tea_dedup_key WHERE status='active'` + `findActiveByDedupKey`; IT in `RevisionAndClaimsIT` |
-| H3 | `DuplicateAuthoritativeAliasException` in `writeNamesAndAliases` rolls back the WHOLE `applyRun` (all decisions), not the one colliding decision | #129 | MAJOR (operability) | **OPEN (next PR)** → per-decision isolation in `applyRun` (quarantine + report); changes apply atomicity contract |
+| H3 | `DuplicateAuthoritativeAliasException` in `writeNamesAndAliases` rolls back the WHOLE `applyRun` (all decisions), not the one colliding decision | #129 | MAJOR (operability) | **DONE (#132)** — read-only `applyCollisionReason` pre-check; `applyRun` quarantines + reports the colliding decision in `RunApplyResultDto.failures` and applies the rest (returns a reason, so the shared tx is never marked rollback-only). Integrity gates + the rare concurrent-race collision still abort the run |
 | H4 | Global authoritative-alias invariant is service-layer check-then-act only — no DB index → TOCTOU under concurrent cross-run applies | #129 | MAJOR (concurrency) | **DONE (#131)** — tx-scoped advisory lock on `(locale, alias)` in `addAuthoritative` (a partial index can't reference the owner tea's status; demotion-at-tombstone infra deferred to H3-era) |
 | H5 | `proposeFor` re-points a pending decision without the lock/`@Version` — a concurrent re-propose can clobber a just-committed approval (lost update) | #128/#129 | MINOR (narrow race) | **DONE (#131)** — `findByIdForUpdate` on the reused decision + re-check-then-bail if just consumed |
 | cross-site | A decision's `import_run_id` can be re-pointed with no site check → a record could be applied via a run for a different `source_site` | #128 | MAJOR | **DONE (#131)** — `requireApplyAllowed` refuses a run/record site mismatch; IT in `ImportRunStateIT` |
