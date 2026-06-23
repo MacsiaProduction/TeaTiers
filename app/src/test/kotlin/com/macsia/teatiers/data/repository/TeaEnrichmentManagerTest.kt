@@ -232,4 +232,24 @@ class TeaEnrichmentManagerTest {
         // The already-DONE tea was not re-resolved (no catalog link was written to it).
         assertEquals(null, dao.loadTeaRow("done")!!.catalogTeaId)
     }
+
+    @Test
+    fun `resumePending runs at most once per process so board-open cannot re-burn a resolve token`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
+            val (manager, dao) = managerWith(teaRow("p1", state = EnrichmentState.PENDING))
+
+            manager.resumePending() // first call (app-launch): sweeps the PENDING tea
+            advanceUntilIdle()
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
+
+            // Re-arm a PENDING tea and call resumePending AGAIN (another board-open): the once-per-process
+            // guard (AND-P1-7) must NOT re-dispatch — no second /resolve token is spent.
+            dao.updateEnrichmentState("p1", EnrichmentState.PENDING.name)
+            manager.resumePending()
+            advanceUntilIdle()
+
+            assertEquals(EnrichmentState.PENDING.name, dao.loadTeaRow("p1")!!.enrichmentState) // untouched
+            coVerify(exactly = 1) { catalog.resolve(any(), any(), any()) }
+        }
 }

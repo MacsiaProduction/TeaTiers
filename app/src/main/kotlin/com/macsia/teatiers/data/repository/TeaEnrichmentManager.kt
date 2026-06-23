@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,10 +43,15 @@ class TeaEnrichmentManager @Inject constructor(
     internal var pollIntervalMs: Long = 1_500L
     internal var maxPolls: Int = 8
 
-    // Teas with enrichment in flight right now. resumePending() runs on every app-open + board-open,
-    // so the same QUEUED/PENDING tea can be swept twice; this drops the redundant concurrent dispatch
-    // (and the wasted resolve call / daily-budget token) without blocking a later legitimate retry.
+    // Teas with enrichment in flight right now. enrich()/retry()/resumePending() can all target the same
+    // tea; this drops the redundant concurrent dispatch (and the wasted resolve call / daily-budget token)
+    // without blocking a later legitimate retry.
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
+
+    // resumePending() is wired to both the boards-list and per-board screens, so it would otherwise re-sweep
+    // every PENDING/QUEUED tea on every board-open — burning a metered /resolve token each time a tea is
+    // stuck PENDING (AND-P1-7). Gate it to run at most ONCE per process (true app-launch semantics).
+    private val resumed = AtomicBoolean(false)
 
     /** Fire-and-forget enrichment of a just-added tea ([name] = its typed primary name). */
     fun enrich(teaId: String, name: String, sourceText: String? = null) {
@@ -60,8 +66,13 @@ class TeaEnrichmentManager @Inject constructor(
         }
     }
 
-    /** Re-dispatch teas left PENDING/QUEUED by a prior run (process death / offline) — call at launch. */
+    /**
+     * Re-dispatch teas left PENDING/QUEUED by a prior run (process death / offline). Safe to call from
+     * several screens — it runs at most once per process (AND-P1-7), so opening a board can't re-burn a
+     * /resolve token on a tea that's stuck PENDING. A user-driven [retry] is the per-tea escape hatch.
+     */
     fun resumePending() {
+        if (!resumed.compareAndSet(false, true)) return
         scope.launch {
             dao.teasNeedingEnrichment().forEach { row ->
                 runEnrichment(row.id, row.nameRu, sourceText = null)

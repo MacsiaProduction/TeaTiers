@@ -26,7 +26,13 @@ private const val SHARE_DIR = "backups"
 /** Cache subdir an import streams into + validates before any live mutation (review P1-5). */
 private const val IMPORT_STAGING_DIR = "import-staging"
 
-/** Reject a picked import larger than this before reading it (review 2026-06-18, decision #96). */
+/**
+ * Reject a picked import larger than this by its SAF-declared (compressed, on-disk zip) size before reading
+ * it (review 2026-06-18, decision #96). Deliberately independent of, and NOT to be "aligned" with,
+ * [BackupArchive.Limits.maxTotalBytes] (256 MiB): that one caps the cumulative DECOMPRESSED bytes streamed
+ * out, the zip-bomb guard (AND-P2-4). Compressed-pre-check < decompressed-cap is correct — a small archive
+ * can still inflate past the decompressed ceiling and is caught there.
+ */
 private const val MAX_ARCHIVE_BYTES = 200L * 1024 * 1024
 
 /** Outcome of an export/import, mapped to a user message by the ViewModel. */
