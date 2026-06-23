@@ -45,8 +45,15 @@ if [ -n "${BACKUP_S3_URI:-}" ]; then
   echo "uploaded to ${BACKUP_S3_URI%/}/$(basename "$out")"
 fi
 
-# Prune local dumps past the retention window. The `*` after .sql.gz also reaps any stale
-# `.partial` left by a hard kill / power loss (SIGKILL can't fire the EXIT trap), which the
-# bare `.sql.gz` glob would skip — otherwise orphaned partials accumulate forever.
-find "$BACKUP_DIR" -name 'teatiers-*.sql.gz*' -type f -mtime "+${RETENTION_DAYS}" -delete
-echo "pruned dumps older than ${RETENTION_DAYS}d"
+# Prune local dumps past the retention window, but ALWAYS keep the newest 3 completed dumps regardless of
+# age (OPS-P2-3): if backups stop for longer than RETENTION_DAYS while the VM lives, a blind age-prune would
+# reap the last good dump. `ls -1t` lists completed dumps newest-first (backup names never contain spaces);
+# `tail -n +4` skips the newest 3, and each older one is age-pruned. `|| true` so a no-dumps glob-miss under
+# `set -o pipefail` can't abort the script.
+ls -1t "$BACKUP_DIR"/teatiers-*.sql.gz 2>/dev/null | tail -n +4 | while IFS= read -r f; do
+  find "$f" -mtime "+${RETENTION_DAYS}" -delete
+done || true
+# Stale `.partial` files (a hard kill / power loss skips the EXIT trap) are junk with no keep-floor —
+# reaped purely by age so orphaned partials can't accumulate forever.
+find "$BACKUP_DIR" -name 'teatiers-*.sql.gz.partial' -type f -mtime "+${RETENTION_DAYS}" -delete
+echo "pruned dumps older than ${RETENTION_DAYS}d (keeping the newest 3)"

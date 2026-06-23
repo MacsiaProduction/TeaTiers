@@ -37,6 +37,12 @@ service-account*.json
 .vscode/
 *.code-workspace
 
+# ── Python (OCR sidecar) ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
 # ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
