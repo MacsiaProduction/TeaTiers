@@ -305,7 +305,7 @@ fun SettingsScreen(
 
     UpdateDialogs(
         state = updateState,
-        onInstall = updateViewModel::installUpdate,
+        releasesUrl = stringResource(R.string.update_releases_url),
         onDismiss = updateViewModel::dismiss,
         onOpenUrl = { url ->
             try {
@@ -319,12 +319,17 @@ fun SettingsScreen(
     )
 }
 
-/** The update prompts (decision #119): an optional/forced "available" dialog, a blocking progress
- *  dialog while it downloads+installs, and a failure dialog with a manual GitHub fallback. */
+/**
+ * The update prompts. The "available" dialog points the user to the GitHub releases page / Obtainium
+ * (REL-P0-2, decision 2026-06-23): the in-app download-verify-install path is NOT promoted as the primary
+ * channel until an offline Ed25519-signed manifest exists, because the current manifest is server-selected
+ * and un-pinned (a MITM could choose both the APK and its claimed hash). The Working/Failed dialogs remain
+ * for that future signed-manifest path (the [AppUpdateViewModel.installUpdate] machinery is retained).
+ */
 @Composable
 private fun UpdateDialogs(
     state: UpdateUiState,
-    onInstall: () -> Unit,
+    releasesUrl: String,
     onDismiss: () -> Unit,
     onOpenUrl: (String) -> Unit,
 ) {
@@ -343,7 +348,7 @@ private fun UpdateDialogs(
                         Text(text = state.manifest.releaseNotesRu, style = MaterialTheme.typography.bodyMedium)
                     }
                     Text(
-                        text = stringResource(R.string.update_verified_badge),
+                        text = stringResource(R.string.update_get_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -357,7 +362,9 @@ private fun UpdateDialogs(
                 }
             },
             confirmButton = {
-                TextButton(onClick = onInstall) { Text(stringResource(R.string.update_action_install)) }
+                TextButton(onClick = { onOpenUrl(releasesUrl) }) {
+                    Text(stringResource(R.string.update_download_github))
+                }
             },
             dismissButton = if (state.forced) {
                 null

@@ -63,7 +63,12 @@ class AppUpdateViewModel @Inject constructor(
         }
     }
 
-    /** Downloads + verifies + installs the currently-available release. */
+    /**
+     * Downloads + verifies + installs the currently-available release. RETAINED but NOT wired to the UI
+     * (REL-P0-2, decision 2026-06-23): the SettingsScreen update prompt routes users to GitHub releases /
+     * Obtainium instead, because the manifest this trusts is server-selected + un-pinned. Re-surface this
+     * once the manifest is an offline Ed25519-signed blob.
+     */
     fun installUpdate() {
         val available = _state.value as? UpdateUiState.Available ?: return
         val manifest = available.manifest
