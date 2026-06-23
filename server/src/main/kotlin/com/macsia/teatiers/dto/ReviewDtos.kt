@@ -42,11 +42,22 @@ data class ReviewResultDto(
 /**
  * Result of applying a fully-reviewed run to the canonical catalog (decision #137-C4). The ONLY path that
  * writes teas. [results] is one entry per approved decision actually materialized (with its new/target tea
- * id); [skippedCount] counts approved decisions whose source record was already linked (idempotent re-apply).
+ * id); [skippedCount] counts approved decisions whose source record was already linked (idempotent re-apply);
+ * [failures] is one entry per approved decision quarantined by an identity collision (H3) -- the rest of the
+ * run still applies, and the operator resolves these by merging the colliding identities.
  */
 data class RunApplyResultDto(
     val runId: Long,
     val appliedCount: Int,
     val skippedCount: Int,
     val results: List<ReviewResultDto>,
+    val failures: List<ApplyFailureDto> = emptyList(),
 )
+
+/**
+ * One approved decision the apply phase could NOT materialize (H3, decision #141 review): its identity
+ * collides with an active tea (a duplicate authoritative alias, or a create_new dedup_key collision) that the
+ * operator must resolve by merging. Reported instead of aborting the whole run, so one poison decision never
+ * blocks the rest.
+ */
+data class ApplyFailureDto(val decisionId: Long, val reason: String)

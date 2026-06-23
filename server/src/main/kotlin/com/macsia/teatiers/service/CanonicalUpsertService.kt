@@ -215,18 +215,46 @@ class CanonicalUpsertService(
         }
     }
 
+    /**
+     * Apply-time collision pre-check (H3, decision #141 review): would materializing this approved decision
+     * collide with an active identity the operator must resolve by MERGING -- a create_new dedup_key already
+     * held, or a name already owned as an authoritative alias by another active tea? Returns a human reason if
+     * so, else null. [ReviewService.applyRun] calls this BEFORE the write and quarantines + reports a non-null
+     * result (skipping the write entirely), so one collision no longer rolls back the whole run -- and because
+     * nothing is thrown across a @Transactional boundary, the shared apply tx is never marked rollback-only.
+     * Runs inside that apply tx, so it also sees identities written by EARLIER decisions in the same batch.
+     * The write methods keep their own guards as the backstop for the narrow concurrent-cross-run race this
+     * pre-check can't see (which DOES throw -- correctly aborting the run, the prior all-or-nothing behavior).
+     * [targetTeaId] is the merge target to exclude from the alias check (null for create_new).
+     */
+    fun applyCollisionReason(revision: SourceRecordRevision, kind: String, targetTeaId: Long?): String? {
+        val facts = parse(revision)
+        if (kind == "approved_new") {
+            val pinyin = facts.names.firstOrNull { it.locale == "pinyin" }?.value
+            val dedupKey = DedupKeys.of(primaryName(facts), pinyin, teaType(facts.type))
+            teaRepository.findActiveByDedupKey(dedupKey)?.let {
+                return "create_new collides with active tea ${it.id} on dedup_key '$dedupKey'; merge instead"
+            }
+        }
+        facts.names.distinctBy { it.locale to it.value }.forEach { n ->
+            identityAliasService.conflictingOwner(n.locale, n.value, targetTeaId)?.let { owner ->
+                return "name '${n.value}' (${n.locale}) already belongs to active tea $owner; merge the identities"
+            }
+        }
+        return null
+    }
+
     private fun writeNamesAndAliases(teaId: Long, facts: ScrapedFacts, ctx: ClaimContext) {
         facts.names.distinctBy { it.locale to it.value }.forEach { n ->
             // Name provenance is multi-valued (a tea has several aliases per locale) -- not single-selection.
             writeClaim(teaId, "name:${n.locale}", n.value, selected = true, replaceSelected = false, ctx)
             // The operator approved this identity decision -> promote the scraped name to a human-confirmed
             // alias so future runs reuse it as Tier 0 (decision #137-C6). Idempotent on (tea, locale, alias).
-            // Fail-closed (decision #141 / FND-P1-1): if a name collides with a DIFFERENT active tea's
-            // authoritative alias, addAuthoritative throws DuplicateAuthoritativeAliasException and the whole
-            // apply rolls back to 'reviewed' (a duplicate identity is never minted). The matcher inspects only
-            // the first name per locale, so a second same-locale name's collision can surface here rather than
-            // at decide time -- the operator merges the identities and re-applies. (Surfacing every such
-            // collision pre-apply is a tracked follow-up.)
+            // Fail-closed (decision #141 / FND-P1-1): a name colliding with a DIFFERENT active tea's
+            // authoritative alias throws DuplicateAuthoritativeAliasException (a duplicate identity is never
+            // minted). applyRun's applyCollisionReason pre-check normally quarantines such a decision BEFORE
+            // this write (H3); reaching here means a concurrent cross-run race the pre-check missed -- it still
+            // throws and rolls the whole run back (the operator merges the identities and re-applies).
             identityAliasService.addAuthoritative(
                 teaId = teaId,
                 locale = n.locale,

@@ -6,6 +6,7 @@ import com.macsia.teatiers.domain.ImportRun
 import com.macsia.teatiers.domain.MatchDecision
 import com.macsia.teatiers.domain.SourceRecord
 import com.macsia.teatiers.domain.SourceRecordRevision
+import com.macsia.teatiers.dto.ApplyFailureDto
 import com.macsia.teatiers.dto.CandidateHitDto
 import com.macsia.teatiers.dto.PendingMatchDto
 import com.macsia.teatiers.dto.ReviewResultDto
@@ -112,14 +113,23 @@ class ReviewService(
      * APPLY: materialize a fully-reviewed run into the canonical catalog (decision #137-C4) -- the ONLY path
      * that writes teas. The run must be 'reviewed'; it moves to 'applying' for the writes then 'applied' once
      * they commit. Each approved decision is applied for the EXACT revision it reviewed (re-checked here, so a
-     * post-review revision can never publish), and already-linked records are skipped (idempotent). Atomic:
-     * any failure rolls the whole apply back, leaving the run 'reviewed' to retry.
+     * post-review revision can never publish), and already-linked records are skipped (idempotent).
+     *
+     * Per-decision identity collisions are QUARANTINED, not fatal (H3, decision #141 review): a decision whose
+     * apply would duplicate an authoritative alias or a create_new dedup_key (an active-identity collision the
+     * operator must resolve by merging) is detected up front by [CanonicalUpsertService.applyCollisionReason],
+     * reported in [RunApplyResultDto.failures], and SKIPPED -- the rest of the run still applies, and because
+     * nothing is thrown across a transaction boundary the shared apply tx is never doomed. One poison decision
+     * no longer rolls back the whole batch. Every OTHER failure (an integrity gate -- dry/blocked/cross-site/
+     * missing-evidence -- a stale revision, or the rare concurrent-race collision the pre-check misses) still
+     * propagates, aborting the whole apply and leaving the run 'reviewed' to retry.
      */
     @Transactional
     fun applyRun(runId: Long, reviewer: String = "system:apply"): RunApplyResultDto {
         importRunStateMachine.transition(runId, ImportRunState.APPLYING)
         val approved = matchDecisionRepository.findByImportRunIdAndDecisionIn(runId, APPROVED)
         val results = mutableListOf<ReviewResultDto>()
+        val failures = mutableListOf<ApplyFailureDto>()
         var skipped = 0
         for (decision in approved) {
             val record = record(decision)
@@ -128,20 +138,26 @@ class ReviewService(
                 "approved_new" -> {
                     // A create-new whose record is already linked would mint a duplicate -> skip (idempotent).
                     if (record.teaId != null) { skipped++; continue }
-                    canonicalUpsertService.applyApprovedNew(record, reviewedRevision(decision, record), decision.id, who, runId)
+                    val revision = reviewedRevision(decision, record)
+                    val conflict = canonicalUpsertService.applyCollisionReason(revision, "approved_new", null)
+                    if (conflict != null) { failures += ApplyFailureDto(requireNotNull(decision.id), conflict); continue }
+                    canonicalUpsertService.applyApprovedNew(record, revision, decision.id, who, runId)
                 }
                 // A merge may target an already-linked record (a correction in a later run) -- never skipped.
-                "approved_merge" -> canonicalUpsertService.applyApprovedMerge(
-                    record, reviewedRevision(decision, record), decision.id, who,
-                    decision.candidateTeaId ?: throw IllegalStateException("approved_merge ${decision.id} has no target"),
-                    runId,
-                )
+                "approved_merge" -> {
+                    val revision = reviewedRevision(decision, record)
+                    val target = decision.candidateTeaId
+                        ?: throw IllegalStateException("approved_merge ${decision.id} has no target")
+                    val conflict = canonicalUpsertService.applyCollisionReason(revision, "approved_merge", target)
+                    if (conflict != null) { failures += ApplyFailureDto(requireNotNull(decision.id), conflict); continue }
+                    canonicalUpsertService.applyApprovedMerge(record, revision, decision.id, who, target, runId)
+                }
                 else -> continue
             }
             results += ReviewResultDto(requireNotNull(decision.id), decision.decision, teaId)
         }
         importRunStateMachine.transition(runId, ImportRunState.APPLIED)
-        return RunApplyResultDto(runId, results.size, skipped, results)
+        return RunApplyResultDto(runId, results.size, skipped, results, failures)
     }
 
     private fun finishReview(decision: MatchDecision, outcome: String, reviewer: String) {
