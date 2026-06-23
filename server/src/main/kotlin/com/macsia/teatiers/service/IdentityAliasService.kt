@@ -33,10 +33,12 @@ class IdentityAliasService(
         source: String? = null,
     ): TeaIdentityAlias {
         require(origin in AUTHORITATIVE_ORIGINS) { "authoritative alias origin must be curated/human_confirmed" }
-        // Serialize concurrent promotion of the SAME (locale, alias) so the active-owner check-then-insert
-        // below is atomic across transactions (H4): the invariant has no backing DB unique index. Key
-        // approximates alias_norm (lower+trim); accent variants are a tiny residual the check still catches.
-        aliasRepository.lockAuthoritativeAliasKey("$locale:${alias.trim().lowercase()}")
+        // Serialize concurrent promotion of the SAME (locale, alias) identity so the active-owner
+        // check-then-insert below is atomic across transactions (H4 / SRV-P1-1): the invariant has no backing
+        // DB unique index. The lock key is normalized IN SQL with the same lower(f_unaccent(...)) form the
+        // invariant compares on (alias_norm), so accent/case variants that collapse to one identity also
+        // collapse to one lock -- a Kotlin lowercase() key would miss accents and let two variants race.
+        aliasRepository.lockAuthoritativeAlias(locale, alias)
         aliasRepository.findOtherActiveAuthoritativeOwners(locale, alias, teaId).firstOrNull()?.let { other ->
             throw DuplicateAuthoritativeAliasException(locale, alias, other, teaId)
         }
