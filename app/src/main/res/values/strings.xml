@@ -302,9 +302,10 @@
     <string name="update_check_failed">Не удалось проверить обновления</string>
     <string name="update_available_title">Доступно обновление</string>
     <string name="update_version">Версия %1$s</string>
-    <string name="update_verified_badge">✓ Подпись разработчика проверена</string>
+    <string name="update_get_hint">Скачайте новую версию на странице релизов GitHub (или подпишитесь на репозиторий в Obtainium). При установке Android проверит, что подпись разработчика совпадает.</string>
+    <!-- Trusted distribution channel (REL-P0-2): the GitHub releases page. Not user-facing text. -->
+    <string name="update_releases_url" translatable="false">https://github.com/MacsiaProduction/TeaTiers/releases</string>
     <string name="update_forced_note">Это обязательное обновление — без него приложение может работать некорректно.</string>
-    <string name="update_action_install">Обновить</string>
     <string name="update_action_later">Позже</string>
     <string name="update_working">Загрузка и установка…</string>
     <string name="update_failed_title">Не удалось обновить</string>
