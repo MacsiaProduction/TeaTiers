@@ -21,6 +21,26 @@ Implementation baseline: server `21fda80` (decision #136 foundation landed). **I
 >
 > The §4 id-reuse trick still applies to **`tea_samples.id` = v6 `teas.id`** (personal-side losslessness is unchanged). Only the *ref* identity moves to UUID. The migration/backup/CI tests in §7 must additionally assert: legacy-unresolved stubs created with `legacyNumericId`; reconciliation rewrites `publicId` and re-points sample FKs without mutating personal data; an un-reconciled sample still renders its personal primary name.
 
+> ### ✅ DECISIONS LOCKED 2026-06-23 (owner) — Q1–Q8 + updater resolved; implement to THIS shape
+>
+> The amendment above resolves Q1/Q2. The §8 open questions are now ruled; together with the amendment they
+> are the authoritative shape — every `Long` / single-name / `id = server tea.id` example in §2–§8 is
+> superseded where it conflicts.
+>
+> - **Q4 (names) → MULTIPLE aliases per locale.** `tea_sample_names` gets a surrogate PK `id` (autogen) +
+>   `UNIQUE(sampleId, locale, value)` — NOT `PK(sampleId, locale)`; a sample may hold several names in one
+>   locale. The §5 display resolver still selects exactly one primary.
+> - **Q7 (refresh writer) → SHIP WITH v7.** A catalog-refresh-by-id writer lands in the same milestone so
+>   migrated ref stubs populate (overwrites ref facts only, never personal data). Do NOT park migrated linked
+>   samples on `PENDING` as a stopgap.
+> - **Q3 → custom add is ALWAYS create-new** (name-match is a non-blocking suggestion, never auto-merge).
+> - **Q5 → KEEP `placements.teaId` column name** (defer the cosmetic `sampleId` rename).
+> - **Q6 → repo-enforced single `isPrimary`** per sample (no partial unique index).
+> - **Q8 → Gradle Managed Device** for the migration CI gate (faithful SQLite/FK semantics).
+> - **Updater (REL-P0-2) → Obtainium / GitHub releases is the trusted channel** until an offline Ed25519
+>   signed manifest exists; the in-app updater is NOT the primary path and gets NO TLS leaf pin (a Let's
+>   Encrypt rotation would brick it). Tracked outside this doc.
+
 Owner-locked product decisions this doc reflects:
 1. **Cross-board sharing kept** — one `TeaSample` is placed on many boards via many `placements` rows (`BoardPlacement → TeaSample`); preserves decisions.md #42 verbatim.
 2. **Reuse-if-same-catalog-ref on re-add**; a new sample is created only on an explicit **"add another"**; **custom samples are never auto-merged** (name-match dedup is a non-blocking suggestion).
