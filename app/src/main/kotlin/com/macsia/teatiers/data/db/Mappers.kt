@@ -61,6 +61,11 @@ fun TeaWithChildren.toDomain(): Tea = Tea(
     flavor = flavors.sortedBy { it.position }
         .map { FlavorScore(FlavorDimension.valueOf(it.dimension), it.intensity) },
     notes = tea.notes,
+    vendor = tea.vendor,
+    product = tea.product,
+    harvestYear = tea.harvestYear,
+    batch = tea.batch,
+    grade = tea.grade,
     purchaseLocations = purchases.sortedBy { it.position }.map { it.toDomain() },
     photos = photos.sortedBy { it.position }.map { it.toDomain() },
     catalogTeaId = tea.catalogTeaId,
@@ -123,6 +128,11 @@ fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
         notes = notes,
         catalogTeaId = catalogTeaId,
         enrichmentState = enrichmentState.name,
+        vendor = vendor,
+        product = product,
+        harvestYear = harvestYear,
+        batch = batch,
+        grade = grade,
     )
     val flavorRows = flavor.mapIndexed { index, score ->
         FlavorEntity(teaId = rowId, dimension = score.dimension.name, intensity = score.intensity, position = index)

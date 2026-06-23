@@ -98,6 +98,17 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // P1-1 disambiguator: two samples of one catalog tea otherwise render identically (#132).
+            if (tea.sampleIdentity.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = tea.sampleIdentity,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Spacer(Modifier.height(10.dp))
             TypeChip(type = tea.type)
             EnrichmentStatus(state = tea.enrichmentState)

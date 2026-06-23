@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -119,6 +120,14 @@ abstract class TeaDao {
     @Query("INSERT OR IGNORE INTO catalog_refs (id, type, fetchedAtEpochMs) VALUES (:refId, :type, 0)")
     abstract suspend fun insertRefStub(refId: Long, type: String)
 
+    /**
+     * Catalog-refresh writer (#132 / finding #6/#22): upserts the FULL cached facts of a catalog ref
+     * (overwrites ref columns only — never touches any sample). Called when enrichment resolves a
+     * sample to a ref, so the stub created at link time populates with real origin/brand/blurb/etc.
+     */
+    @Upsert
+    abstract suspend fun upsertRef(ref: CatalogRefEntity)
+
     @Insert
     abstract suspend fun insertTeas(teas: List<TeaSampleEntity>)
 
@@ -180,7 +189,8 @@ abstract class TeaDao {
      */
     @Query(
         "UPDATE tea_samples SET nameRu = :nameRu, nameZh = :nameZh, pinyin = :pinyin, " +
-            "nameEn = :nameEn, type = :type, origin = :origin, notes = :notes WHERE id = :teaId",
+            "nameEn = :nameEn, type = :type, origin = :origin, notes = :notes, vendor = :vendor, " +
+            "product = :product, harvestYear = :harvestYear, batch = :batch, grade = :grade WHERE id = :teaId",
     )
     abstract suspend fun updateTeaFields(
         teaId: String,
@@ -191,6 +201,11 @@ abstract class TeaDao {
         type: String,
         origin: String?,
         notes: String?,
+        vendor: String?,
+        product: String?,
+        harvestYear: Int?,
+        batch: String?,
+        grade: String?,
     )
 
     /** The raw sample row (no children) — used by the enrichment patch to merge non-blank fields. */
@@ -251,7 +266,7 @@ abstract class TeaDao {
         type: String,
         candidateOrigin: String?,
         candidateShortBlurb: String?,
-        catalogTeaId: Long,
+        ref: CatalogRefEntity,
         state: String,
     ) {
         val current = loadTeaRow(teaId) ?: return
@@ -262,8 +277,9 @@ abstract class TeaDao {
         val origin = candidateOrigin?.takeIf { it.isNotBlank() } ?: current.origin
         val shortBlurb = candidateShortBlurb?.takeIf { it.isNotBlank() } ?: current.shortBlurb
 
-        insertRefStub(catalogTeaId, type)
-        patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, catalogTeaId, state)
+        // Cache the ref's full facts (FK target for the link below), then patch the sample.
+        upsertRef(ref)
+        patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, ref.id, state)
     }
 
     @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")
@@ -458,10 +474,15 @@ abstract class TeaDao {
         type: String,
         origin: String?,
         notes: String?,
+        vendor: String?,
+        product: String?,
+        harvestYear: Int?,
+        batch: String?,
+        grade: String?,
         flavors: List<FlavorEntity>,
         purchases: List<PurchaseLocationEntity>,
     ) {
-        updateTeaFields(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, notes)
+        updateTeaFields(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, notes, vendor, product, harvestYear, batch, grade)
         deleteFlavorsFor(teaId)
         deletePurchasesFor(teaId)
         insertFlavors(flavors)

@@ -77,6 +77,12 @@ data class AddTeaForm(
     val flavors: Map<FlavorDimension, Int> = emptyMap(),
     val tierId: String? = null,
     val purchases: List<PurchaseDraft> = emptyList(),
+    // P1-1 sample-identity (#132): which physical sample of the catalog tea this is. All optional.
+    val vendor: String = "",
+    val product: String = "",
+    val harvestYear: String = "",
+    val batch: String = "",
+    val grade: String = "",
     // Set when the user prefilled from a catalog result; the strongest local identity key (#42) so the
     // tea dedups by catalog id, not just by name, and skips a redundant background re-resolve.
     val catalogTeaId: Long? = null,
@@ -122,6 +128,11 @@ fun AddTeaForm.toTea(): Tea {
         origin = origin.trim().ifBlank { null },
         flavor = flavorScores,
         notes = notes.trim().ifBlank { null },
+        vendor = vendor.trim().ifBlank { null },
+        product = product.trim().ifBlank { null },
+        harvestYear = harvestYear.trim().toIntOrNull(),
+        batch = batch.trim().ifBlank { null },
+        grade = grade.trim().ifBlank { null },
         purchaseLocations = purchases.mapNotNull { it.toLocation() },
         catalogTeaId = catalogTeaId,
     )
@@ -143,4 +154,9 @@ fun Tea.toForm(): AddTeaForm = AddTeaForm(
     tierId = null,
     purchases = purchaseLocations.map { it.toDraft() },
     catalogTeaId = catalogTeaId,
+    vendor = vendor.orEmpty(),
+    product = product.orEmpty(),
+    harvestYear = harvestYear?.toString().orEmpty(),
+    batch = batch.orEmpty(),
+    grade = grade.orEmpty(),
 )

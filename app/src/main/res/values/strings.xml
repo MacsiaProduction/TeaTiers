@@ -21,7 +21,7 @@
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
-    <string name="add_tea_error_name_required">Укажите название чая (русское поле обязательно).</string>
+    <string name="add_tea_error_name_required">Укажите хотя бы одно название на любом языке.</string>
 
     <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
     <string name="a11y_board_summary">Подборка %1$s, %2$d %3$s</string>
@@ -181,12 +181,19 @@
     <string name="a11y_purchase_remove">Удалить место покупки</string>
     <string name="action_save">Сохранить</string>
     <string name="field_name_ru">Название (рус.)</string>
-    <string name="field_name_ru_hint">Обязательное поле</string>
+    <string name="field_name_ru_hint">Хотя бы одно название на любом языке</string>
     <string name="field_name_en">Название (англ.)</string>
     <string name="field_pinyin">Пиньинь</string>
     <string name="field_name_zh">Название (кит.)</string>
     <string name="field_type">Тип</string>
     <string name="field_origin">Происхождение</string>
+    <!-- P1-1 sample identity (#132): which physical sample of the catalog tea this is. -->
+    <string name="field_sample_section">Образец</string>
+    <string name="field_vendor">Продавец</string>
+    <string name="field_product">Товар</string>
+    <string name="field_harvest_year">Год сбора</string>
+    <string name="field_batch">Партия</string>
+    <string name="field_grade">Сорт</string>
     <string name="field_flavor">Вкус</string>
     <string name="flavor_scale_hint">0 — нет · 3 — заметно · 5 — доминирует</string>
     <string name="flavor_show_all">Показать все вкусы</string>

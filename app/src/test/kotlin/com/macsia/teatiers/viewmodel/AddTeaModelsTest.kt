@@ -79,9 +79,38 @@ class AddTeaModelsTest {
     }
 
     @Test
-    fun `isValid requires a non-blank ru name`() {
-        assertFalse(AddTeaForm(nameRu = "   ").isValid)
+    fun `isValid requires at least one name in any locale (P1-2)`() {
+        assertFalse(AddTeaForm().isValid) // all four blank
+        assertFalse(AddTeaForm(nameRu = "   ", nameEn = "  ").isValid)
         assertTrue(AddTeaForm(nameRu = "Чай").isValid)
+        assertTrue(AddTeaForm(nameEn = "Tea").isValid) // ru is no longer required
+        assertTrue(AddTeaForm(nameZh = "茶").isValid)
+        assertTrue(AddTeaForm(pinyin = "chá").isValid)
+    }
+
+    @Test
+    fun `toTea and toForm round-trip the sample-identity fields`() {
+        val tea = AddTeaForm(
+            nameRu = "Чай", vendor = " Лавка ", product = "Spring", harvestYear = "2024", batch = " B7 ", grade = "premium",
+        ).toTea()
+        assertEquals("Лавка", tea.vendor)
+        assertEquals("Spring", tea.product)
+        assertEquals(2024, tea.harvestYear)
+        assertEquals("B7", tea.batch)
+        assertEquals("premium", tea.grade)
+        assertNull(AddTeaForm(nameRu = "Чай", harvestYear = "  ").toTea().harvestYear) // blank -> null
+
+        val back = tea.toForm()
+        assertEquals("Лавка", back.vendor)
+        assertEquals("2024", back.harvestYear)
+        assertEquals("premium", back.grade)
+    }
+
+    @Test
+    fun `sampleIdentity joins the present fields and is blank when none are set`() {
+        assertEquals("", Tea(id = "x", type = TeaType.GREEN).sampleIdentity)
+        val tea = Tea(id = "x", type = TeaType.GREEN, vendor = "Лавка", harvestYear = 2024, grade = "premium")
+        assertEquals("Лавка  ·  2024  ·  premium", tea.sampleIdentity)
     }
 
     @Test

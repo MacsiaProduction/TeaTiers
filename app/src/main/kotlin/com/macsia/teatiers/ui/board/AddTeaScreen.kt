@@ -227,7 +227,8 @@ fun AddTeaScreen(
                 onValueChange = { v -> viewModel.update { it.copy(nameRu = v) } },
                 label = { Text(stringResource(R.string.field_name_ru)) },
                 singleLine = true,
-                isError = form.nameRu.isBlank(),
+                // P1-2 (#132): ru is no longer required — error only when NO name in any locale is set.
+                isError = !form.isValid,
                 supportingText = { Text(stringResource(R.string.field_name_ru_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -275,6 +276,49 @@ fun AddTeaScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            // P1-1 sample identity (#132): distinguishes two samples of the same catalog tea.
+            FieldLabel(stringResource(R.string.field_sample_section))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = form.vendor,
+                    onValueChange = { v -> viewModel.update { it.copy(vendor = v) } },
+                    label = { Text(stringResource(R.string.field_vendor)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = form.product,
+                    onValueChange = { v -> viewModel.update { it.copy(product = v) } },
+                    label = { Text(stringResource(R.string.field_product)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = form.harvestYear,
+                    onValueChange = { v -> viewModel.update { it.copy(harvestYear = v.filter(Char::isDigit).take(4)) } },
+                    label = { Text(stringResource(R.string.field_harvest_year)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = form.batch,
+                    onValueChange = { v -> viewModel.update { it.copy(batch = v) } },
+                    label = { Text(stringResource(R.string.field_batch)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = form.grade,
+                    onValueChange = { v -> viewModel.update { it.copy(grade = v) } },
+                    label = { Text(stringResource(R.string.field_grade)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
             PhotoStripField(
                 photos = photos,

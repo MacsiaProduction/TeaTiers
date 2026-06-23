@@ -362,6 +362,11 @@ class TeaBoardRepository @Inject constructor(
             type = tea.type.name,
             origin = tea.origin,
             notes = tea.notes,
+            vendor = tea.vendor,
+            product = tea.product,
+            harvestYear = tea.harvestYear,
+            batch = tea.batch,
+            grade = tea.grade,
             flavors = entities.flavors,
             purchases = entities.purchases,
         )

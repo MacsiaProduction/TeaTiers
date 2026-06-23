@@ -110,6 +110,12 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
+    // @Upsert: replace the ref with this id, or insert it.
+    override suspend fun upsertRef(ref: CatalogRefEntity) {
+        catalogRefs.removeAll { it.id == ref.id }
+        catalogRefs += ref
+    }
+
     override suspend fun insertTeas(teas: List<TeaSampleEntity>) {
         this.teas += teas
         refresh()
@@ -245,6 +251,11 @@ class FakeTeaDao : TeaDao() {
         type: String,
         origin: String?,
         notes: String?,
+        vendor: String?,
+        product: String?,
+        harvestYear: Int?,
+        batch: String?,
+        grade: String?,
     ) {
         val index = teas.indexOfFirst { it.id == teaId }
         if (index >= 0) {
@@ -256,6 +267,11 @@ class FakeTeaDao : TeaDao() {
                 type = type,
                 origin = origin,
                 notes = notes,
+                vendor = vendor,
+                product = product,
+                harvestYear = harvestYear,
+                batch = batch,
+                grade = grade,
             )
             refresh()
         }

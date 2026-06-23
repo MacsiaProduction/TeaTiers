@@ -73,6 +73,13 @@ class TeaEnrichmentManagerTest {
         assertEquals("Зелёный чай из Сиху.", row.shortBlurb)
         assertEquals(7L, row.catalogTeaId)
         assertEquals(EnrichmentState.DONE.name, row.enrichmentState)
+
+        // Catalog-refresh writer: the linked ref is cached with its full facts, not just an id+type stub.
+        val ref = dao.allRefs().single { it.id == 7L }
+        assertEquals("GREEN", ref.type)
+        assertEquals("CN", ref.originCountry)
+        assertEquals("Зелёный чай из Сиху.", ref.shortBlurb)
+        assertEquals("unverified", ref.verificationStatus)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.macsia.teatiers.data.repository
 
+import com.macsia.teatiers.data.db.CatalogRefEntity
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.di.AppScope
@@ -162,8 +163,28 @@ class TeaEnrichmentManager @Inject constructor(
             type = detail.type.name,
             candidateOrigin = detail.origin,
             candidateShortBlurb = detail.descriptionFor(CatalogLocale.RU)?.short,
-            catalogTeaId = detail.id,
+            ref = detail.toRefEntity(),
             state = EnrichmentState.DONE.name,
         )
     }
+
+    /** The cached catalog-ref facts to write alongside the link (the catalog-refresh writer payload). */
+    private fun CatalogTeaDetail.toRefEntity(): CatalogRefEntity = CatalogRefEntity(
+        id = id,
+        type = type.name,
+        originCountry = originCountry,
+        region = region,
+        cultivar = cultivar,
+        oxidationMin = oxidationMin,
+        oxidationMax = oxidationMax,
+        brand = brand,
+        verificationStatus = provenance.verificationStatus,
+        confidence = provenance.confidence?.toDouble(),
+        enrichmentState = enrichmentState?.name,
+        shortBlurb = descriptionFor(CatalogLocale.RU)?.short,
+        source = provenance.source,
+        sourceUrl = provenance.sourceUrl,
+        license = provenance.license,
+        fetchedAtEpochMs = System.currentTimeMillis(),
+    )
 }
