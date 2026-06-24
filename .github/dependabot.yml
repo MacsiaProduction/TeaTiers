@@ -33,10 +33,10 @@ updates:
     schedule:
       interval: weekly
 
-  # The prod compose pins caddy + postgres by digest; watch /infra/deploy too so those base-image
-  # digests don't silently rot (OPS-P2-2).
+  # The prod compose pins postgres by digest; watch /deploy too so that base-image digest
+  # doesn't silently rot (OPS-P2-2).
   - package-ecosystem: docker
-    directory: /infra/deploy
+    directory: /deploy
     schedule:
       interval: weekly
 

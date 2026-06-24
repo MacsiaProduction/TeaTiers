@@ -1,0 +1,131 @@
+# TeaTiers production stack — pelican-node, Komodo-managed (migrated off the Yandex Cloud VM
+# 2026-06-24). TLS is terminated by the shared edge Caddy (/opt/edge on the host) which
+# reverse-proxies https://tea.macsia.fun to teatiers-server:8080 over the external `proxy` net —
+# so, unlike the retired VM compose, there is NO bundled Caddy and NO published 80/443 here.
+# Values come from a host-local .env (see .env.example; never committed). Server + OCR images are
+# pulled from ghcr.io (publish-image.yml / ocr-sidecar.yml). DB is fresh-seeded by Flyway on first
+# boot. Privilege hardening (decision #102/#109): every service drops all caps + no-new-privileges;
+# only the caps a service genuinely needs are added back. pids_limit/mem_limit bound each service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  server:
+    image: ${SERVER_IMAGE}
+    container_name: teatiers-server
+    labels:
+      komodo.skip: ""
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1500m
+    pids_limit: 512
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=65.0"
+      SPRING_PROFILES_ACTIVE: default
+      POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TEATIERS_OCR_SIDECAR_URL: http://ocr-sidecar:8099
+      # AI enrichment tier off until a key is provided (miss -> UNRESOLVED).
+      TEATIERS_LLM_API_KEY: ${TEATIERS_LLM_API_KEY:-}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - proxy # edge reaches teatiers-server:8080; also the server's outbound (Wikidata)
+      - data
+      - ocr
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine@sha256:79950da386bda7fcc9d57aa9aa9be6c6d7407596a9b8f68014b09a778a9ab316
+    container_name: teatiers-db
+    labels:
+      komodo.skip: ""
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 768m
+    pids_limit: 256
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - teatiers_pgdata:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    networks:
+      - data # internal-only (no internet); reachable only by the server
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  ocr-sidecar:
+    image: ${OCR_SIDECAR_IMAGE}
+    container_name: teatiers-ocr-sidecar
+    labels:
+      komodo.skip: ""
+    restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - ocr # internal-only: no Postgres route, no internet (models baked in)
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8099/health',timeout=2).status==200 else 1)"
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
+
+# Network segmentation (decision #109): the server is the only multi-homed service. `data` and `ocr`
+# are internal: true (no gateway) — Postgres and the image-processing sidecar have no internet, and
+# the sidecar has no route to Postgres. `proxy` is the shared external net the edge Caddy lives on.
+networks:
+  proxy:
+    external: true
+  data:
+    internal: true
+  ocr:
+    internal: true
+
+volumes:
+  teatiers_pgdata:

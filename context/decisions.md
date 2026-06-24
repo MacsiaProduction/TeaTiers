@@ -1355,7 +1355,7 @@ deviated.
 
 70. **Architecture review (2026-06-17) — disposition + open decisions** (`context/review/`). Reviewed the
     plan/decisions + app/backend/infra shape; full per-item disposition in
-    `context/review/2026-06-17-disposition.md`, the explicit ship checklist in plan **§7.1 MVP release gate**.
+    `context/review/archive-2026-06/2026-06-17-disposition.md`, the explicit ship checklist in plan **§7.1 MVP release gate**.
     - **Done autonomously:** backup now round-trips the v5 enrichment fields (#69); the release gate +
       this disposition are written.
     - **Planned autonomously (separate verified PRs, no decision needed):** (a) a **global daily LLM
@@ -1463,7 +1463,7 @@ deviated.
     service, and do the documented **restore rehearsal** (pull latest dump from S3 → load into a throwaway
     DB → sanity-check). `tofu validate` + `fmt` clean. Local-on-disk dumps remain the default if not enabled.
 
-78. **Second-pass review correctness fixes (app)** (`context/review/2026-06-17-second-pass.md`; off `main`).
+78. **Second-pass review correctness fixes (app)** (`context/review/archive-2026-06/2026-06-17-second-pass.md`; off `main`).
     Two findings from the post-merge review:
     - **P0 — a FAILED/PENDING stub returned as `MATCHED` was hidden as local `DONE`.** When the server's
       `cacheHit` finds an existing LLM stub but can't re-arm it (LLM tier off, or `LlmDailyBudget` spent), it
@@ -1713,7 +1713,7 @@ deviated.
     9, white 5, yellow 4, dark 3, pu'er 2. `CatalogSeederIT` green against the 100-tea bundle (idempotent;
     redeploy adds only the 50 new rows). **Next stage: 100 → ~300.**
 
-96. **2026-06-18 architecture review dispositioned** (`context/review/2026-06-18-current-design-architecture-review.md`;
+96. **2026-06-18 architecture review dispositioned** (`context/review/archive-2026-06/2026-06-18-current-design-architecture-review.md`;
     verified by an 11-agent review workflow that confirmed all findings, corrected severities, refuted one
     exploit chain, and surfaced 6 missed issues). **Cleanup done in this slice:**
     - **Privacy copy re-fixed (trust bug I re-introduced in #87):** `settings_about_privacy` said the typed
@@ -1785,7 +1785,7 @@ deviated.
     path beforehand (East-Slavic PP-OCRv5 rec model, det v5; dict includes Latin so one pass covers ru+en).
 
 100. **Post-OCR review dispositioned + run-13 judged → plan adapted (2026-06-18).** A deep code-pass review
-    (`context/review/2026-06-18-post-ocr-architecture-review.md`) + research run 13 (OCR sidecar) were analyzed
+    (`context/review/archive-2026-06/2026-06-18-post-ocr-architecture-review.md`) + research run 13 (OCR sidecar) were analyzed
     by a 10-agent workflow that **rated run 13** and **verified every review finding against source**. All five
     code findings confirmed (severities adjusted). Two product forks were put to the user and **decided**:
     - **OCR stays server-side (confirms #99; explicitly SUPERSEDES research run-10's on-device MVP winner).**
@@ -2501,7 +2501,7 @@ deviated.
      `context/decisions.md` + live code. Verdict: the small-system architecture is right (local-first app,
      pg_trgm catalog, opt-in OCR, one Compose host — do NOT add k8s/Kafka/a search service/accounts), but
      v0.1.0 being **public** turns three items into **release-blockers**, not deferred hardening. Full text:
-     [`context/review/2026-06-21-full-architecture-design-review.md`](review/2026-06-21-full-architecture-design-review.md).
+     [`context/review/2026-06-21-full-architecture-design-review.md`](review/archive-2026-06/2026-06-21-full-architecture-design-review.md).
      **Owner triage (2026-06-21): release-blockers FIRST, before more features or the scraping build.** Acting on:
      - **(P0-1) Room destructive-migration data-loss** — `TeaDatabase` is v6 `exportSchema=false` + `AppModule`
        unconditionally `fallbackToDestructiveMigration(dropAllTables=true)`; a future schema bump can WIPE a
@@ -2615,7 +2615,7 @@ deviated.
      (PENDING/FAILED stubs publicly searchable), ENR-1 (PENDING-orphan sweep). **Deferred (P1/P2 backlog):**
      INFRA-1/N7 (prod compose delivers no feature config — diagnostics/LLM/updater inert on the live box),
      F3 (ImageReader byte cap), Trivy/Grype container scan, release-gate tag/version binding + APK attestation,
-     N8/N9/N10/N11, cert pinning. Full list: `context/review/2026-06-21-third-pass-synthesis-adversarial.md §9`.
+     N8/N9/N10/N11, cert pinning. Full list: `context/review/archive-2026-06/2026-06-21-third-pass-synthesis-adversarial.md §9`.
      **Scraping (owner: research-run-first → pilot):** despite both reviews calling a fresh run "not warranted"
      (implementation decisions, not research), the owner chose a corrected research run. Wrote **run 21**
      (`research/21-catalog-scraping-foundation/prompt.md`): the buildable identity+import foundation
@@ -2964,3 +2964,40 @@ deviated.
        opens a web port on the control-plane node. Both rejected today as overkill for 1 app / 1 node.
      - **Still gated on the Task-4 design call:** co-tenancy (TeaTiers on `pelican-node` vs a separate
        small VM). This decision settles the *how-to-deploy*, not the *where*.
+
+## 2026-06-24 — Production migrated to pelican-node (Komodo + Compose); Yandex Cloud retired
+
+143. **TeaTiers production moved off the Yandex Cloud VM onto `pelican-node` (the RU manager
+     host), Docker-Compose + Komodo-managed.** Settles the Task-4 *where* (co-tenant with the
+     VPN control plane) and the *how* — and **supersedes the deploy halves of #18 / #55 / #57
+     / #82 / #83** (Yandex Cloud, OpenTofu/`infra/`, YCR→ghcr-on-VM) and **refines #142**
+     (Komodo *was* adopted now, for the stack; the systemd timer is kept for safe repo pulls).
+     - **Deploy:** `deploy/compose.yaml` in this repo (server + db + ocr-sidecar). **No bundled
+       Caddy and no published 80/443** — the shared host **edge Caddy** terminates TLS
+       (`tea.macsia.fun`, `komodo.macsia.fun`) and reaches `teatiers-server:8080` over an
+       external `proxy` Docker network; `:80` stays free for `certbot standalone`. DB started
+       **fresh from the committed seed** (operator choice — no data migration from the VM).
+     - **GitOps:** Komodo (Core + Periphery + Mongo) manages the **`teatiers` Stack as
+       files-on-host** (run-dir = the host checkout `deploy/`); Komodo UI is exposed at
+       `komodo.macsia.fun` behind login. Komodo does **not** auto-deploy and does **not**
+       manage repo source — its `PullRepo` is destructive (`git checkout -f` +
+       `git pull --rebase --force`) and `DeleteRepo` `rm -rf`s the checkout (data-loss
+       incident → all repos re-cloned, Komodo `Repo` resources removed). Repo checkouts are
+       instead refreshed by a host **systemd timer running `git pull --ff-only`** (the #142
+       artifact, generalized to all `~/vpn/git` checkouts). Redeploys are manual via the UI.
+     - **Images unchanged:** `ghcr.io` via `publish-image.yml` + `ocr-sidecar.yml` (the host
+       already has pull access; no new GH secrets — those workflows use the automatic
+       `GITHUB_TOKEN`). The old `infra.yml` (OpenTofu) workflow and its `YC_*` secrets are now
+       dead and can be removed from repo settings.
+     - **Retired:** the YC VM + its static IP **destroyed** (`yc`); the entire `infra/`
+       (OpenTofu + bundled Caddy + `backup.sh` + `docker-compose.prod.yml`) **deleted**; the
+       off-box `pg_dump`→Object-Storage backup timer went with it (**known gap** — re-home a
+       pelican-side dump if `/resolve`-written rows become load-bearing; catalog is otherwise
+       seed-reproducible).
+     - **Scrape channel:** write-only `teascrape` rrsync drop on pelican
+       (`node.macsia.fun:47894` → `/home/teascrape/drop`) for the other-machine scraper — see
+       `deploy/README.md`.
+     - **Where the operational truth lives now:** `deploy/README.md` (topology, run, scrape
+       channel, verify, gaps). Komodo admin creds are stored in the VPN workspace at
+       `~/vpn/secrets/komodo.json` (never in this repo). The infra-flavored review findings
+       (`OPS-*`, anything citing `infra/`) in `context/review/` are obsolete from this date.
