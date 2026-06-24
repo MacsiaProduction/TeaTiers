@@ -83,8 +83,42 @@ The channel keypair was generated at `~/vpn/secrets/teascrape_ed25519{,.pub}`; d
 the private half to the scraper box and `shred` it on pelican (pubkey stays in
 `authorized_keys`).
 
-## Known gap
+## Backups
 
-DB backups are **not yet re-homed**. The retired VM had an off-box `pg_dump` → Yandex Object Storage
-timer (deleted with the OpenTofu stack). The catalog is mostly reproducible from the committed seed,
-but `/resolve` writes rows that are not — add a pelican-side dump if that data becomes load-bearing.
+`backup.sh` re-homes the DB dump the retired VM used to push off-box to Yandex Object Storage (deleted
+with the OpenTofu stack, #143). It runs `pg_dump` against the `teatiers-db` container, gzips to
+`./backups/`, and rotates to ~14 days. The catalog is reproducible from the committed seed, but
+`/resolve`- and batch-enrichment-written rows are **not** — so this matters once enrichment lands.
+
+Install on the host once (run-dir = this folder), via a systemd timer:
+
+```ini
+# /etc/systemd/system/teatiers-backup.service
+[Unit]
+Description=TeaTiers Postgres dump
+[Service]
+Type=oneshot
+WorkingDirectory=/home/macsia/vpn/git/TeaTiers/deploy
+ExecStart=/home/macsia/vpn/git/TeaTiers/deploy/backup.sh
+```
+
+```ini
+# /etc/systemd/system/teatiers-backup.timer
+[Unit]
+Description=Daily TeaTiers Postgres dump
+[Timer]
+OnCalendar=daily
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+chmod +x backup.sh
+sudo systemctl daemon-reload && sudo systemctl enable --now teatiers-backup.timer
+./backup.sh   # one-shot smoke test
+```
+
+> **ponytail:** local same-disk dump only — guards against a bad migration / accidental drop / logical
+> corruption, **not** disk loss. Off-box copy (rsync to another host, or S3) is the upgrade path; wire it
+> when the enriched catalog is load-bearing.

@@ -1,2 +1,4 @@
 # The real env holds the DB password — host-local only, never committed.
 .env
+# Local pg_dump output (backup.sh) — host-local, never committed.
+backups/
