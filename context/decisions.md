@@ -3001,3 +3001,25 @@ deviated.
        channel, verify, gaps). Komodo admin creds are stored in the VPN workspace at
        `~/vpn/secrets/komodo.json` (never in this repo). The infra-flavored review findings
        (`OPS-*`, anything citing `infra/`) in `context/review/` are obsolete from this date.
+
+144. **Schema readiness for the artoftea.ru scrape: `region` table + `harvest_year` (Flyway V18,
+     2026-06-24).** Verifying the PG schema before the scraper/enrichment work, two pre-scrape gaps
+     were closed; the scrape→review→apply (facts) path otherwise needs no migration.
+     - **Proper region (closes the #138 deferral / SRV-P1-2):** new `region` table (Wikidata-QID
+       identity when known + `name_ru/en/zh` localized names + `country_code`; no parent hierarchy
+       yet, YAGNI) and `tea.region_id` FK. **Additive + nullable** — `tea.region` free-text is KEPT as
+       the raw/as-authored value (the 100-tea seed has composite English regions with no QIDs), and
+       `region_id` is the canonical resolution, populated later by curation. The raw-text→region
+       matcher is still **not built** (apply keeps writing region text, `region_id` null); that is the
+       scraper/operator step.
+     - **Harvest year:** `tea.harvest_year SMALLINT CHECK 1900..2100`, a new scalar fact on
+       `ScrapedFacts` (`@Min/@Max`) that flows through the claim model exactly like `cultivar` (selected
+       claim on create-new, fill-null on merge). Exposed on `TeaDetailDto` (the Android client ignores
+       unknown keys, so additive-safe).
+     - **Still pending before the Eliza batch:** the **run-11 per-dimension flavor provenance** migration
+       (`tea_flavor` carries only `(dimension, intensity)` — no per-axis confidence/source/`enrichment_run`)
+       + an `enrichment_run` table. That is the one migration the batch-enrichment half still needs;
+       region/harvest do not depend on it.
+     - Verified: server `./gradlew check` green locally (256 tests, 0 failures; Testcontainers IT applies
+       V18 on real PG and round-trips a harvest-year claim). CI is out of GitHub Actions minutes → local
+       gate, commit to `main`.
