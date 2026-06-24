@@ -168,6 +168,7 @@ class TeaCatalogService(
         type = type,
         originCountry = originCountry,
         region = region,
+        harvestYear = harvestYear?.toInt(),
         cultivar = cultivar,
         oxidationMin = oxidationMin?.toInt(),
         oxidationMax = oxidationMax?.toInt(),

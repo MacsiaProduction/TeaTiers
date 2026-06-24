@@ -46,4 +46,19 @@ class FactsValidatorTest {
     fun `a non-canonical (lowercase) country code is rejected`() {
         assertFailsWith<FactsValidationException> { factsValidator.validate(facts(country = "cn")) }
     }
+
+    private fun factsWithYear(year: Int?) =
+        ScrapedFacts(names = listOf(ScrapedName("en", "Some Tea", true)), harvestYear = year)
+
+    @Test
+    fun `a plausible harvest year passes`() {
+        factsValidator.validate(factsWithYear(2024))
+        factsValidator.validate(factsWithYear(null)) // optional
+    }
+
+    @Test
+    fun `a harvest year out of range is rejected`() {
+        assertFailsWith<FactsValidationException> { factsValidator.validate(factsWithYear(1899)) }
+        assertFailsWith<FactsValidationException> { factsValidator.validate(factsWithYear(2101)) }
+    }
 }

@@ -38,7 +38,7 @@ class ResolveServiceTest {
 
     private fun detail(id: Long, state: String? = null) = TeaDetailDto(
         id = id, publicId = UUID.randomUUID(), status = "active", supersededByPublicId = null,
-        wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
+        wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null, harvestYear = null,
         cultivar = null, oxidationMin = null, oxidationMax = null, brand = null, image = null,
         images = emptyList(),
         names = listOf(TeaNameDto("en", "Longjing tea", true)), descriptions = emptyList(),

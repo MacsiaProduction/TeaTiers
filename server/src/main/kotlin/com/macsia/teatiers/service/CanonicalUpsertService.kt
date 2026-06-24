@@ -82,6 +82,7 @@ class CanonicalUpsertService(
             originCountry = facts.originCountry,
             region = facts.region,
             cultivar = facts.cultivar,
+            harvestYear = facts.harvestYear?.toShort(),
             oxidationMin = facts.oxidationMin?.toShort(),
             oxidationMax = facts.oxidationMax?.toShort(),
             // brand is NOT set from identity approval (decision #139-R4): a vendor/brand is observation-only
@@ -115,6 +116,7 @@ class CanonicalUpsertService(
         if (facts.originCountry != null) selectClaim(teaId, "origin_country", facts.originCountry, ctx)
         if (facts.region != null) selectClaim(teaId, "region", facts.region, ctx)
         if (facts.cultivar != null) selectClaim(teaId, "cultivar", facts.cultivar, ctx)
+        if (facts.harvestYear != null) selectClaim(teaId, "harvest_year", facts.harvestYear.toString(), ctx)
         if (facts.brand != null) nonSelectedClaim(teaId, "brand", facts.brand, ctx)
         oxidationValue(facts.oxidationMin?.toShort(), facts.oxidationMax?.toShort())
             ?.let { selectClaim(teaId, "oxidation", it, ctx) }
@@ -157,6 +159,9 @@ class CanonicalUpsertService(
         mergeScalar(targetTeaId, "origin_country", tea.originCountry, facts.originCountry, ctx) { tea.originCountry = it }
         mergeScalar(targetTeaId, "region", tea.region, facts.region, ctx) { tea.region = it }
         mergeScalar(targetTeaId, "cultivar", tea.cultivar, facts.cultivar, ctx) { tea.cultivar = it }
+        mergeScalar(targetTeaId, "harvest_year", tea.harvestYear?.toString(), facts.harvestYear?.toString(), ctx) {
+            tea.harvestYear = it.toShort()
+        }
         mergeOxidation(targetTeaId, tea, facts, ctx)
         // type is identity (never changed by a merge), but corroboration/conflict is still recorded.
         facts.type?.let { recordCorroborationOrConflict(targetTeaId, "type", teaType(it).name, ctx) }
