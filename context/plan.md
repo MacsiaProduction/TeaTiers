@@ -15,6 +15,11 @@
 > observation revisions, value-bearing provenance + alias promotion, local review CLI). **Not started:**
 > the scraper module itself (deferred), the Room v6→v7 lossless migration (AND-P1-1), the next-public-APK
 > release/privacy/ops gates.
+>
+> **Infra superseded (`2026-06-24`, decision #143):** production moved off the Yandex Cloud VM to
+> **pelican-node** (Docker-Compose + Komodo-managed; YC VM/IP + the whole `infra/` OpenTofu stack
+> deleted). Every "Yandex Cloud / OpenTofu / `infra/` / Terraform" mention below (incl. §2's diagram
+> and §8) is **historical** — current deploy truth is `deploy/README.md` + `decisions.md` #143.
 
 Source of truth for the build plan. Decisions it rests on are in
 `./decisions.md`; product spec in `../task.md`; stack rules in `../AGENTS.md`.
@@ -483,7 +488,7 @@ benchmarks better (#18).
 > launch, not part of this feature push.
 
 The explicit checklist for "the first public APK may ship" (from the
-2026-06-17 architecture review; see `context/review/2026-06-17-disposition.md`). Until every
+2026-06-17 architecture review; see `context/review/archive-2026-06/2026-06-17-disposition.md`). Until every
 line is ✅ or a deliberate written waiver, the build stays internal-only.
 
 - [x] **Room migrations:** destructive fallback removed for release; `exportSchema` on + v6 baseline

@@ -48,6 +48,41 @@ docker compose ps
 curl -fsS https://tea.macsia.fun/actuator/health   # {"status":"UP"}
 ```
 
+## Scrape upload channel (other-machine drop)
+
+Secure one-way pipe so the **other (free-AI) machine** pushes scrape output to
+pelican-node for import (the scraper/importer wiring is future work, TeaTiers #137 —
+this is only the upload pipe + contract).
+
+- **Receiving side (pelican-node):** isolated drop user `teascrape` (uid 1003,
+  password-locked). `~teascrape/.ssh/authorized_keys` is locked to
+  `restrict,command="/usr/bin/rrsync -wo /home/teascrape/drop" <pubkey>` — every
+  session is confined to **write-only rsync** into `/home/teascrape/drop/` (no pty,
+  no read-back, no `..` escape; all verified). SSH endpoint: `node.macsia.fun:47894`.
+- **Upload (from the scraper machine):**
+
+```bash
+RSH="ssh -p 47894 -i ~/.ssh/teascrape_ed25519"
+# local layout: ./out/<YYYY-MM-DD>/<runId>.ndjson
+rsync -a --rsh="$RSH" ./out/ teascrape@node.macsia.fun:
+```
+
+- **Data contract** — `SourceObservation` NDJSON, one observation per line, facts-only
+  (TeaTiers #136/#141): no prose/description/image/review, no `source`, no
+  `verificationStatus` (the importer sets `source='scrape'` + non-verified itself).
+  Unknown `type` / non-ISO `originCountry` are **rejected**, not coerced; `evidence`
+  (proof of fetch) and a fresh `RobotsEvidence` (`decision="allow"`, 2xx) are mandatory.
+  Fields: `server/.../dto/ScrapeImportDtos.kt` (`SourceObservation`, `ScrapedFacts`,
+  `ScrapedName`, `FetchEvidence`).
+- **Import (future, #137):** the importer stages `source_record` + review candidates
+  (never writes canonical teas), then the operator drives the two-phase apply via the
+  `review-cli` profile (`pending` → `close-ingestion` → `mark-reviewed` → `apply-run`).
+  Until #137 lands, uploads accumulate in `/home/teascrape/drop/`.
+
+The channel keypair was generated at `~/vpn/secrets/teascrape_ed25519{,.pub}`; deploy
+the private half to the scraper box and `shred` it on pelican (pubkey stays in
+`authorized_keys`).
+
 ## Known gap
 
 DB backups are **not yet re-homed**. The retired VM had an off-box `pg_dump` → Yandex Object Storage
