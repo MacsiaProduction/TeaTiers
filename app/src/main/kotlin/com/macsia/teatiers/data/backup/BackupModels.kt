@@ -50,6 +50,9 @@ data class BackupBundle(
 data class BackupCatalogRef(
     val id: Long,
     val type: String,
+    // v8 dual-key (#137-C2); defaulted so a pre-v8 bundle restores with a null publicId (re-stamped
+    // lazily on the next enrichment — the Long id is the fallback meanwhile).
+    val catalogPublicId: String? = null,
     val wikidataQid: String? = null,
     val originCountry: String? = null,
     val region: String? = null,
@@ -154,9 +157,9 @@ fun SeedEntities.toBundle(exportedAtEpochMs: Long, appVersion: String): BackupBu
     tiers = tiers.map { BackupTier(it.id, it.boardId, it.label, it.position, it.colorArgb) },
     catalogRefs = catalogRefs.map {
         BackupCatalogRef(
-            it.id, it.type, it.wikidataQid, it.originCountry, it.region, it.cultivar, it.oxidationMin,
-            it.oxidationMax, it.brand, it.verificationStatus, it.confidence, it.enrichmentState,
-            it.shortBlurb, it.source, it.sourceUrl, it.license, it.fetchedAtEpochMs,
+            it.id, it.type, it.catalogPublicId, it.wikidataQid, it.originCountry, it.region, it.cultivar,
+            it.oxidationMin, it.oxidationMax, it.brand, it.verificationStatus, it.confidence,
+            it.enrichmentState, it.shortBlurb, it.source, it.sourceUrl, it.license, it.fetchedAtEpochMs,
         )
     },
     teas = teas.map {
@@ -206,9 +209,9 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
     val refTypeById = teaRows.filter { it.catalogTeaId != null }.associate { it.catalogTeaId!! to it.type }
     val refRows = catalogRefs.map {
         CatalogRefEntity(
-            it.id, it.type, it.wikidataQid, it.originCountry, it.region, it.cultivar, it.oxidationMin,
-            it.oxidationMax, it.brand, it.verificationStatus, it.confidence, it.enrichmentState,
-            it.shortBlurb, it.source, it.sourceUrl, it.license, it.fetchedAtEpochMs,
+            it.id, it.type, it.catalogPublicId, it.wikidataQid, it.originCountry, it.region, it.cultivar,
+            it.oxidationMin, it.oxidationMax, it.brand, it.verificationStatus, it.confidence,
+            it.enrichmentState, it.shortBlurb, it.source, it.sourceUrl, it.license, it.fetchedAtEpochMs,
         )
     } + refTypeById.filterKeys { it !in bundledRefIds }
         .map { (id, type) -> CatalogRefEntity(id = id, type = type, fetchedAtEpochMs = 0L) }

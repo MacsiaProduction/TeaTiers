@@ -23,7 +23,11 @@ import org.robolectric.annotation.Config
  * the v7 schema is internally consistent (matches the committed `7.json`) and that the FK invariants
  * the split relies on actually hold on Robolectric's SQLite: CASCADE delete of a sample's children,
  * rejection of orphan links, and `ON DELETE SET NULL` so evicting a catalog ref never deletes a
- * sample (P1-1). When a real collection lands, the next bump adds a `Migration(7, N)` test here.
+ * sample (P1-1).
+ *
+ * **v7→v8 (catalog dual-key, #137-C2)** is the FIRST real `Migration` off the durable baseline:
+ * [v7_to_v8_addsCatalogPublicId_lossless] seeds a v7 row, migrates, and proves no data is dropped and
+ * the new column lands nullable (lazily backfilled at runtime, not by the migration).
  *
  * MigrationTestHelper reads the exported schemas from the merged debug assets (wired in
  * build.gradle.kts via `sourceSets["debug"].assets.srcDir("schemas")` + `unitTests.isIncludeAndroidResources
@@ -58,6 +62,33 @@ class TeaDatabaseMigrationTest {
         val resetFrom = AppModule.DESTRUCTIVE_RESET_FROM.toList()
         assertEquals("only pre-v7 versions are destructively reset", listOf(1, 2, 3, 4, 5, 6), resetFrom)
         assertEquals("v7 is never destructively reset", false, resetFrom.contains(7))
+    }
+
+    @Test
+    fun v7_to_v8_addsCatalogPublicId_lossless() {
+        // First migration off the v7 baseline (#137-C2). Seed a fully-populated catalog_refs row at v7,
+        // run Migration(7,8), and prove it's lossless: every column round-trips and the new
+        // catalogPublicId lands NULL (backfill is lazy at runtime — the migration never touches data).
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.execSQL(
+                "INSERT INTO catalog_refs (id, type, brand, shortBlurb, fetchedAtEpochMs) " +
+                    "VALUES (42, 'OOLONG', 'Acme', 'a roasted oolong', 123)",
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 8, true, MIGRATION_7_8)
+        db.query(
+            "SELECT type, brand, shortBlurb, fetchedAtEpochMs, catalogPublicId FROM catalog_refs WHERE id = 42",
+        ).use { c ->
+            assertEquals("the v7 ref survives the migration", 1, c.count)
+            c.moveToFirst()
+            assertEquals("type preserved", "OOLONG", c.getString(0))
+            assertEquals("brand preserved", "Acme", c.getString(1))
+            assertEquals("blurb preserved", "a roasted oolong", c.getString(2))
+            assertEquals("fetchedAt preserved", 123L, c.getLong(3))
+            assertEquals("new column backfills lazily, so it's NULL right after migrate", true, c.isNull(4))
+        }
+        db.close()
     }
 
     @Test

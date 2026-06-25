@@ -174,10 +174,17 @@ class TeaEnrichmentManager @Inject constructor(
         )
     }
 
-    /** The cached catalog-ref facts to write alongside the link (the catalog-refresh writer payload). */
+    /**
+     * The cached catalog-ref facts to write alongside the link (the catalog-refresh writer payload).
+     * This is the lazy-backfill point for the v8 dual-key (#137-C2): every detail fetch stamps the
+     * durable [publicId] onto the ref, so an old (pre-v8, null) ref is filled in the next time it's
+     * resolved and a new link writes the UUID straight away. `publicId` is null only from an older
+     * server; the Long [id] stays the fallback.
+     */
     private fun CatalogTeaDetail.toRefEntity(): CatalogRefEntity = CatalogRefEntity(
         id = id,
         type = type.name,
+        catalogPublicId = publicId,
         originCountry = originCountry,
         region = region,
         cultivar = cultivar,
