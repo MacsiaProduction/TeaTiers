@@ -22,6 +22,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Load state for the detail screen, so it can show a spinner / "not found" instead of a blank screen. */
+sealed interface TeaDetailUiState {
+    data object Loading : TeaDetailUiState
+    data object NotFound : TeaDetailUiState
+    data class Loaded(val tea: Tea) : TeaDetailUiState
+}
+
 /**
  * Resolves the user-tea identified by [bind] (decisions.md #42 — board-agnostic). The flow
  * re-runs the lookup whenever the repository's boards emit so an edit on any board ripples to
@@ -43,13 +50,27 @@ class TeaDetailViewModel @Inject constructor(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val tea: StateFlow<Tea?> = teaId
+    val uiState: StateFlow<TeaDetailUiState> = teaId
         .flatMapLatest { id ->
-            if (id == null) flowOf(null)
-            // mapLatest so a re-emit of `boards` cancels the in-flight lookup; fine because
-            // `repository.tea` is mostly an in-memory hit anyway.
-            else repository.boards.mapLatest { repository.tea(id) }
+            if (id == null) {
+                flowOf(TeaDetailUiState.Loading)
+            } else {
+                // mapLatest so a re-emit of `boards` cancels the in-flight lookup; fine because
+                // `repository.tea` is mostly an in-memory hit anyway. A missing id resolves to
+                // NotFound (e.g. the tea was deleted) so the screen never sits blank forever.
+                repository.boards.mapLatest {
+                    repository.tea(id)?.let(TeaDetailUiState::Loaded) ?: TeaDetailUiState.NotFound
+                }
+            }
         }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = TeaDetailUiState.Loading,
+        )
+
+    val tea: StateFlow<Tea?> = uiState
+        .map { (it as? TeaDetailUiState.Loaded)?.tea }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

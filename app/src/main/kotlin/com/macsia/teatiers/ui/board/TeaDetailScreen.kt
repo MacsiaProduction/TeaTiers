@@ -1,8 +1,5 @@
 package com.macsia.teatiers.ui.board
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +56,7 @@ import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.viewmodel.CollectUiEvents
+import com.macsia.teatiers.viewmodel.TeaDetailUiState
 import com.macsia.teatiers.viewmodel.TeaDetailViewModel
 
 private val ScreenInset = 16.dp
@@ -72,8 +71,9 @@ fun TeaDetailScreen(
     viewModel: TeaDetailViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(teaId) { viewModel.bind(teaId) }
-    val tea by viewModel.tea.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val referenceFlavors by viewModel.referenceFlavors.collectAsStateWithLifecycle()
+    val loaded = uiState as? TeaDetailUiState.Loaded
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -83,7 +83,7 @@ fun TeaDetailScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(tea?.nameRu.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(loaded?.tea?.displayName.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -93,7 +93,7 @@ fun TeaDetailScreen(
                     }
                 },
                 actions = {
-                    if (tea != null) {
+                    if (loaded != null) {
                         IconButton(onClick = { onEdit(teaId) }) {
                             Icon(
                                 imageVector = Icons.Filled.Edit,
@@ -124,25 +124,41 @@ fun TeaDetailScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
-        val current = tea
-        if (current == null) {
-            Box(Modifier.fillMaxSize().padding(innerPadding))
-        } else {
-            TeaDetailBody(
-                tea = current,
-                referenceFlavors = referenceFlavors,
-                onUseReference = viewModel::useReferenceAsMyRating,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = ScreenInset, vertical = 8.dp),
-            )
+        when (val state = uiState) {
+            TeaDetailUiState.Loading ->
+                Box(
+                    Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+
+            TeaDetailUiState.NotFound ->
+                Box(
+                    Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.detail_not_found),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+            is TeaDetailUiState.Loaded ->
+                TeaDetailBody(
+                    tea = state.tea,
+                    referenceFlavors = referenceFlavors,
+                    onUseReference = viewModel::useReferenceAsMyRating,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = ScreenInset, vertical = 8.dp),
+                )
         }
     }
 
     if (confirmDelete) {
-        val name = tea?.nameRu.orEmpty()
+        val name = loaded?.tea?.displayName.orEmpty()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.delete_tea_confirm_title)) },
@@ -317,13 +333,7 @@ private fun PurchaseRow(location: PurchaseLocation) {
     }
 
     Surface(
-        onClick = {
-            if (uri != null) {
-                runCatching {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
-                }.onFailure { if (it !is ActivityNotFoundException) throw it }
-            }
-        },
+        onClick = { if (uri != null) context.openExternalUrl(uri) },
         enabled = uri != null,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,

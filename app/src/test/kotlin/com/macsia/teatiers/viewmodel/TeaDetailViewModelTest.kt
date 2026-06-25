@@ -85,6 +85,32 @@ class TeaDetailViewModelTest {
     }
 
     @Test
+    fun `uiState resolves to Loaded for an existing tea`() = runTest {
+        coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
+        val vm = TeaDetailViewModel(repository, catalog)
+        vm.bind("t1")
+
+        backgroundScope.launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertTrue(state is TeaDetailUiState.Loaded)
+        assertEquals("t1", (state as TeaDetailUiState.Loaded).tea.id)
+    }
+
+    @Test
+    fun `uiState resolves to NotFound when the tea is missing`() = runTest {
+        coEvery { repository.tea("gone") } returns null
+        val vm = TeaDetailViewModel(repository, catalog)
+        vm.bind("gone")
+
+        backgroundScope.launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(TeaDetailUiState.NotFound, vm.uiState.value)
+    }
+
+    @Test
     fun `useReferenceAsMyRating copies the reference profile into the user tea`() = runTest {
         val reference = listOf(FlavorScore(FlavorDimension.GRASSY, 4), FlavorScore(FlavorDimension.UMAMI, 3))
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = 5)

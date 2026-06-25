@@ -1,7 +1,5 @@
 package com.macsia.teatiers.ui.board
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,7 +36,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -304,11 +301,7 @@ private fun LinkedText(text: String, url: String?) {
         style = MaterialTheme.typography.labelSmall,
         color = color,
         modifier = if (url != null) {
-            Modifier.clickable {
-                runCatching {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
-                }.onFailure { if (it !is ActivityNotFoundException) throw it }
-            }
+            Modifier.clickable { context.openExternalUrl(url) }
         } else {
             Modifier
         },
