@@ -20,6 +20,9 @@ data class TeaNameDto(
 @Serializable
 data class TeaSummaryDto(
     val id: Long,
+    // Stable client-facing id (server #136). Kept as the raw UUID string so an unparseable/absent
+    // value (older server) never fails decoding; the app treats it as an opaque durable key.
+    val publicId: String? = null,
     val type: String,
     val originCountry: String? = null,
     val brand: String? = null,
@@ -67,6 +70,11 @@ data class TeaProvenanceDto(
 @Serializable
 data class TeaDetailDto(
     val id: Long,
+    val publicId: String? = null,
+    // Soft-rollback lifecycle (server #136): "active" | "merged". A "retracted"/broken-merge tea comes
+    // back as a 410 [TeaLifecycleDto] instead. Defaults keep an older server (no field) decoding as active.
+    val status: String = "active",
+    val supersededByPublicId: String? = null,
     val wikidataQid: String? = null,
     val type: String,
     val originCountry: String? = null,
@@ -90,6 +98,19 @@ data class TeaDetailDto(
 data class FacetsDto(
     val types: List<String> = emptyList(),
     val origins: List<String> = emptyList(),
+)
+
+/**
+ * Content-free lifecycle body returned with HTTP 410 for a withdrawn (`retracted`) tea, or a `merged`
+ * tea whose survivor chain is broken (server #137-C3). Carries no catalog content by design — a
+ * retraction genuinely withdraws data. [supersededByPublicId] points at the survivor when known.
+ */
+@Serializable
+data class TeaLifecycleDto(
+    val publicId: String? = null,
+    val status: String = "retracted",
+    val supersededByPublicId: String? = null,
+    val message: String? = null,
 )
 
 /**

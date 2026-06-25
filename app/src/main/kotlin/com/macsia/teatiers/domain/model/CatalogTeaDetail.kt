@@ -8,6 +8,8 @@ package com.macsia.teatiers.domain.model
  */
 data class CatalogTeaDetail(
     val id: Long,
+    // Stable cross-rebuild identity (server #136); null only from an older server. See [CatalogTea.publicId].
+    val publicId: String? = null,
     val type: TeaType,
     val originCountry: String?,
     val region: String?,
@@ -58,6 +60,7 @@ data class CatalogTeaDetail(
     /** Narrows the detail back to the search-shaped [CatalogTea] so the add form prefill reuses one path. */
     fun toCatalogTea(): CatalogTea = CatalogTea(
         id = id,
+        publicId = publicId,
         type = type,
         originCountry = originCountry,
         brand = brand,

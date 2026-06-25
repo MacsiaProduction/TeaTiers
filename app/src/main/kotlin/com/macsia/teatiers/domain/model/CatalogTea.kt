@@ -8,6 +8,9 @@ package com.macsia.teatiers.domain.model
  */
 data class CatalogTea(
     val id: Long,
+    // Stable cross-rebuild identity (server #136); null only from an older server. The durable key the
+    // app should persist/link by — `id` (the BIGINT) is volatile across server DB rebuilds.
+    val publicId: String? = null,
     val type: TeaType,
     val originCountry: String?,
     val brand: String?,

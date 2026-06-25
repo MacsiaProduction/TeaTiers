@@ -77,6 +77,9 @@ fun CatalogDetailSheet(
                 text = stringResource(R.string.catalog_detail_error),
                 onRetry = onRetry,
             )
+            CatalogDetailUiState.Withdrawn -> DetailMessage(
+                text = stringResource(R.string.catalog_detail_withdrawn),
+            )
             is CatalogDetailUiState.Loaded -> CatalogDetailContent(
                 detail = state.detail,
                 onUse = { onUse(state.detail) },
@@ -101,7 +104,7 @@ private fun DetailStatus(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun DetailMessage(text: String, onRetry: () -> Unit) {
+private fun DetailMessage(text: String, onRetry: (() -> Unit)? = null) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -116,9 +119,12 @@ private fun DetailMessage(text: String, onRetry: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onRetry) {
-            Text(stringResource(R.string.action_retry))
+        // A withdrawn entry is not retryable, so the retry affordance is omitted there.
+        onRetry?.let {
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = it) {
+                Text(stringResource(R.string.action_retry))
+            }
         }
     }
 }

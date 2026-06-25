@@ -31,12 +31,12 @@ class DefaultCatalogRepositoryTest {
     private lateinit var server: MockWebServer
     private lateinit var api: CatalogApi
     private val dao = mockk<CatalogDao>(relaxUnitFun = true)
+    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     @BeforeEach
     fun setUp() {
         server = MockWebServer()
         server.start()
-        val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
         api = Retrofit.Builder()
             .baseUrl(server.url("/api/v1/"))
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
@@ -52,7 +52,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `search returns parsed teas and caches them on a network hit`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(SEARCH_BODY))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("long")
 
@@ -69,7 +69,7 @@ class DefaultCatalogRepositoryTest {
 
     @Test
     fun `blank query short-circuits without touching the network or cache`() = runTest {
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("   ")
 
@@ -82,7 +82,7 @@ class DefaultCatalogRepositoryTest {
     fun `server error with an empty cache surfaces Error`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
         coEvery { dao.search(any(), any()) } returns emptyList()
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("long")
 
@@ -94,7 +94,7 @@ class DefaultCatalogRepositoryTest {
         server.enqueue(MockResponse().setResponseCode(503))
         val cached = sampleTea().toCacheEntity(fetchedAtEpochMs = 1L)
         coEvery { dao.search("long", any()) } returns listOf(cached)
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("Long")
 
@@ -108,7 +108,7 @@ class DefaultCatalogRepositoryTest {
     fun `network failure with an empty cache surfaces Offline`() = runTest {
         server.shutdown()
         coEvery { dao.search(any(), any()) } returns emptyList()
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("long")
 
@@ -118,7 +118,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `browse parses a page and carries the next cursor`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(BROWSE_BODY))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.browse(cursor = null)
 
@@ -136,7 +136,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `browse forwards the cursor on a paged request`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[],"nextCursor":null}"""))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.browse(cursor = 42L)
 
@@ -147,7 +147,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `browse maps a server error to Error and a network failure to Offline`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
         assertEquals(CatalogBrowseResult.Error, repo.browse())
 
         server.shutdown()
@@ -157,7 +157,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `detail returns a parsed detail on a network hit`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(DETAIL_BODY))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.detail(1)
 
@@ -179,7 +179,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `detail server error surfaces Error`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         assertEquals(CatalogDetailResult.Error, repo.detail(1))
     }
@@ -187,15 +187,30 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `detail network failure surfaces Offline`() = runTest {
         server.shutdown()
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         assertEquals(CatalogDetailResult.Offline, repo.detail(1))
     }
 
     @Test
+    fun `detail 410 surfaces a Retracted tombstone carrying the survivor id`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(410).setBody(
+                """{"publicId":"old-uuid","status":"merged","supersededByPublicId":"survivor-uuid"}""",
+            ),
+        )
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        val result = repo.detail(1)
+
+        assertTrue(result is CatalogDetailResult.Retracted)
+        assertEquals("survivor-uuid", (result as CatalogDetailResult.Retracted).supersededByPublicId)
+    }
+
+    @Test
     fun `resolve MATCHED returns the parsed detail`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(resolveBody("MATCHED", DETAIL_BODY)))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.resolve("Лунцзин")
 
@@ -207,7 +222,7 @@ class DefaultCatalogRepositoryTest {
     fun `resolve ENRICHING carries the catalog id to poll`() = runTest {
         val stub = """{"id":42,"type":"OTHER","enrichmentState":"PENDING"}"""
         server.enqueue(MockResponse().setResponseCode(200).setBody(resolveBody("ENRICHING", stub)))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.resolve("Неизвестный чай")
 
@@ -217,7 +232,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `resolve UNRESOLVED maps to Unresolved (null tea)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"UNRESOLVED","tea":null}"""))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         assertEquals(ResolveResult.Unresolved, repo.resolve("Фантом"))
     }
@@ -225,7 +240,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `resolve maps a server error to Error and a network failure to Offline`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
         assertEquals(ResolveResult.Error, repo.resolve("Чай"))
 
         server.shutdown()
@@ -234,7 +249,7 @@ class DefaultCatalogRepositoryTest {
 
     @Test
     fun `resolve short-circuits a blank name without touching the network`() = runTest {
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         assertEquals(ResolveResult.Unresolved, repo.resolve("   "))
         assertEquals(0, server.requestCount)
@@ -243,7 +258,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `ocr returns the recognized text on a hit`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"text":"Зелёный чай"}"""))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.ocr(byteArrayOf(1, 2, 3))
 
@@ -259,7 +274,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `ocr maps a missing text field to blank recognized`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.ocr(byteArrayOf(1))
 
@@ -272,7 +287,7 @@ class DefaultCatalogRepositoryTest {
             MockResponse().setResponseCode(200)
                 .setBody("""{"text":"Дянь Хyн","corrected":"Дянь Хун"}"""),
         )
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.ocr(byteArrayOf(1))
 
@@ -282,7 +297,7 @@ class DefaultCatalogRepositoryTest {
     @Test
     fun `ocr falls back corrected to raw text when the server omits it`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"text":"Дянь Хун"}"""))
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.ocr(byteArrayOf(1))
 
@@ -291,7 +306,7 @@ class DefaultCatalogRepositoryTest {
 
     @Test
     fun `ocr maps status codes to typed outcomes`() = runTest {
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
         server.enqueue(MockResponse().setResponseCode(413))
         assertEquals(OcrResult.TooLarge, repo.ocr(byteArrayOf(1)))
         server.enqueue(MockResponse().setResponseCode(429))
@@ -304,7 +319,7 @@ class DefaultCatalogRepositoryTest {
 
     @Test
     fun `ocr maps a network failure to Offline and an empty image to Error`() = runTest {
-        val repo = DefaultCatalogRepository(api, dao)
+        val repo = DefaultCatalogRepository(api, dao, json)
         assertEquals(OcrResult.Error, repo.ocr(ByteArray(0))) // short-circuits, no request
         assertEquals(0, server.requestCount)
         server.shutdown()
