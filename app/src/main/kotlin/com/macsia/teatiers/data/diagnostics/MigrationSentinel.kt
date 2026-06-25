@@ -14,7 +14,6 @@ private const val TAG = "MigrationSentinel"
 /** The current user-data row counts the sentinel watches (numeric, no content). */
 data class RowCounts(val boards: Int, val teas: Int, val photos: Int) {
     val isEmpty: Boolean get() = boards == 0 && teas == 0 && photos == 0
-    val hasData: Boolean get() = boards > 0 || teas > 0 || photos > 0
 }
 
 /** The baseline persisted on the previous launch (see [DiagnosticsPreferences.readState]). */

@@ -41,7 +41,15 @@ class Tea(
 
     var region: String? = null,
 
+    // Canonical region (V18, decision #138); null until a curation/QID step resolves the raw `region` text.
+    @Column(name = "region_id")
+    var regionId: Long? = null,
+
     var cultivar: String? = null,
+
+    // Gregorian harvest year (V18); a scalar fact, recorded as a claim like origin/cultivar.
+    @Column(name = "harvest_year")
+    var harvestYear: Short? = null,
 
     @Column(name = "oxidation_min")
     var oxidationMin: Short? = null,

@@ -2,7 +2,7 @@ package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.dto.ClientDiagnosticReportDto
 import com.macsia.teatiers.service.ClientDiagnosticsService
-import com.macsia.teatiers.service.DiagnosticsDailyBudget
+import com.macsia.teatiers.service.DailyBudget
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -20,7 +20,7 @@ import org.springframework.http.HttpStatus
 class ClientDiagnosticsControllerTest {
 
     private val service = mockk<ClientDiagnosticsService>()
-    private val dailyBudget = mockk<DiagnosticsDailyBudget>()
+    private val dailyBudget = mockk<DailyBudget>()
 
     private fun controller(enabled: Boolean = true, token: String = "s3cret", underBudget: Boolean = true) =
         ClientDiagnosticsController(

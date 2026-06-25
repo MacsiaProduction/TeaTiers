@@ -76,13 +76,14 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         externalId: String? = null,
         names: List<ScrapedName> = listOf(ScrapedName("en", "Sen Cha", true)),
         region: String? = null,
+        harvestYear: Int? = null,
     ) = SourceObservation(
         sourceSiteCode = "s",
         canonicalUrl = url,
         externalId = externalId,
         retrievedAt = fetchedAt,
         parserVersion = "p-1",
-        facts = ScrapedFacts(names = names, type = "OOLONG", originCountry = "CN", region = region),
+        facts = ScrapedFacts(names = names, type = "OOLONG", originCountry = "CN", region = region, harvestYear = harvestYear),
         evidence = FetchEvidence(contentHash = "b".repeat(64), httpStatus = 200, contentType = "text/html"),
     )
 
@@ -150,6 +151,21 @@ class RevisionAndClaimsIT : AbstractIntegrationTest() {
         // A new revision arrives but the operator approves the OLD decision without re-proposing.
         importService.ingest(runId, obs("https://s.example/a", externalId = "A", region = "Wuyishan"))
         assertFailsWith<StaleDecisionException> { reviewService.approveNew(requireNotNull(d1.id), "op") }
+    }
+
+    @Test
+    fun `apply records harvest year as a selected claim and round-trips onto the tea row`() {
+        startRun()
+        val r1 = importService.ingest(runId, obs("https://s.example/h", externalId = "H", harvestYear = 2024))
+        val d1 = matchService.proposeFor(requireNotNull(r1.id), runId)
+        reviewService.approveNew(requireNotNull(d1.id), "op")
+        val teaId = assertNotNull(sealAndApply().results.single().teaId)
+
+        val tea = teaRepository.findById(teaId).orElseThrow()
+        assertEquals(2024.toShort(), tea.harvestYear, "harvest year round-trips Int -> Short onto the tea row")
+        val claim = provenanceRepository.findByTeaId(teaId)
+            .firstOrNull { it.fieldName == "harvest_year" && it.selected }
+        assertEquals("2024", assertNotNull(claim).claimedValue, "harvest year is a selected value-bearing claim")
     }
 
     // ---- C5.6: source-identity reconciliation ----

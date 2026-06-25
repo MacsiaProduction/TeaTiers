@@ -10,17 +10,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
- * One-shot UI events emitted by ViewModels for the screen to react to. Today only carries
- * snackbar requests, but the sealed interface leaves room for future "navigate" or "vibrate"
- * events without reshaping the channel surface.
+ * One-shot UI event emitted by ViewModels for the screen to react to: a snackbar request.
  *
  * The companion [UiEventHost] is a tiny VM-side helper that wraps a buffered channel + the
  * matching [Flow] exposure pattern used across every ViewModel here, so each VM does not
  * have to repeat the four lines that wire it up.
  */
-sealed interface UiEvent {
-    data class ShowSnackbar(@StringRes val messageRes: Int) : UiEvent
-}
+data class ShowSnackbar(@StringRes val messageRes: Int)
 
 /**
  * Per-VM helper around a buffered channel. Emit fires-and-forgets — the screen consumes via
@@ -28,9 +24,9 @@ sealed interface UiEvent {
  * Buffered (capacity 8) so a burst of repo failures does not suspend the producer.
  */
 class UiEventHost {
-    private val channel = Channel<UiEvent>(capacity = 8)
-    val events: Flow<UiEvent> = channel.receiveAsFlow()
-    fun emit(event: UiEvent) {
+    private val channel = Channel<ShowSnackbar>(capacity = 8)
+    val events: Flow<ShowSnackbar> = channel.receiveAsFlow()
+    fun emit(event: ShowSnackbar) {
         channel.trySend(event)
     }
 }
@@ -41,13 +37,11 @@ class UiEventHost {
  * top-level composable that owns a [androidx.compose.material3.Scaffold]'s SnackbarHost.
  */
 @Composable
-fun CollectUiEvents(events: Flow<UiEvent>, host: SnackbarHostState) {
+fun CollectUiEvents(events: Flow<ShowSnackbar>, host: SnackbarHostState) {
     val resources = LocalContext.current.resources
     LaunchedEffect(events, host) {
         events.collect { event ->
-            when (event) {
-                is UiEvent.ShowSnackbar -> host.showSnackbar(resources.getString(event.messageRes))
-            }
+            host.showSnackbar(resources.getString(event.messageRes))
         }
     }
 }

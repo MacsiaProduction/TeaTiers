@@ -170,6 +170,7 @@ class TeaControllerTest {
                 type = TeaType.GREEN,
                 originCountry = "CN",
                 region = null,
+                harvestYear = null,
                 cultivar = null,
                 oxidationMin = null,
                 oxidationMax = null,
@@ -252,7 +253,7 @@ class TeaControllerTest {
             tea = TeaDetailDto(
                 id = 11, publicId = UUID.randomUUID(), status = "active", supersededByPublicId = null,
                 wikidataQid = "Q1069130", type = TeaType.GREEN, originCountry = "CN",
-                region = null, cultivar = null, oxidationMin = null, oxidationMax = null, brand = null,
+                region = null, harvestYear = null, cultivar = null, oxidationMin = null, oxidationMax = null, brand = null,
                 image = null, images = emptyList(), names = listOf(TeaNameDto("en", "Longjing tea", true)),
                 descriptions = emptyList(), flavors = emptyList(),
                 provenance = TeaProvenanceDto("wikidata", null, "CC0-1.0", "unverified", 0.9f),

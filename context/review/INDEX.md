@@ -46,7 +46,7 @@ already closed this pass, `CODEABLE` are in-repo work not yet scheduled, `OWNER`
 
 | ID | Finding (short) | Surface | Severity | Status / disposition |
 |---|---|---|:--:|---|
-| OPS-P0-1 | Prod serves the OLD catalog contract (no `publicId`, `/by-public-id/{uuid}`→404); deploy by digest + pre/post contract probes | deploy | **P0** | **OWNER** — needs the VM; the server *code* already exposes the new contract. Pair with OPS-P1-1 deploy script. |
+| OPS-P0-1 | Prod serves the OLD catalog contract (no `publicId`, `/by-public-id/{uuid}`→404); deploy by digest + pre/post contract probes | deploy | **P0** | **RESOLVED (#143)** — the pelican-node fresh-seed deploy runs V7–V17; verified live 2026-06-24 (`publicId` in `/search`, `/by-public-id/{id}`→200, `/resolve`→200). Digest-pinned deploy is still OPS-P1-1. |
 | REL-P0-1 | `release.jks` `0644`; recovery unproven | ops | **P0** | **DONE (chmod)** + OWNER (offline backup + recovery drill) |
 | REL-P0-2 | Custom updater trusts server-selected `apkSha256`/`signingCertSha256` (code-exec channel) | android/server | **P0** | **SHORT PATH DONE (#144)** — Settings update prompt routes to GitHub releases / Obtainium; in-app install de-emphasized (machinery retained, dormant). TLS leaf pin (AND-P1-6) rejected (LE rotation bricks updates). **Full path still OPEN:** offline Ed25519 signed manifest (decision #119) — owner generates the key. |
 | AND-P0-1 | Android DTOs decode numeric id only → contract split-brain (no `publicId`/`status`/`supersededByPublicId`, no `by-public-id` client) | android | **P0** | **PREPPED — coupled to AND-P0-2** (publicId has nowhere to persist until v7). Decisions locked + design cleaned (`a69c7d2`). Implement WITH the v7 migration so publicId flows wire→domain→`catalog_refs`. |
@@ -60,7 +60,7 @@ already closed this pass, `CODEABLE` are in-repo work not yet scheduled, `OWNER`
 | SRV-P2-1 | Diagnostics binds DTO without `@Valid`/size caps; truncates after binding (body-memory, not just table) | server | P2 | **CODEABLE** — `@Valid` + Bean Validation size caps + request-size limit at proxy |
 | AND-P2-1 | Offline catalog `LIKE` treats `%`/`_` as wildcards | android | P2 | **DONE (#145)** — `escapeLike` + `ESCAPE '\'` |
 | OPS-P1-1 | Deploy provenance exists but is manual (`:latest`, manual compose) | ops/infra | P1 | **PARTIAL (#143)** — both image workflows surface `repo@sha256:digest` to the job summary for pinning; the full `deploy <digest>` script (cosign + `gh attestation verify` + pg_dump + probes + reject `:latest`) remains OWNER |
-| OPS-P1-2 | Backups default same-disk; S3 optional; backup SA has folder-wide `storage.admin` | infra | P1 | **OWNER + CODEABLE** — enable off-box upload, tighten IAM to bucket-scoped, restore-rehearsal artifact |
+| OPS-P1-2 | Backups default same-disk; S3 optional; backup SA has folder-wide `storage.admin` | infra | P1 | **OBSOLETE as written (#143)** — the YC SA/S3/tfstate bucket is gone; re-homed as `deploy/backup.sh` (daily `pg_dump` + 14-day rotation, systemd timer). Off-box copy + restore-rehearsal = upgrade path. |
 | OPS-P1-3 | SSH open to world, serial console on, no Docker log rotation, no external alerting | infra/server | P1 | **MIXED** — Docker `json-file` max-size/file + Micrometer Prometheus registry are CODEABLE; SSH-restrict/bastion + blackbox probe need OWNER (their IP/infra) |
 | OPS-P1-4 | 4GB VM caps (~3.4GiB) tight with OCR on the hot host; OCR `cpus:1.5` on ~1 vCPU | infra | P1 | **OWNER** — OCR best-effort/off hot path; lower heap or raise VM; add load-smoke |
 | OCR-P2-1 | OCR `/health` can lie after worker rebuild (`_ready` stays true, new worker unwarmed) | ocr | P2 | **CODEABLE** — on rebuild set `_ready=False`, warm, then true; or split `/live` vs `/ready` |
@@ -166,8 +166,8 @@ allows.
 | OCR-P2-1 | CI/runtime Python version drift (3.12 vs 3.14) | OPEN |
 | AND-P2-1 | Offline catalog detail incomplete (cache last detail by UUID) | OPEN |
 | AND-P2-2 | Remote catalog images must be first-party / disclosed (no hotlinking) | DEFERRED (no images yet) |
-| OPS-P1-1 | Image identity produced but not enforced at deploy; **live prod is behind current migrations/contracts** | **OPEN — urgent** |
-| OPS-P1-2 | Backups: broad creds, no enforced restore evidence | OPEN |
+| OPS-P1-1 | Image identity produced but not enforced at deploy; ~~live prod is behind current migrations/contracts~~ (RESOLVED #143 — prod on V7–V17, verified live 2026-06-24) | **OPEN** — only the digest-enforced deploy script remains (Komodo redeploys are manual) |
+| OPS-P1-2 | Backups: broad creds, no enforced restore evidence | **RE-HOMED (#143)** — `deploy/backup.sh` daily dump; off-box + restore-evidence = upgrade |
 | OPS-P1-3 | Single-host: SSH `0.0.0.0/0`, no external alerts, no log rotation; add Micrometer Prometheus + Docker `max-size` | OPEN (owner) |
 | OPS-P1-4 (2026-06-22) | 4 GB VM over-committed (~3420 MiB declared) + `core_fraction=50` ≈ 1 vCPU vs OCR `cpus:1.5` → JVM starvation/OOM under load | OPEN (owner) | trim server heap or raise `core_fraction`/resize; treat OCR as off the hot path |
 | OPS-P2-1 | Dependency scan doesn't cover OS/container layers (add Trivy) | OPEN |

@@ -1,6 +1,5 @@
 package com.macsia.teatiers.service
 
-import com.macsia.teatiers.config.MissLogProperties
 import com.macsia.teatiers.repository.CatalogMissRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -75,13 +74,9 @@ class MissLogServiceTest {
 
     @Test
     fun `purgeStale deletes rows past the retention window and below the keep threshold`() {
-        // Fixed clock so the cutoff is deterministic: 2026-06-21 minus 90 days = 2026-03-23.
+        // Fixed clock so the cutoff is deterministic: 2026-06-21 minus 90 days (RETENTION_DAYS) = 2026-03-23.
         val clock = Clock.fixed(Instant.parse("2026-06-21T00:00:00Z"), ZoneOffset.UTC)
-        val service = MissLogService(
-            repository,
-            MissLogProperties(retentionDays = 90, minMissCountToKeep = 3),
-            clock,
-        )
+        val service = MissLogService(repository, clock)
         val cutoff = slot<LocalDate>()
         val minCount = slot<Long>()
         every { repository.deleteStale(capture(cutoff), capture(minCount)) } returns 4

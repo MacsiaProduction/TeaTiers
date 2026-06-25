@@ -27,7 +27,7 @@ class ResolveServiceTest {
     private val stubService = mockk<EnrichmentStubService>(relaxed = true)
     private val llmEnrichmentService = mockk<LlmEnrichmentService>(relaxed = true)
     // Default: budget available; the exhausted case overrides it.
-    private val llmDailyBudget = mockk<LlmDailyBudget> { every { tryAcquire() } returns true }
+    private val llmDailyBudget = mockk<DailyBudget> { every { tryAcquire() } returns true }
     private val missLogService = mockk<MissLogService>(relaxed = true)
     private val service = ResolveService(
         repository, wikidataClient, upsertService, catalogService,
@@ -38,7 +38,7 @@ class ResolveServiceTest {
 
     private fun detail(id: Long, state: String? = null) = TeaDetailDto(
         id = id, publicId = UUID.randomUUID(), status = "active", supersededByPublicId = null,
-        wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null,
+        wikidataQid = null, type = TeaType.GREEN, originCountry = "CN", region = null, harvestYear = null,
         cultivar = null, oxidationMin = null, oxidationMax = null, brand = null, image = null,
         images = emptyList(),
         names = listOf(TeaNameDto("en", "Longjing tea", true)), descriptions = emptyList(),

@@ -215,9 +215,9 @@ class AddTeaViewModel @Inject constructor(
                             pickCatalogTea(result.detail.toCatalogTea())
                         }
                     CatalogDetailResult.Offline ->
-                        eventHost.emit(UiEvent.ShowSnackbar(R.string.catalog_search_offline))
+                        eventHost.emit(ShowSnackbar(R.string.catalog_search_offline))
                     CatalogDetailResult.Error ->
-                        eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic))
+                        eventHost.emit(ShowSnackbar(R.string.error_generic))
                 }
             }
         }
@@ -247,7 +247,7 @@ class AddTeaViewModel @Inject constructor(
             _scan.value = ScanUiState.Recognizing
             val bytes = imageReader.read(uri)
             if (bytes == null) {
-                eventHost.emit(UiEvent.ShowSnackbar(R.string.ocr_error))
+                eventHost.emit(ShowSnackbar(R.string.ocr_error))
                 _scan.value = ScanUiState.Idle
                 return@launch
             }
@@ -256,7 +256,7 @@ class AddTeaViewModel @Inject constructor(
                     // Prefill the review with the dictionary-corrected text (decision #125) — a cleaner
                     // start for the user, which then becomes sourceText -> enrichment context.
                     if (result.corrected.isBlank()) {
-                        eventHost.emit(UiEvent.ShowSnackbar(R.string.ocr_no_text))
+                        eventHost.emit(ShowSnackbar(R.string.ocr_no_text))
                         _scan.value = ScanUiState.Idle
                     } else {
                         _scan.value = ScanUiState.Review(result.corrected)
@@ -271,7 +271,7 @@ class AddTeaViewModel @Inject constructor(
     }
 
     private fun failScan(messageRes: Int) {
-        eventHost.emit(UiEvent.ShowSnackbar(messageRes))
+        eventHost.emit(ShowSnackbar(messageRes))
         _scan.value = ScanUiState.Idle
     }
 
@@ -406,7 +406,7 @@ class AddTeaViewModel @Inject constructor(
         val form = _form.value
         if (!form.isValid) {
             pendingNameFocus = true
-            eventHost.emit(UiEvent.ShowSnackbar(R.string.add_tea_error_name_required))
+            eventHost.emit(ShowSnackbar(R.string.add_tea_error_name_required))
             return
         }
         val editing = _editingTeaId.value
@@ -422,7 +422,7 @@ class AddTeaViewModel @Inject constructor(
                     // not abort the save: the tea row is already in DB.
                     _draftPhotos.value.forEach { draft ->
                         val path = repository.addPhoto(added.teaId, draft.uri)
-                        if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
+                        if (path == null) eventHost.emit(ShowSnackbar(R.string.error_photo_copy_failed))
                     }
                     _draftPhotos.value = emptyList()
                     // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT
@@ -437,7 +437,7 @@ class AddTeaViewModel @Inject constructor(
                 }
                 true
             }.getOrElse {
-                eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic))
+                eventHost.emit(ShowSnackbar(R.string.error_generic))
                 false
             }
             if (ok) onSaved()
@@ -454,7 +454,7 @@ class AddTeaViewModel @Inject constructor(
         if (editing != null) {
             viewModelScope.launch {
                 val path = runCatching { repository.addPhoto(editing, uri) }.getOrNull()
-                if (path == null) eventHost.emit(UiEvent.ShowSnackbar(R.string.error_photo_copy_failed))
+                if (path == null) eventHost.emit(ShowSnackbar(R.string.error_photo_copy_failed))
             }
         } else {
             _draftPhotos.update { it + DraftPhoto(id = "draft-${UUID.randomUUID()}", uri = uri) }
@@ -467,7 +467,7 @@ class AddTeaViewModel @Inject constructor(
         if (editing != null) {
             viewModelScope.launch {
                 runCatching { repository.removePhoto(editing, photoId) }
-                    .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+                    .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
             }
         } else {
             _draftPhotos.update { drafts -> drafts.filterNot { it.id == photoId } }
@@ -480,7 +480,7 @@ class AddTeaViewModel @Inject constructor(
         if (editing != null) {
             viewModelScope.launch {
                 runCatching { repository.reorderPhotos(editing, orderedPhotoIds) }
-                    .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+                    .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
             }
         } else {
             _draftPhotos.update { drafts ->
@@ -499,7 +499,7 @@ class AddTeaViewModel @Inject constructor(
         val editing = _editingTeaId.value ?: return
         viewModelScope.launch {
             val ok = runCatching { repository.deleteTea(editing); true }
-                .getOrElse { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)); false }
+                .getOrElse { eventHost.emit(ShowSnackbar(R.string.error_generic)); false }
             if (ok) onDeleted()
         }
     }

@@ -10,6 +10,16 @@ plugins {
 group = "com.macsia.teatiers"
 version = "0.1.0-SNAPSHOT"
 
+// GHSA-5jmj-h7xm-6q6v: Spring Boot 4.1.0's BOM manages com.fasterxml.jackson.core:jackson-databind
+// 2.21.4, which the OSV gate flags (Medium). No 2.21.5 exists (OSV's named fix is a phantom); 2.22.0
+// is the next release and OSV confirms it clears the advisory. Force it. Remove once Boot's BOM
+// ships >= 2.22.0. (Targets only the classic jackson 2 artifact; Boot's tools.jackson 3.x is unaffected.)
+dependencyManagement {
+    dependencies {
+        dependency("com.fasterxml.jackson.core:jackson-databind:2.22.0")
+    }
+}
+
 dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.actuator)

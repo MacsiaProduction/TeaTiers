@@ -41,31 +41,27 @@ DET_MODEL = os.path.join(MODELS_DIR, "ch_PP-OCRv5_det_mobile.onnx")
 # init — so we bake it and pass Cls.model_path to keep the runtime egress-free / read-only-safe.
 CLS_MODEL = os.path.join(MODELS_DIR, "ch_ppocr_mobile_v2.0_cls_mobile.onnx")
 # Defense-in-depth: the server already caps uploads (8 MB), but bound it here too.
-MAX_IMAGE_BYTES = int(os.environ.get("OCR_MAX_IMAGE_BYTES", str(10 * 1024 * 1024)))
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
 # The byte cap does NOT bound DECODED pixels: a low-entropy PNG can be <8 MB yet decode to a huge
 # RGB array (then doubled by np.array) and OOM the 1 GB container. PIL only *warns* at its default
 # MAX_IMAGE_PIXELS and *raises* at 2× that, so a sub-179 MP bomb slips through — hence an explicit
 # header-size check before the big allocation. 30 MP is generous for real photos (the app already
 # downscales to ≤1600 px) and blocks bombs; PIL's default stays as a backstop (not lowered).
-MAX_IMAGE_PIXELS = int(os.environ.get("OCR_MAX_IMAGE_PIXELS", str(30_000_000)))
+MAX_IMAGE_PIXELS = 30_000_000
 # Cap the text the sidecar returns so the server's sanitizer can't be handed an unbounded blob.
-MAX_TEXT_CHARS = int(os.environ.get("OCR_MAX_TEXT_CHARS", str(8192)))
-# Multipart framing (boundary + part headers) makes the request Content-Length a little larger than
-# the file bytes; allow this slack so the cheap Content-Length early-out doesn't reject a file that
-# is actually at/under MAX_IMAGE_BYTES (the authoritative post-read check still applies).
-MULTIPART_SLACK_BYTES = 64 * 1024
+MAX_TEXT_CHARS = 8192
 # Conditional low-res upscale (RECONSIDER option C, decision #114): when the SHORT side is small (a
 # low-res capture), upscale to UPSCALE_TARGET_SHORT before OCR — the one measured accuracy win
 # (real-photo name-capture 3/4 -> 4/4). It MUST stay conditional (an unconditional upscale regresses
 # good shots: ru 9.2%->17% CER), bicubic, and pixel-capped (an unbounded upscale of a wide low-res
 # image could OOM the container — PaddleOCR issue #16168).
-UPSCALE_SHORT_BELOW = int(os.environ.get("OCR_UPSCALE_SHORT_BELOW", "500"))
-UPSCALE_TARGET_SHORT = int(os.environ.get("OCR_UPSCALE_TARGET_SHORT", "960"))
+UPSCALE_SHORT_BELOW = 500
+UPSCALE_TARGET_SHORT = 960
 # Hard wall-clock deadline on a single inference. On expiry the request fails 504 AND the worker
 # subprocess is SIGKILLed (a wedged native ONNX call can't be interrupted in-process), then a fresh
 # worker is spawned — so the stuck work actually dies instead of leaking a thread that pins CPU/RAM
 # until the next request (review P1-7). The next request pays one worker-respawn warmup.
-INFERENCE_DEADLINE_S = float(os.environ.get("OCR_INFERENCE_DEADLINE_S", "15"))
+INFERENCE_DEADLINE_S = 15.0
 
 # Inference runs in a SINGLE worker SUBPROCESS so a timed-out call is killable (a thread is not).
 # `spawn` keeps the worker independent of the parent's threads; the executor is created in `lifespan`
@@ -238,17 +234,6 @@ async def health() -> JSONResponse:
 @app.post("/ocr")
 async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
     global _executor, _ready
-    # Cheap early-out: reject a grossly oversized upload by its declared Content-Length BEFORE
-    # spooling the whole body. The authoritative byte cap (post-read, below) still applies; this just
-    # avoids buffering a huge body. A missing/garbage header falls through to the post-read check.
-    declared = request.headers.get("content-length")
-    if declared is not None:
-        try:
-            declared_len = int(declared)
-        except ValueError:
-            declared_len = -1
-        if declared_len > MAX_IMAGE_BYTES + MULTIPART_SLACK_BYTES:
-            raise HTTPException(status_code=413, detail="image too large")
     data = await file.read()
     # Never log the bytes or the recognized text — only sizes/status/timing.
     if not data:
