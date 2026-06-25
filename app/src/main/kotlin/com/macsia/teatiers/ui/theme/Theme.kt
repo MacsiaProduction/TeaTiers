@@ -85,8 +85,7 @@ fun TeaTiersTheme(
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
-    val teaColors = if (darkTheme) DarkTeaColors else LightTeaColors
-    CompositionLocalProvider(LocalTeaColors provides teaColors) {
+    CompositionLocalProvider(LocalTeaColors provides TeaColorsValue) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = TeaTypography,

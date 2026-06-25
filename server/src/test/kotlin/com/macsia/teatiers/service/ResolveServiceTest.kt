@@ -27,7 +27,7 @@ class ResolveServiceTest {
     private val stubService = mockk<EnrichmentStubService>(relaxed = true)
     private val llmEnrichmentService = mockk<LlmEnrichmentService>(relaxed = true)
     // Default: budget available; the exhausted case overrides it.
-    private val llmDailyBudget = mockk<LlmDailyBudget> { every { tryAcquire() } returns true }
+    private val llmDailyBudget = mockk<DailyBudget> { every { tryAcquire() } returns true }
     private val missLogService = mockk<MissLogService>(relaxed = true)
     private val service = ResolveService(
         repository, wikidataClient, upsertService, catalogService,

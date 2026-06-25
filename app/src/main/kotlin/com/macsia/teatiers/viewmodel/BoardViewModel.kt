@@ -50,7 +50,7 @@ class BoardViewModel @Inject constructor(
      *  hide bugs from the user. Local helper, kept private so VMs do not catch each other. */
     private fun guarded(block: suspend () -> Unit) = viewModelScope.launch {
         runCatching { block() }
-            .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+            .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
     }
 
     val uiState: StateFlow<BoardUiState?> = combine(repository.boards, boardId) { boards, id ->

@@ -1,17 +1,16 @@
 package com.macsia.teatiers.service
 
-import com.macsia.teatiers.controller.ClientDiagnosticsProperties
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The global daily insert cap that bounds disk growth on /client-diagnostics (review finding). */
+/** The shared per-UTC-day budget counter, as wired for the /client-diagnostics insert cap (review finding). */
 class DiagnosticsDailyBudgetTest {
 
     private val dayMs = 86_400_000L
 
-    private fun budget(cap: Int, now: () -> Long = { 0L }): DiagnosticsDailyBudget =
-        DiagnosticsDailyBudget(ClientDiagnosticsProperties(dailyCap = cap)).apply { nowMillis = now }
+    private fun budget(cap: Int, now: () -> Long = { 0L }): DailyBudget =
+        DailyBudget { cap }.apply { nowMillis = now }
 
     @Test
     fun `allows up to the cap then blocks`() {

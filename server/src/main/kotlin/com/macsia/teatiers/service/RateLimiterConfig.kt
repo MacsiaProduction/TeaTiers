@@ -1,7 +1,10 @@
 package com.macsia.teatiers.service
 
+import com.macsia.teatiers.client.LlmProperties
 import com.macsia.teatiers.client.OcrProperties
+import com.macsia.teatiers.controller.ClientDiagnosticsProperties
 import io.github.bucket4j.Bucket
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Duration
@@ -17,16 +20,18 @@ import java.util.concurrent.Semaphore
 class RateLimiterConfig {
 
     @Bean
-    fun resolveRateLimiter(props: ResolveProperties): ClientRateLimiter =
-        ClientRateLimiter(props.ratePerMinute)
+    fun resolveRateLimiter(
+        @Value("\${teatiers.resolve.rate-per-minute:20}") ratePerMinute: Int,
+    ): ClientRateLimiter = ClientRateLimiter(ratePerMinute)
 
     @Bean
     fun ocrRateLimiter(props: OcrProperties): ClientRateLimiter =
         ClientRateLimiter(props.ratePerMinute)
 
     @Bean
-    fun searchRateLimiter(props: SearchProperties): ClientRateLimiter =
-        ClientRateLimiter(props.ratePerMinute)
+    fun searchRateLimiter(
+        @Value("\${teatiers.search.rate-per-minute:120}") ratePerMinute: Int,
+    ): ClientRateLimiter = ClientRateLimiter(ratePerMinute)
 
     /**
      * GLOBAL edge ceiling for the cheap-but-unbounded read paths `/search` + `/resolve` (decision #141 /
@@ -47,6 +52,23 @@ class RateLimiterConfig {
      */
     @Bean
     fun ocrConcurrencyGate(props: OcrProperties): Semaphore = Semaphore(props.maxConcurrent)
+
+    /**
+     * Global per-UTC-day enrichment-LLM call ceiling (plan.md section 6 "quota protection"): caps total
+     * LLM spend across all callers; once hit a Wikidata miss fails closed to UNRESOLVED. The cap is read
+     * live each call so a property change takes effect immediately.
+     */
+    @Bean
+    fun llmDailyBudget(props: LlmProperties): DailyBudget = DailyBudget { props.dailyCallCap }
+
+    /**
+     * Global per-UTC-day client-diagnostics insert ceiling (decision #111, review finding): bounds total
+     * inserts so the APK-extractable token can't flood the table and fill disk. Global (not per-IP) so the
+     * endpoint still never reads the client IP. The cap is read live each call.
+     */
+    @Bean
+    fun diagnosticsDailyBudget(props: ClientDiagnosticsProperties): DailyBudget =
+        DailyBudget { props.dailyCap }
 
     private companion object {
         const val EDGE_CAP = 6_000L // ~100 req/s smoothed across ALL clients for /search + /resolve combined

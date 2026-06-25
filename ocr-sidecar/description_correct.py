@@ -17,7 +17,6 @@ downstream enrichment LLM (Track C) — not guessed here.
 """
 from __future__ import annotations
 
-import functools
 import itertools
 import string
 
@@ -44,11 +43,16 @@ _MAX_LATTICE = 256  # cap the per-token candidate explosion; fall back to a sing
 _EDGE_PUNCT = ".,;:!?»«\"'()[]{}—…•·"  # stripped from a token's ends before correction, then reattached
 
 
-@functools.lru_cache(maxsize=1)
-def _morph():
-    import pymorphy3
+_MORPH = None  # lazily built once on first use (the pymorphy3 dict load is heavy)
 
-    return pymorphy3.MorphAnalyzer()
+
+def _morph():
+    global _MORPH
+    if _MORPH is None:
+        import pymorphy3
+
+        _MORPH = pymorphy3.MorphAnalyzer()
+    return _MORPH
 
 
 def _protected(token: str) -> bool:

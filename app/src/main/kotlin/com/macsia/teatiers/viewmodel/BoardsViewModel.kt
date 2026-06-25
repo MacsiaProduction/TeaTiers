@@ -47,7 +47,7 @@ class BoardsViewModel @Inject constructor(
     fun createBoard(label: String, template: TierTemplate) {
         viewModelScope.launch {
             runCatching { repository.createBoard(label, template) }
-                .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+                .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }
 
@@ -55,7 +55,7 @@ class BoardsViewModel @Inject constructor(
     fun deleteBoard(boardId: String) {
         viewModelScope.launch {
             runCatching { repository.deleteBoard(boardId) }
-                .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+                .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }
 }

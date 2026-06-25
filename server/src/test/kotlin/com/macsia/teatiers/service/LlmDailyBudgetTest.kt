@@ -1,16 +1,16 @@
 package com.macsia.teatiers.service
 
-import com.macsia.teatiers.client.LlmProperties
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/** The shared per-UTC-day budget counter, as wired for the enrichment LLM call ceiling. */
 class LlmDailyBudgetTest {
 
     private val dayMs = 86_400_000L
 
-    private fun budget(cap: Int, now: () -> Long = { 0L }): LlmDailyBudget =
-        LlmDailyBudget(LlmProperties(dailyCallCap = cap)).apply { nowMillis = now }
+    private fun budget(cap: Int, now: () -> Long = { 0L }): DailyBudget =
+        DailyBudget { cap }.apply { nowMillis = now }
 
     @Test
     fun `allows up to the cap then blocks`() {
