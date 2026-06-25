@@ -2,9 +2,10 @@ package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.dto.ClientDiagnosticReportDto
 import com.macsia.teatiers.service.ClientDiagnosticsService
-import com.macsia.teatiers.service.DiagnosticsDailyBudget
+import com.macsia.teatiers.service.DailyBudget
 import jakarta.validation.Valid
 import java.security.MessageDigest
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
  * - **Fails closed**: until the operator sets `enabled=true` AND a non-blank token, it replies `503`.
  * - **Shared anti-spam token** in the `X-Diagnostics-Token` header, compared in constant time. The
  *   token ships in the APK and is NOT a security boundary (see [ClientDiagnosticsProperties]).
- * - **Global daily cap** ([DiagnosticsDailyBudget]) bounds total inserts per UTC day → `429`, so the
+ * - **Global daily cap** ([DailyBudget]) bounds total inserts per UTC day → `429`, so the
  *   extractable token can't be used to flood the table and fill disk (review finding). Global, not
  *   per-IP, so the endpoint still never reads the client IP.
  * - **No-PII**: it never reads or stores the client IP. The body is re-sanitized + allowlisted by
@@ -33,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController
 class ClientDiagnosticsController(
     private val props: ClientDiagnosticsProperties,
     private val service: ClientDiagnosticsService,
-    private val dailyBudget: DiagnosticsDailyBudget,
+    @Qualifier("diagnosticsDailyBudget") private val dailyBudget: DailyBudget,
 ) {
 
     @PostMapping

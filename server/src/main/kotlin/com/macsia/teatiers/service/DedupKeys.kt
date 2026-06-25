@@ -1,7 +1,6 @@
 package com.macsia.teatiers.service
 
 import com.macsia.teatiers.domain.TeaType
-import java.text.Normalizer
 
 /**
  * Builds the normalized `tea.dedup_key` (plan.md section 4a): unaccented-lower primary name +
@@ -29,14 +28,7 @@ object DedupKeys {
     }
 
     /** Strip diacritics (NFD + combining-mark removal), lowercase, collapse whitespace. */
-    private fun normalize(value: String): String =
-        Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replace(COMBINING_MARKS, "")
-            .lowercase()
-            .replace(WHITESPACE, " ")
-            .trim()
+    private fun normalize(value: String): String = foldDiacritics(value)
 
-    private val COMBINING_MARKS = Regex("\\p{M}+")
-    private val WHITESPACE = Regex("\\s+")
     private val NON_ALNUM = Regex("[^a-z0-9]")
 }

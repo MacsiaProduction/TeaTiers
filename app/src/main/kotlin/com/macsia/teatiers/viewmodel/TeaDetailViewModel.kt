@@ -94,7 +94,7 @@ class TeaDetailViewModel @Inject constructor(
         if (reference.isEmpty()) return
         viewModelScope.launch {
             runCatching { repository.updateTea(id, current.copy(flavor = reference)) }
-                .onFailure { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)) }
+                .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }
 
@@ -106,7 +106,7 @@ class TeaDetailViewModel @Inject constructor(
         val id = teaId.value ?: return
         viewModelScope.launch {
             val ok = runCatching { repository.deleteTea(id); true }
-                .getOrElse { eventHost.emit(UiEvent.ShowSnackbar(R.string.error_generic)); false }
+                .getOrElse { eventHost.emit(ShowSnackbar(R.string.error_generic)); false }
             if (ok) onDeleted()
         }
     }
