@@ -1,6 +1,7 @@
 package com.macsia.teatiers.di
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -41,18 +42,27 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    /**
+     * Schemas v1–v6 only ever held pre-launch mock data (owner decision 2026-06-23), so a launch
+     * upgrade from any of them is a one-time destructive reset + reseed. v7 is the durable public
+     * baseline: restricting destructive fallback to these pre-v7 versions means v7-and-newer data is
+     * NEVER silently dropped — a missing `Migration(7, N)` throws instead. Guarded by
+     * TeaDatabaseMigrationTest so a stray blanket fallback can't regress it.
+     */
+    @VisibleForTesting
+    internal val DESTRUCTIVE_RESET_FROM = intArrayOf(1, 2, 3, 4, 5, 6)
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): TeaDatabase =
         Room.databaseBuilder(context, TeaDatabase::class.java, "teatiers.db")
             .apply {
-                // v6→v7 (tea/sample split, #132) is a ONE-TIME DESTRUCTIVE reset in every build,
-                // including release: per owner decision (2026-06-23) the shipped v0.1.0 collection is
-                // mock data, so there is no `Migration(6,7)` — Room drops everything and the
-                // SampleBoardProvider reseeds. Once a real collection exists, the next bump goes back
-                // to an explicit `Migration(7, N)` + a MigrationTestHelper test (no destructive
-                // fallback) so a real user's data is never silently wiped.
-                fallbackToDestructiveMigration(dropAllTables = true)
+                // v6→v7 (tea/sample split, #132) is the ONE-TIME destructive reset for the pre-launch
+                // mock collection (no `Migration(6,7)`; the SampleBoardProvider reseeds). Scoping the
+                // fallback to the pre-v7 versions is the data-loss guard: from v7 on (real users), a
+                // missing `Migration(7, N)` fails loudly instead of silently wiping. The next schema
+                // bump adds that explicit Migration + a MigrationTestHelper test.
+                fallbackToDestructiveMigrationFrom(dropAllTables = true, *DESTRUCTIVE_RESET_FROM)
                 // "tables were dropped" mark for the out-of-Room wipe sentinel (#111). Stored outside
                 // Room so the wiping migration can't erase its own evidence.
                 addCallback(object : RoomDatabase.Callback() {

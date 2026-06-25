@@ -17,6 +17,9 @@ import javax.inject.Singleton
 private const val TAG = "AndroidPhotoStore"
 private const val PHOTOS_DIR = "tea_photos"
 
+/** Reject a picked image larger than this before copying it to disk (matches the server OCR cap). */
+private const val MAX_PHOTO_BYTES = 8L * 1024 * 1024
+
 /** Don't sweep a file written this recently — it may be an in-flight copy whose row isn't in yet. */
 private const val RECENT_GRACE_MS = 60_000L
 
@@ -42,6 +45,15 @@ class AndroidPhotoStore @Inject constructor(
 
     override suspend fun copyIn(source: Uri): String? = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
+        // Reject an oversized image before reading a byte of it (AND-P1-5). AssetFileDescriptor.length
+        // is UNKNOWN_LENGTH (-1) for some providers; treat unknown as "allow" and let the copy proceed.
+        val declaredSize = runCatching {
+            resolver.openAssetFileDescriptor(source, "r")?.use { it.length }
+        }.getOrNull()
+        if (declaredSize != null && declaredSize > MAX_PHOTO_BYTES) {
+            Log.w(TAG, "Refusing oversized photo ($declaredSize bytes)")
+            return@withContext null
+        }
         val ext = extensionFor(source)
         val target = File(rootDir, "${UUID.randomUUID()}$ext")
         try {
@@ -51,16 +63,16 @@ class AndroidPhotoStore @Inject constructor(
                     output.fd.sync()
                 }
             } ?: run {
-                Log.w(TAG, "openInputStream returned null for $source")
+                Log.w(TAG, "openInputStream returned null for source uri")
                 return@withContext null
             }
             target.absolutePath
         } catch (e: SecurityException) {
-            Log.w(TAG, "Permission denied reading $source", e)
+            Log.w(TAG, "Permission denied reading source uri", e)
             target.delete()
             null
         } catch (e: IOException) {
-            Log.w(TAG, "Failed to copy $source", e)
+            Log.w(TAG, "Failed to copy source uri", e)
             target.delete()
             null
         }
@@ -77,7 +89,7 @@ class AndroidPhotoStore @Inject constructor(
                 }
                 target.absolutePath
             } catch (e: IOException) {
-                Log.w(TAG, "Failed to import $originalName", e)
+                Log.w(TAG, "Failed to import photo", e)
                 target.delete()
                 null
             }
@@ -88,7 +100,7 @@ class AndroidPhotoStore @Inject constructor(
         if (!file.exists()) return@withContext true
         if (!isContainedInRoot(file)) {
             // Refuse to touch anything outside our own dir; an external URI here is a bug.
-            Log.w(TAG, "Refusing to delete out-of-root path $path")
+            Log.w(TAG, "Refusing to delete out-of-root path")
             return@withContext false
         }
         file.delete()
@@ -106,7 +118,7 @@ class AndroidPhotoStore @Inject constructor(
             // the app-open sweep would otherwise TOCTOU-delete a photo a concurrent add just wrote.
             // A genuine orphan younger than the window is simply caught by the next sweep.
             if (now - file.lastModified() < RECENT_GRACE_MS) continue
-            if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan ${file.name}")
+            if (file.delete()) deleted++ else Log.w(TAG, "Failed to delete orphan photo")
         }
         deleted
     }
@@ -120,7 +132,7 @@ class AndroidPhotoStore @Inject constructor(
     private fun isContainedInRoot(file: File): Boolean = try {
         file.canonicalFile.toPath().startsWith(rootDir.canonicalFile.toPath())
     } catch (e: IOException) {
-        Log.w(TAG, "Could not canonicalise ${file.path}; refusing delete", e)
+        Log.w(TAG, "Could not canonicalise file; refusing delete", e)
         false
     }
 

@@ -67,7 +67,9 @@ class TeaEnrichmentManagerTest {
         advanceUntilIdle()
 
         val row = dao.loadTeaRow("t1")!!
-        assertEquals("Лунцзин", row.nameRu)
+        // Blank-only merge: the user's typed name is kept; only the fields they left blank are filled.
+        assertEquals("лунцзин", row.nameRu)
+        assertEquals("GREEN", row.type) // user kept the default OTHER → adopt the catalog classification
         assertEquals("lóngjǐng", row.pinyin)
         assertEquals("CN", row.origin)
         assertEquals("Зелёный чай из Сиху.", row.shortBlurb)
@@ -81,6 +83,27 @@ class TeaEnrichmentManagerTest {
         assertEquals("Зелёный чай из Сиху.", ref.shortBlurb)
         assertEquals("unverified", ref.verificationStatus)
     }
+
+    @Test
+    fun `Matched fills only blank fields and never replaces a user-set name or type`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // Regression for AND-P1-1: background enrichment must not overwrite what the user typed.
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 7))
+            val (manager, dao) = managerWith(
+                teaRow("t1", name = "Мой Лунцзин").copy(type = "WHITE", origin = "мой регион"),
+            )
+
+            manager.enrich("t1", "Мой Лунцзин")
+            advanceUntilIdle()
+
+            val row = dao.loadTeaRow("t1")!!
+            assertEquals("Мой Лунцзин", row.nameRu) // user name kept, NOT overwritten by "Лунцзин"
+            assertEquals("WHITE", row.type)         // user type kept, NOT replaced by GREEN
+            assertEquals("мой регион", row.origin)  // user origin kept
+            assertEquals("lóngjǐng", row.pinyin)    // blank field filled from the catalog
+            assertEquals(7L, row.catalogTeaId)      // link still written
+            assertEquals(EnrichmentState.DONE.name, row.enrichmentState)
+        }
 
     @Test
     fun `a Matched but still-FAILED server stub keeps the row FAILED and does not patch`() =
@@ -115,7 +138,7 @@ class TeaEnrichmentManagerTest {
 
         val row = dao.loadTeaRow("t1")!!
         assertEquals(9L, row.catalogTeaId)
-        assertEquals("Лунцзин", row.nameRu)
+        assertEquals("Чай", row.nameRu) // blank-only: the user's typed name is preserved
         assertEquals(EnrichmentState.DONE.name, row.enrichmentState)
     }
 
@@ -190,8 +213,8 @@ class TeaEnrichmentManagerTest {
             assertEquals(EnrichmentState.DONE.name, t2.enrichmentState)
             assertEquals(5L, t2.catalogTeaId) // v7: the duplicate links to the SHARED ref, no longer stranded
             assertEquals(5L, dao.loadTeaRow("t1")!!.catalogTeaId) // original link untouched
-            // …and it gets the catalog's enriched names/blurb (review F6), same catalog-wins merge.
-            assertEquals("Лунцзин", t2.nameRu)
+            // …and its BLANK fields fill from the catalog, but the user's typed name is preserved (#21).
+            assertEquals("тегуанинь", t2.nameRu) // blank-only: user name kept, not overwritten by "Лунцзин"
             assertEquals("lóngjǐng", t2.pinyin)
             assertEquals("Зелёный чай из Сиху.", t2.shortBlurb)
 

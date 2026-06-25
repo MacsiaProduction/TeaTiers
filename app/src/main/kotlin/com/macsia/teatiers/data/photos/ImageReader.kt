@@ -35,6 +35,12 @@ class AndroidImageReader @Inject constructor(
     override suspend fun read(uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
         runCatching {
             val resolver = context.contentResolver
+            // Reject a pathological source before readBytes() buffers it whole (local-OOM guard,
+            // AND-P1-5). Unknown length (-1) passes; the downscale + server 8 MB cap bound the rest.
+            val declaredSize = runCatching {
+                resolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+            }.getOrNull()
+            if (declaredSize != null && declaredSize > MAX_SOURCE_BYTES) return@runCatching null
             val raw = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
             // Cheap bounds pass to pick an inSampleSize, then decode at ~MAX_DIM and JPEG-encode.
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -57,7 +63,7 @@ class AndroidImageReader @Inject constructor(
                 out.toByteArray()
             }
         }.getOrElse { e ->
-            Log.w(TAG, "Failed to read image $uri", e)
+            Log.w(TAG, "Failed to read image", e)
             null
         }
     }
@@ -107,5 +113,9 @@ class AndroidImageReader @Inject constructor(
         const val TAG = "ImageReader"
         const val MAX_DIM = 1600 // longest-side cap; det downscales to 960 anyway (decision #105)
         const val JPEG_QUALITY = 85
+
+        // Upper bound on the raw source we'll buffer into memory before downscaling. Generous — a real
+        // phone photo is far smaller; this only stops an OOM on a pathological multi-hundred-MB source.
+        const val MAX_SOURCE_BYTES = 25L * 1024 * 1024
     }
 }

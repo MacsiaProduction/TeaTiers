@@ -3,6 +3,7 @@ package com.macsia.teatiers.data.db
 import android.app.Application
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.testing.MigrationTestHelper
+import com.macsia.teatiers.di.AppModule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -46,6 +47,17 @@ class TeaDatabaseMigrationTest {
         // future Migration(7, N) test extends.
         helper.createDatabase(TEST_DB, 7).close()
         helper.runMigrationsAndValidate(TEST_DB, 7, true).close()
+    }
+
+    @Test
+    fun v7_isTheDurableBaseline_neverDestructivelyResetFromV7Onward() {
+        // Data-loss guard (AND): only the pre-launch mock schemas v1..v6 may be destructively reset on
+        // upgrade. v7 (the public baseline) and anything newer must require an explicit Migration —
+        // adding 7 here, or reverting to a blanket fallbackToDestructiveMigration, would silently wipe
+        // a real user's collection on the next schema bump. This pins the AppModule policy.
+        val resetFrom = AppModule.DESTRUCTIVE_RESET_FROM.toList()
+        assertEquals("only pre-v7 versions are destructively reset", listOf(1, 2, 3, 4, 5, 6), resetFrom)
+        assertEquals("v7 is never destructively reset", false, resetFrom.contains(7))
     }
 
     @Test
