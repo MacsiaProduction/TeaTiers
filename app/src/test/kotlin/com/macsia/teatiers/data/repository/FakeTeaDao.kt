@@ -215,6 +215,9 @@ class FakeTeaDao : TeaDao() {
         if (placements.removeAll { it.id == placementId }) refresh()
     }
 
+    override suspend fun loadPlacement(placementId: String): PlacementEntity? =
+        placements.firstOrNull { it.id == placementId }
+
     override suspend fun deleteTeaRow(teaId: String) {
         // Mimic Room's ON DELETE CASCADE for placements + flavors + purchases + photos.
         if (teas.removeAll { it.id == teaId }) {

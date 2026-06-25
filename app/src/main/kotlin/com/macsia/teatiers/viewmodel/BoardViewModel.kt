@@ -3,6 +3,7 @@ package com.macsia.teatiers.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
+import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -74,10 +75,29 @@ class BoardViewModel @Inject constructor(
 
     /**
      * Removes one placement from this board (the user-tea row stays so any other boards keep
-     * their copy). Used by the per-card "Убрать с подборки" action.
+     * their copy). Used by the per-card "Убрать с подборки" action. The action is immediate (no
+     * confirm dialog); an undo snackbar restores it, which is friendlier than a modal for a
+     * reversible change.
      */
-    fun removePlacement(placementId: String) {
-        guarded { repository.removePlacement(placementId) }
+    fun removePlacement(placementId: String) = viewModelScope.launch {
+        val removed = runCatching { repository.removePlacement(placementId) }
+            .getOrElse {
+                eventHost.emit(ShowSnackbar(R.string.error_generic))
+                return@launch
+            }
+        if (removed != null) {
+            eventHost.emit(
+                ShowSnackbar(
+                    messageRes = R.string.snackbar_placement_removed,
+                    actionLabelRes = R.string.action_undo,
+                    onAction = { restorePlacement(removed) },
+                ),
+            )
+        }
+    }
+
+    private fun restorePlacement(placement: PlacementEntity) {
+        guarded { repository.restorePlacement(placement) }
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.macsia.teatiers.viewmodel
 
+import com.macsia.teatiers.R
+import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.Board
@@ -12,12 +14,14 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -62,13 +66,35 @@ class BoardViewModelTest {
 
     @Test
     fun `removePlacement forwards to the repository (no boardId needed)`() = runTest {
-        coEvery { repository.removePlacement(any()) } just Runs
+        coEvery { repository.removePlacement(any()) } returns null
         val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.removePlacement("p1")
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.removePlacement(eq("p1")) }
+    }
+
+    @Test
+    fun `removePlacement offers an undo that restores the placement`() = runTest {
+        val placement = PlacementEntity(id = "p1", boardId = "b", teaId = "t1", tierId = null, position = 0)
+        coEvery { repository.removePlacement("p1") } returns placement
+        coEvery { repository.restorePlacement(placement) } just Runs
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        viewModel.bind("b")
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.removePlacement("p1")
+        advanceUntilIdle()
+
+        val event = events.single()
+        assertEquals(R.string.snackbar_placement_removed, event.messageRes)
+        assertEquals(R.string.action_undo, event.actionLabelRes)
+
+        event.onAction!!.invoke() // user taps "Вернуть"
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.restorePlacement(placement) }
     }
 
     @Test

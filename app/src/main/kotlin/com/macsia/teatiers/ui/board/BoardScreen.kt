@@ -58,11 +58,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -568,6 +570,7 @@ private fun DraggableTeaCard(
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     val moveToTierTemplate = stringResource(R.string.a11y_move_to_tier)
     val moveToUnrankedLabel = stringResource(R.string.a11y_move_to_unranked)
@@ -606,6 +609,9 @@ private fun DraggableTeaCard(
             .pointerInput(placement.placementId) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { touch ->
+                        // Confirm the pickup with a haptic tick — the gesture is otherwise invisible
+                        // until the card lifts, so the cue makes drag-to-rank feel responsive.
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         dragState.start(placement, currentKey, coords?.positionInRoot() ?: Offset.Zero, touch)
                     },
                     onDrag = { change, amount ->

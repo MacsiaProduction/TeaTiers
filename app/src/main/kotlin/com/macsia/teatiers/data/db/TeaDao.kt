@@ -168,6 +168,9 @@ abstract class TeaDao {
     @Query("DELETE FROM placements WHERE id = :placementId")
     abstract suspend fun deletePlacement(placementId: String)
 
+    @Query("SELECT * FROM placements WHERE id = :placementId")
+    abstract suspend fun loadPlacement(placementId: String): PlacementEntity?
+
     @Query("DELETE FROM tea_samples WHERE id = :teaId")
     abstract suspend fun deleteTeaRow(teaId: String)
 

@@ -239,8 +239,20 @@ class TeaBoardRepository @Inject constructor(
      * visible on every other board it sits on. No-op when the placement is unknown — the DB
      * delete is idempotent so we don't bother validating against the current snapshot.
      */
-    suspend fun removePlacement(placementId: String) {
+    suspend fun removePlacement(placementId: String): PlacementEntity? {
+        val removed = dao.loadPlacement(placementId)
         dao.removePlacement(placementId)
+        return removed
+    }
+
+    /**
+     * Re-inserts a placement removed by [removePlacement], landing its tea back on the same board,
+     * tier, and slot (the stored `position` preserves the original order). Backs the "Undo" action
+     * on the remove snackbar. No-op-safe: a re-insert of the same row id throws only if it somehow
+     * still exists, which the caller surfaces as a generic failure.
+     */
+    suspend fun restorePlacement(placement: PlacementEntity) {
+        dao.insertPlacements(listOf(placement))
     }
 
     /**
