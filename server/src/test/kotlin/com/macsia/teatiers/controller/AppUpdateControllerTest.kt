@@ -1,6 +1,5 @@
 package com.macsia.teatiers.controller
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -14,7 +13,7 @@ import org.springframework.http.HttpStatus
 class AppUpdateControllerTest {
 
     private fun controllerFor(props: AppUpdateProperties) =
-        AppUpdateController(AppManifestSource(props, ObjectMapper()))
+        AppUpdateController(AppManifestSource(props))
 
     private fun configured() = AppUpdateProperties(
         latestVersionCode = 2,
@@ -73,7 +72,7 @@ class AppUpdateControllerTest {
     @Test
     fun `static config overrides the fetched manifest (emergency pin)`() {
         // latest-version-code > 0 => the operator's static config wins over any auto-fetched manifest.
-        val source = AppManifestSource(configured(), ObjectMapper())
+        val source = AppManifestSource(configured())
 
         assertEquals(2, source.current()!!.latestVersionCode)
     }

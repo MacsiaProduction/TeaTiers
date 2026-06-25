@@ -1,6 +1,6 @@
 package com.macsia.teatiers.controller
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.macsia.teatiers.dto.AppManifestDto
 import java.time.Duration
 import org.slf4j.LoggerFactory
@@ -24,9 +24,11 @@ import org.springframework.web.client.RestClient
 @Component
 class AppManifestSource(
     private val props: AppUpdateProperties,
-    private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    // The app has no ObjectMapper bean (it builds them locally, e.g. CatalogImportService) — match that.
+    private val mapper = jacksonObjectMapper()
 
     @Volatile private var remote: AppManifestDto? = null
 
@@ -53,7 +55,7 @@ class AppManifestSource(
         if (url.isBlank()) return
         try {
             val json = restClient.get().uri(url).retrieve().body(String::class.java)
-            remote = json?.let { objectMapper.readValue(it, AppManifestDto::class.java) }?.normalized()
+            remote = json?.let { mapper.readValue(it, AppManifestDto::class.java) }?.normalized()
         } catch (ex: Exception) {
             // Keep last-known-good on any failure (outage, redirect, malformed JSON) — never blank a live release.
             log.warn("app manifest refresh from {} failed: {} (keeping last-known-good)", url, ex.toString())
