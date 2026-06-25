@@ -270,16 +270,22 @@ abstract class TeaDao {
         state: String,
     ) {
         val current = loadTeaRow(teaId) ?: return
-        val nameRu = candidateNameRu?.takeIf { it.isNotBlank() } ?: current.nameRu
-        val nameZh = candidateNameZh?.takeIf { it.isNotBlank() } ?: current.nameZh
-        val pinyin = candidatePinyin?.takeIf { it.isNotBlank() } ?: current.pinyin
-        val nameEn = candidateNameEn?.takeIf { it.isNotBlank() } ?: current.nameEn
-        val origin = candidateOrigin?.takeIf { it.isNotBlank() } ?: current.origin
-        val shortBlurb = candidateShortBlurb?.takeIf { it.isNotBlank() } ?: current.shortBlurb
+        // Blank-only merge (#21, AND-P1-1): the user's value always wins; the catalog only FILLS a
+        // field the user left blank — it is a suggestion, never authoritative. (The canonical catalog
+        // name/facts still live on the linked ref via `upsertRef`, so nothing is lost.)
+        val nameRu = current.nameRu?.takeIf { it.isNotBlank() } ?: candidateNameRu
+        val nameZh = current.nameZh?.takeIf { it.isNotBlank() } ?: candidateNameZh
+        val pinyin = current.pinyin?.takeIf { it.isNotBlank() } ?: candidatePinyin
+        val nameEn = current.nameEn?.takeIf { it.isNotBlank() } ?: candidateNameEn
+        val origin = current.origin?.takeIf { it.isNotBlank() } ?: candidateOrigin
+        val shortBlurb = current.shortBlurb?.takeIf { it.isNotBlank() } ?: candidateShortBlurb
+        // Never silently replace a user-set type. `OTHER` is the add-form default ("didn't choose"),
+        // so adopt the catalog's classification only then; otherwise keep what the user picked.
+        val mergedType = if (current.type == "OTHER") type else current.type
 
         // Cache the ref's full facts (FK target for the link below), then patch the sample.
         upsertRef(ref)
-        patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, shortBlurb, ref.id, state)
+        patchEnrichment(teaId, nameRu, nameZh, pinyin, nameEn, mergedType, origin, shortBlurb, ref.id, state)
     }
 
     @Query("DELETE FROM tea_flavors WHERE teaId = :teaId")

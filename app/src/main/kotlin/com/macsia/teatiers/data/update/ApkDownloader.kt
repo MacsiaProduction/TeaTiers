@@ -10,11 +10,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "ApkDownloader"
 private const val UPDATE_APK = "update.apk"
+
+/** Cap on the downloaded APK; a release APK is tens of MB. Stops a mirror filling the cache disk. */
+private const val MAX_APK_BYTES = 100L * 1024 * 1024
 
 /**
  * Downloads the release APK to an app-private cache file (decision #119), trying the manifest's
@@ -52,7 +57,20 @@ class ApkDownloader @Inject constructor(
                     return false
                 }
                 val body = response.body ?: return false
-                target.outputStream().use { out -> body.byteStream().copyTo(out) }
+                // Reject an over-large advertised length up front…
+                if (body.contentLength() > MAX_APK_BYTES) {
+                    Log.w(TAG, "download $url too large: ${body.contentLength()} bytes")
+                    return false
+                }
+                // …and bound the actual stream too, so a source that under-declares (or omits) its
+                // length still can't fill the cache disk. A truncated write is dropped by the caller.
+                val withinCap = body.byteStream().use { input ->
+                    target.outputStream().use { out -> copyCapped(input, out, MAX_APK_BYTES) }
+                }
+                if (!withinCap) {
+                    Log.w(TAG, "download $url exceeded cap of $MAX_APK_BYTES bytes")
+                    return false
+                }
                 true
             }
         } catch (e: IOException) {
@@ -61,6 +79,19 @@ class ApkDownloader @Inject constructor(
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "download bad url $url: ${e.message}") // malformed manifest URL
             false
+        }
+    }
+
+    /** Copy until EOF (true) or until the source exceeds [max] bytes (false, stops writing). */
+    private fun copyCapped(input: InputStream, output: OutputStream, max: Long): Boolean {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0L
+        while (true) {
+            val read = input.read(buffer)
+            if (read == -1) return true
+            total += read
+            if (total > max) return false
+            output.write(buffer, 0, read)
         }
     }
 }
