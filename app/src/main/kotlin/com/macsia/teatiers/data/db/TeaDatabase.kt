@@ -2,6 +2,7 @@ package com.macsia.teatiers.data.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 
 /**
  * v3 (photos reopening, decisions.md #43): adds a `tea_photos` table for the per-user-tea
@@ -26,6 +27,11 @@ import androidx.room.RoomDatabase
  * *destructive* reset + reseed ([com.macsia.teatiers.di.AppModule] enables `fallbackToDestructiveMigration`
  * in release for this bump) rather than a lossless migration. v7 is the new schema baseline; once a
  * real collection lands, the next bump goes back to an explicit `Migration(7, N)` + a test.
+ *
+ * **v8 (catalog dual-key, #137-C2):** the FIRST lossless migration since v7 became the durable
+ * baseline. Adds the nullable `catalog_refs.catalogPublicId` (the durable server UUID) next to the
+ * legacy Long `id` — additive, no data touched. See [MIGRATION_7_8]; proved lossless by
+ * TeaDatabaseMigrationTest.
  */
 @Database(
     entities = [
@@ -39,10 +45,20 @@ import androidx.room.RoomDatabase
         PhotoEntity::class,
         CatalogCacheEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class TeaDatabase : RoomDatabase() {
     abstract fun teaDao(): TeaDao
     abstract fun catalogDao(): CatalogDao
+}
+
+/**
+ * v7→v8: add the nullable `catalogPublicId` to `catalog_refs` (the durable server UUID; the Long
+ * `id` stays as the legacy fallback). Purely additive — no existing row is read or rewritten, so it
+ * is lossless by construction. Wired in [com.macsia.teatiers.di.AppModule]; tested in
+ * TeaDatabaseMigrationTest.
+ */
+val MIGRATION_7_8 = Migration(7, 8) { db ->
+    db.execSQL("ALTER TABLE catalog_refs ADD COLUMN catalogPublicId TEXT")
 }

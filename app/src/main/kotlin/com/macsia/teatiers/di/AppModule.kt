@@ -13,6 +13,7 @@ import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import com.macsia.teatiers.data.db.CatalogDao
+import com.macsia.teatiers.data.db.MIGRATION_7_8
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaDatabase
 import com.macsia.teatiers.data.diagnostics.DiagnosticsPreferences
@@ -60,9 +61,11 @@ object AppModule {
                 // v6→v7 (tea/sample split, #132) is the ONE-TIME destructive reset for the pre-launch
                 // mock collection (no `Migration(6,7)`; the SampleBoardProvider reseeds). Scoping the
                 // fallback to the pre-v7 versions is the data-loss guard: from v7 on (real users), a
-                // missing `Migration(7, N)` fails loudly instead of silently wiping. The next schema
-                // bump adds that explicit Migration + a MigrationTestHelper test.
+                // missing `Migration(7, N)` fails loudly instead of silently wiping.
                 fallbackToDestructiveMigrationFrom(dropAllTables = true, *DESTRUCTIVE_RESET_FROM)
+                // v7→v8 (catalog dual-key, #137-C2): the first real lossless migration off the v7
+                // baseline — additive `catalog_refs.catalogPublicId`. Every future bump adds one here.
+                addMigrations(MIGRATION_7_8)
                 // "tables were dropped" mark for the out-of-Room wipe sentinel (#111). Stored outside
                 // Room so the wiping migration can't erase its own evidence.
                 addCallback(object : RoomDatabase.Callback() {

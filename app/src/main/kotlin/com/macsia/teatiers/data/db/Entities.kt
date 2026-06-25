@@ -102,14 +102,20 @@ data class TeaSampleEntity(
 /**
  * Cached canonical catalog reference (v7, decision #132). Read-only facts mirrored from the server
  * catalog; the user never owns it. A row is OPTIONAL — custom samples have none. At seed/link time
- * only [id] + [type] are populated (a stub); the rest is backfilled by the deferred catalog-refresh
- * writer. Keyed by [id] = server `tea.id` (Long) — the UUID `publicId` switch rides the catalog-wire
- * slice (#137-C2); no `publicId` exists in the app's catalog client yet.
+ * only [id] + [type] are populated (a stub); the rest is backfilled by the catalog-refresh writer.
+ *
+ * **v8 dual-key (#137-C2):** [id] = server `tea.id` (Long) stays the primary key and the legacy
+ * fallback, but it is volatile across server DB rebuilds. [catalogPublicId] is the durable UUID the
+ * server emits (Step A decodes it); it's nullable and lazily backfilled — stamped onto the ref the
+ * next time its detail is fetched (see [com.macsia.teatiers.data.repository.TeaEnrichmentManager]),
+ * so old refs carry null until then. NOT unique: many samples can share a ref, and an old + a
+ * rebuilt-id ref may briefly co-exist before reconciliation.
  */
 @Entity(tableName = "catalog_refs")
 data class CatalogRefEntity(
     @PrimaryKey val id: Long,
     val type: String,
+    val catalogPublicId: String? = null,
     val wikidataQid: String? = null,
     val originCountry: String? = null,
     val region: String? = null,
