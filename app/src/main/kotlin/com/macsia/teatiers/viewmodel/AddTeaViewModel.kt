@@ -214,6 +214,8 @@ class AddTeaViewModel @Inject constructor(
                         if (this@AddTeaViewModel.boardId.value == boardId && _editingTeaId.value == null) {
                             pickCatalogTea(result.detail.toCatalogTea())
                         }
+                    is CatalogDetailResult.Retracted ->
+                        eventHost.emit(ShowSnackbar(R.string.catalog_detail_withdrawn))
                     CatalogDetailResult.Offline ->
                         eventHost.emit(ShowSnackbar(R.string.catalog_search_offline))
                     CatalogDetailResult.Error ->
@@ -374,6 +376,7 @@ class AddTeaViewModel @Inject constructor(
 
     private fun CatalogDetailResult.toUiState(): CatalogDetailUiState = when (this) {
         is CatalogDetailResult.Loaded -> CatalogDetailUiState.Loaded(detail)
+        is CatalogDetailResult.Retracted -> CatalogDetailUiState.Withdrawn
         CatalogDetailResult.Offline -> CatalogDetailUiState.Offline
         CatalogDetailResult.Error -> CatalogDetailUiState.Error
     }

@@ -252,6 +252,7 @@
     <string name="catalog_detail_read_less">Свернуть</string>
     <string name="catalog_detail_offline">Нет соединения. Не удалось загрузить чай.</string>
     <string name="catalog_detail_error">Не удалось загрузить чай. Попробуйте позже.</string>
+    <string name="catalog_detail_withdrawn">Этого чая больше нет в каталоге.</string>
     <string name="action_retry">Повторить</string>
     <!-- %1$s — название источника данных (например, Wikidata). -->
     <string name="catalog_detail_source">Источник: %1$s</string>

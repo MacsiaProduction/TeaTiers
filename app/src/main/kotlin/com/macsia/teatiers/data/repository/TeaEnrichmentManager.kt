@@ -140,6 +140,12 @@ class TeaEnrichmentManager @Inject constructor(
                     dao.updateEnrichmentState(localTeaId, EnrichmentState.FAILED.name)
                     return
                 }
+                is CatalogDetailResult.Retracted -> {
+                    // The catalog ref was withdrawn — there is nothing left to enrich from and a retry
+                    // can't help. Settle the sample (the user keeps their own data) and stop polling.
+                    dao.updateEnrichmentState(localTeaId, EnrichmentState.DONE.name)
+                    return
+                }
             }
         }
         // Server still working after the budget — mark retryable rather than spin forever.

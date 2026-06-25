@@ -8,6 +8,7 @@ import com.macsia.teatiers.data.remote.dto.ResolveResponseDto
 import com.macsia.teatiers.data.remote.dto.TeaDetailDto
 import com.macsia.teatiers.data.remote.dto.TeaSummaryDto
 import okhttp3.MultipartBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Multipart
@@ -35,8 +36,10 @@ interface CatalogApi {
         @Query("limit") limit: Int? = null,
     ): PageDto<TeaSummaryDto>
 
+    // Response (not the bare DTO) so the repository can read a 410 lifecycle body (retracted/merged
+    // tombstone) instead of it surfacing as an opaque HttpException.
     @GET("teas/{id}")
-    suspend fun detail(@Path("id") id: Long): TeaDetailDto
+    suspend fun detail(@Path("id") id: Long): Response<TeaDetailDto>
 
     @GET("teas/facets")
     suspend fun facets(): FacetsDto

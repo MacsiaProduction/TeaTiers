@@ -37,6 +37,7 @@ fun TeaNameDto.toDomain(): CatalogName =
 
 fun TeaSummaryDto.toDomain(): CatalogTea = CatalogTea(
     id = id,
+    publicId = publicId,
     type = teaTypeFromWire(type),
     originCountry = originCountry,
     brand = brand,
@@ -61,6 +62,7 @@ private fun TeaProvenanceDto.toDomain(): CatalogProvenance =
 
 fun TeaDetailDto.toDomain(): CatalogTeaDetail = CatalogTeaDetail(
     id = id,
+    publicId = publicId,
     type = teaTypeFromWire(type),
     originCountry = originCountry,
     region = region,

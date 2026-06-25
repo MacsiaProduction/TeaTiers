@@ -5,11 +5,13 @@ import com.macsia.teatiers.data.db.toCacheEntity
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.remote.CatalogApi
 import com.macsia.teatiers.data.remote.dto.ResolveRequestDto
+import com.macsia.teatiers.data.remote.dto.TeaLifecycleDto
 import com.macsia.teatiers.data.remote.toDomain
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -48,6 +50,13 @@ sealed interface CatalogBrowseResult {
 /** Outcome of loading one catalog tea's full detail (plan §5, `GET /teas/{id}`). */
 sealed interface CatalogDetailResult {
     data class Loaded(val detail: CatalogTeaDetail) : CatalogDetailResult
+
+    /**
+     * The tea was withdrawn from the catalog: retracted, or merged with a broken survivor chain
+     * (server returns 410 + a content-free lifecycle body, #137). [supersededByPublicId] points at the
+     * survivor to re-cache when the server knows it. The app must drop stale content, not show it.
+     */
+    data class Retracted(val supersededByPublicId: String?) : CatalogDetailResult
 
     /** Network unreachable. */
     data object Offline : CatalogDetailResult
@@ -140,6 +149,7 @@ interface CatalogRepository {
 class DefaultCatalogRepository @Inject constructor(
     private val api: CatalogApi,
     private val catalogDao: CatalogDao,
+    private val json: Json,
 ) : CatalogRepository {
 
     override suspend fun search(query: String, limit: Int): CatalogSearchResult {
@@ -181,7 +191,19 @@ class DefaultCatalogRepository @Inject constructor(
 
     override suspend fun detail(id: Long): CatalogDetailResult = withContext(Dispatchers.IO) {
         try {
-            CatalogDetailResult.Loaded(api.detail(id).toDomain())
+            val response = api.detail(id)
+            val body = response.body()
+            when {
+                response.isSuccessful && body != null -> CatalogDetailResult.Loaded(body.toDomain())
+                // 410 Gone => withdrawn (retracted, or merged with a broken chain). The body is a
+                // content-free lifecycle marker; decode it to follow the survivor when one is given.
+                response.code() == 410 -> {
+                    val lifecycle = response.errorBody()?.string()
+                        ?.let { runCatching { json.decodeFromString<TeaLifecycleDto>(it) }.getOrNull() }
+                    CatalogDetailResult.Retracted(lifecycle?.supersededByPublicId)
+                }
+                else -> CatalogDetailResult.Error
+            }
         } catch (_: IOException) {
             CatalogDetailResult.Offline
         } catch (_: HttpException) {

@@ -38,6 +38,9 @@ sealed interface CatalogDetailUiState {
     /** Detail loaded. */
     data class Loaded(val detail: CatalogTeaDetail) : CatalogDetailUiState
 
+    /** The catalog entry was withdrawn (retracted/merged). No content to show; not retryable. */
+    data object Withdrawn : CatalogDetailUiState
+
     /** Network unreachable; the sheet offers a retry. */
     data object Offline : CatalogDetailUiState
 
