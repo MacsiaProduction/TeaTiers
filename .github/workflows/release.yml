@@ -109,7 +109,7 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
 
-      - name: Stage APK + checksum + verify signature
+      - name: Stage APK + checksum + verify signature + write update manifest
         run: |
           set -euo pipefail
           apk=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
@@ -117,9 +117,30 @@ jobs:
           out="teatiers-${GITHUB_REF_NAME}.apk"
           cp "$apk" "$out"
           sha256sum "$out" | tee "$out.sha256"
+          apksha=$(cut -d' ' -f1 "$out.sha256")
           # Fail the release if the APK isn't actually signed (the updater relies on the signer).
           apksigner=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools" -name apksigner | sort -V | tail -1)
-          "$apksigner" verify --verbose --print-certs "$out"
+          "$apksigner" verify --verbose --print-certs "$out" | tee apksigner.out
+          # The in-app updater pins the signer — capture its cert SHA-256 straight from the verifier.
+          certsha=$(awk -F': ' '/certificate SHA-256 digest/{gsub(/ /,"",$2); print tolower($2); exit}' apksigner.out)
+          if [ -z "$certsha" ]; then echo "::error::could not read signing-cert SHA-256 from apksigner"; exit 1; fi
+          # The auto-publish manifest for the in-app updater (decisions #119/#120): the server fetches the stable
+          # releases/latest/download/latest.json and serves it at GET /api/v1/app/latest — so a tagged
+          # release goes live to the in-app updater with no server env edit or redeploy. Shape must match
+          # the server's AppManifestDto. minSupportedVersionCode/mandatory/notes default here; an operator
+          # can still pin them via static config (which wins). ponytail: release notes wired off the tag
+          # only — add a CHANGELOG source if per-locale notes are needed.
+          vc=$(grep -oE 'versionCode *= *[0-9]+' app/build.gradle.kts | head -1 | grep -oE '[0-9]+')
+          jq -n \
+            --argjson vc "$vc" \
+            --arg vn "${GITHUB_REF_NAME#v}" \
+            --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${out}" \
+            --arg sha "$apksha" \
+            --arg cert "$certsha" \
+            '{latestVersionCode:$vc, latestVersionName:$vn, minSupportedVersionCode:0,
+              apkUrl:$url, apkSha256:$sha, signingCertSha256:$cert, mirrorUrls:[],
+              releaseNotesRu:"", releaseNotesEn:"", mandatory:false, minOsSdk:26}' > latest.json
+          cat latest.json
 
       - name: Publish GitHub Release
         env:
@@ -129,5 +150,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "teatiers-${GITHUB_REF_NAME}.apk" \
             "teatiers-${GITHUB_REF_NAME}.apk.sha256" \
+            latest.json \
             --title "$GITHUB_REF_NAME" \
             --generate-notes

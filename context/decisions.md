@@ -3023,3 +3023,28 @@ deviated.
      - Verified: server `./gradlew check` green locally (256 tests, 0 failures; Testcontainers IT applies
        V18 on real PG and round-trips a harvest-year claim). CI is out of GitHub Actions minutes → local
        gate, commit to `main`.
+
+145. **Release automation — step 4 closed: the GitHub release auto-publishes its update manifest (2026-06-26).**
+     `release.yml` already built+signed+published the APK (decision #128) and the in-app updater shipped
+     dormant (decision #120) waiting on the server's `teatiers.appupdate.*` config being hand-set + redeployed
+     per release. That last manual step is the gap that kept the updater 204-ing. **Closed by making the
+     release its own source of truth:** `release.yml` now writes `latest.json` (the full `AppManifestDto`
+     shape — versionCode/Name from `build.gradle.kts`+tag, `apkSha256` from `sha256sum`, `signingCertSha256`
+     captured from `apksigner verify --print-certs`, deterministic `apkUrl`) and uploads it as a release asset.
+     The server (`AppManifestSource`) **background-refreshes** the stable `releases/latest/download/latest.json`
+     pointer (`@Scheduled` fixedDelay, 10 min default) and keeps **last-known-good** on any failure, so the
+     `GET /api/v1/app/latest` hot path never blocks on — or fails with — GitHub.
+     - **Why fetch the asset, not the GitHub API:** the stable `releases/latest/download/<asset>` URL is
+       anonymous + CDN-served (no token, no API rate limit), and `latest.json` carries `versionCode` (which
+       isn't derivable from the tag) so the server reconstructs nothing. Read as text + parsed explicitly
+       because the asset CDN serves `octet-stream`, which content-type negotiation would reject.
+     - **Precedence (escape hatch kept):** static config wins when `latest-version-code > 0` (operator
+       emergency pin) → else the fetched manifest → else `204`. So normal operation is hands-off; an operator
+       can still force/pin via env without a release.
+     - **One-time op:** set `TEATIERS_APPUPDATE_MANIFEST_URL` once (+ one redeploy). Goes live on the **next**
+       tagged release — the current v0.1.1 has no `latest.json` asset, so until then the endpoint 204s exactly
+       as before (logs a warning, offers nothing). No new deps (RestClient + `@Scheduled`, both already used).
+     - **Deferred (unchanged):** per-locale release notes (notes ship blank), the offline Ed25519 manifest
+       signature (decision #119 pre-public), the Yandex OS mirror. Verified: `AppUpdateControllerTest` green
+       (incl. new precedence assertion); `latest.json` jq/awk + cert extraction validated against sample
+       `apksigner` output; `release.yml` valid YAML.

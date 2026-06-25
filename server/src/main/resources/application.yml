@@ -93,9 +93,13 @@ teatiers:
     max-concurrent: 4
   appupdate:
     # In-app auto-update manifest (decision #119), served at GET /api/v1/app/latest (anonymous, no-PII).
-    # The operator sets these AFTER cutting a GitHub release: the release workflow prints the APK SHA-256,
-    # and signing-cert-sha256 comes from `apksigner verify --print-certs`. latest-version-code <= 0 =>
-    # the endpoint 204s ("no update info"). Override via env, e.g. TEATIERS_APPUPDATE_LATEST_VERSION_CODE.
+    # Set manifest-url ONCE and every future GitHub release auto-publishes: release.yml writes latest.json
+    # as a release asset; the server background-fetches the stable "latest" pointer below — no per-release
+    # env edit or redeploy. The static fields are the operator override/fallback (latest-version-code > 0
+    # wins over the fetched manifest; everything default => the endpoint 204s "no update info").
+    # Override via env, e.g. TEATIERS_APPUPDATE_MANIFEST_URL.
+    manifest-url: "" # e.g. https://github.com/MacsiaProduction/TeaTiers/releases/latest/download/latest.json
+    refresh-ms: 600000
     latest-version-code: 0
     latest-version-name: ""
     min-supported-version-code: 0
