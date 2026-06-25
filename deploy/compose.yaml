@@ -6,6 +6,13 @@
 # pulled from ghcr.io (publish-image.yml / ocr-sidecar.yml). DB is fresh-seeded by Flyway on first
 # boot. Privilege hardening (decision #102/#109): every service drops all caps + no-new-privileges;
 # only the caps a service genuinely needs are added back. pids_limit/mem_limit bound each service.
+
+# Pin the Compose project name so the stack is `teatiers` wherever compose runs from -- a manual
+# `docker compose` in this folder, the host run-dir, or Komodo. Without this a plain `docker compose`
+# from deploy/ defaults to project `deploy` and orphans the real `teatiers_*` stack (creating stray
+# `deploy_*` networks + container-name conflicts).
+name: teatiers
+
 x-logging: &default-logging
   driver: json-file
   options:

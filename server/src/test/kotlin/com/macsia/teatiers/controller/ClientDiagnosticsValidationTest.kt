@@ -1,7 +1,7 @@
 package com.macsia.teatiers.controller
 
 import com.macsia.teatiers.service.ClientDiagnosticsService
-import com.macsia.teatiers.service.DiagnosticsDailyBudget
+import com.macsia.teatiers.service.DailyBudget
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.Test
@@ -27,14 +27,14 @@ class ClientDiagnosticsValidationTest {
 
     @Autowired lateinit var mockMvc: MockMvc
 
-    @Autowired lateinit var dailyBudget: DiagnosticsDailyBudget
+    @Autowired lateinit var dailyBudget: DailyBudget
 
     @TestConfiguration
     @EnableConfigurationProperties(ClientDiagnosticsProperties::class)
     class MockConfig {
         @Bean fun clientDiagnosticsService(): ClientDiagnosticsService = mockk(relaxed = true)
 
-        @Bean fun diagnosticsDailyBudget(): DiagnosticsDailyBudget = mockk()
+        @Bean fun diagnosticsDailyBudget(): DailyBudget = mockk()
     }
 
     @BeforeEach

@@ -32,10 +32,9 @@ private val LiquorPalette: Map<TeaType, Color> = mapOf(
 
 private val DefaultTierRamp: List<Color> = listOf(TierS, TierA, TierB, TierC, TierD)
 
-internal val LightTeaColors = TeaColors(liquorByType = LiquorPalette, tierRamp = DefaultTierRamp)
-internal val DarkTeaColors = TeaColors(liquorByType = LiquorPalette, tierRamp = DefaultTierRamp)
+internal val TeaColorsValue = TeaColors(liquorByType = LiquorPalette, tierRamp = DefaultTierRamp)
 
-val LocalTeaColors = staticCompositionLocalOf { LightTeaColors }
+val LocalTeaColors = staticCompositionLocalOf { TeaColorsValue }
 
 /** Entry point for the extended tea palette, mirroring `MaterialTheme`. */
 object TeaTheme {

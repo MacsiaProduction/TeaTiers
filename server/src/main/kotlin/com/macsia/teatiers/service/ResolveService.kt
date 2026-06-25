@@ -6,6 +6,7 @@ import com.macsia.teatiers.dto.ResolveResponseDto
 import com.macsia.teatiers.dto.ResolveStatus
 import com.macsia.teatiers.repository.TeaRepository
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.task.TaskRejectedException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
@@ -31,7 +32,7 @@ class ResolveService(
     private val foundationModelsClient: FoundationModelsClient,
     private val enrichmentStubService: EnrichmentStubService,
     private val llmEnrichmentService: LlmEnrichmentService,
-    private val llmDailyBudget: LlmDailyBudget,
+    @Qualifier("llmDailyBudget") private val llmDailyBudget: DailyBudget,
     private val missLogService: MissLogService,
 ) {
 

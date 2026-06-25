@@ -2,6 +2,8 @@ package com.macsia.teatiers.dto
 
 import com.macsia.teatiers.validation.Iso3166
 import com.macsia.teatiers.validation.KnownTeaType
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import java.time.Instant
 
 /**
@@ -34,6 +36,8 @@ data class ScrapedFacts(
     val oxidationMax: Int? = null,
     val brand: String? = null,
     val vendor: String? = null,
+    // Gregorian harvest year (artoftea.ru «год сбора»); range-gated here and by the tea.harvest_year CHECK.
+    @field:Min(1900) @field:Max(2100) val harvestYear: Int? = null,
 )
 
 /**

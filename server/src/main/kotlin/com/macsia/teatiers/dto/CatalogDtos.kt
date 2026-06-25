@@ -70,6 +70,7 @@ data class TeaDetailDto(
     val type: TeaType,
     val originCountry: String?,
     val region: String?,
+    val harvestYear: Int?,
     val cultivar: String?,
     val oxidationMin: Int?,
     val oxidationMax: Int?,

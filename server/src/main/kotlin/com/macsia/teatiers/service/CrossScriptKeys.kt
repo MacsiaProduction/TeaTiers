@@ -1,7 +1,5 @@
 package com.macsia.teatiers.service
 
-import java.text.Normalizer
-
 /**
  * Cross-script helpers for identity matching (decision #136). The AUTHORITATIVE match normalization is
  * done in PostgreSQL (`lower(f_unaccent(...))`, the shared-normalizer invariant) -- [normalizeHint] here
@@ -38,12 +36,7 @@ object CrossScriptKeys {
     }
 
     /** Lowercase + strip combining marks + collapse whitespace. A display/storage hint, not the match key. */
-    fun normalizeHint(value: String): String =
-        Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replace(COMBINING_MARKS, "")
-            .lowercase()
-            .replace(WHITESPACE, " ")
-            .trim()
+    fun normalizeHint(value: String): String = foldDiacritics(value)
 
     /**
      * Best-effort Palladius(Cyrillic)->pinyin syllable bridge for a Cyrillic tea name. Greedy
@@ -89,7 +82,6 @@ object CrossScriptKeys {
 
     private fun Char.isCyrillic(): Boolean = this in 'Ѐ'..'ӿ'
 
-    private val COMBINING_MARKS = Regex("\\p{M}+")
     private val WHITESPACE = Regex("\\s+")
     private const val MAX_SYLLABLE_LEN = 5
 

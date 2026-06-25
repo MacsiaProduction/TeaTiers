@@ -1,6 +1,5 @@
 package com.macsia.teatiers.service
 
-import com.macsia.teatiers.config.MissLogProperties
 import com.macsia.teatiers.domain.CatalogMiss
 import com.macsia.teatiers.repository.CatalogMissRepository
 import org.springframework.data.domain.Limit
@@ -22,7 +21,6 @@ import java.time.LocalDate
 @Service
 class MissLogService(
     private val repository: CatalogMissRepository,
-    private val props: MissLogProperties = MissLogProperties(),
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -38,14 +36,14 @@ class MissLogService(
      * Daily retention sweep (03:41 UTC; offset off the hour and the diagnostics 03:17 sweep to dodge
      * cron spikes). The query string is free text a user typed, so we don't keep it forever (review
      * P0-2 / decision #130): drop rows last seen before the retention window AND asked fewer than
-     * [MissLogProperties.minMissCountToKeep] times; popular rows survive as the curation signal.
+     * [MIN_MISS_COUNT_TO_KEEP] times; popular rows survive as the curation signal.
      * Returns how many rows were removed.
      */
     @Scheduled(cron = "0 41 3 * * *", zone = "UTC")
     @Transactional
     fun purgeStale(): Int {
-        val cutoff = LocalDate.now(clock).minusDays(props.retentionDays)
-        return repository.deleteStale(cutoff, props.minMissCountToKeep)
+        val cutoff = LocalDate.now(clock).minusDays(RETENTION_DAYS)
+        return repository.deleteStale(cutoff, MIN_MISS_COUNT_TO_KEEP)
     }
 
     /** Operator review: the [limit] most-requested unresolved teas, highest demand first. */
@@ -73,5 +71,15 @@ class MissLogService(
         const val MAX_LEN = 200
         const val DEFAULT_TOP = 50
         const val MAX_TOP = 500
+
+        /**
+         * Retention for the demand-driven miss log (decision #116). A row is no-PII by construction (the
+         * normalized query string + a counter + dates), but the query string is free text a user typed, so
+         * we don't keep it forever (review P0-2 / decision #130): the daily sweep drops rows last seen
+         * before [RETENTION_DAYS] AND asked fewer than [MIN_MISS_COUNT_TO_KEEP] times. Frequently-requested
+         * teas survive regardless of age — they are the curation signal the log exists for.
+         */
+        const val RETENTION_DAYS = 90L
+        const val MIN_MISS_COUNT_TO_KEEP = 3L
     }
 }

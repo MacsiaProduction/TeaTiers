@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-server build-app check check-server check-app test run-server clean docker-build docker-up docker-down docker-logs docker-ps
+.PHONY: help build build-server build-app check check-server check-app test run-server clean
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -34,18 +34,3 @@ run-server: ## Run the backend at http://localhost:8080 (health: /actuator/healt
 clean: ## Remove build outputs in both modules
 	cd server && ./gradlew clean
 	cd app && ./gradlew clean
-
-docker-build: ## Build the backend container image
-	docker compose build
-
-docker-up: ## Start the full stack (server + Postgres) via docker compose
-	docker compose up -d
-
-docker-down: ## Stop and remove compose services
-	docker compose down
-
-docker-logs: ## Tail logs for the compose stack
-	docker compose logs -f --tail=100
-
-docker-ps: ## Show compose service status
-	docker compose ps
