@@ -1,6 +1,5 @@
 package com.macsia.teatiers.ui.board
 
-import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import com.macsia.teatiers.R
 
 /**
@@ -43,10 +41,7 @@ import com.macsia.teatiers.R
 fun AttributionsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
-    fun openUrl(url: String) {
-        // No browser is an edge case on stock devices; swallow rather than crash the screen.
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
-    }
+    fun openUrl(url: String) = context.openExternalUrl(url)
 
     Scaffold(
         modifier = modifier,

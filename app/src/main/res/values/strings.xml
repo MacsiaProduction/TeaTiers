@@ -21,6 +21,7 @@
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
+    <string name="error_cannot_open_link">Не удалось открыть ссылку.</string>
     <string name="add_tea_error_name_required">Укажите хотя бы одно название на любом языке.</string>
 
     <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
@@ -159,6 +160,7 @@
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
     <string name="detail_photos_title">Фотографии</string>
+    <string name="detail_not_found">Чай не найден.</string>
 
     <!-- Photo strip / gallery (decisions.md #43, photos reopening). -->
     <string name="photos_section_title">Фотографии</string>
