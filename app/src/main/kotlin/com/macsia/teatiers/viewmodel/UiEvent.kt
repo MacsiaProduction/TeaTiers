@@ -1,7 +1,9 @@
 package com.macsia.teatiers.viewmodel
 
 import androidx.annotation.StringRes
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
@@ -10,13 +12,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
- * One-shot UI event emitted by ViewModels for the screen to react to: a snackbar request.
+ * One-shot UI event emitted by ViewModels for the screen to react to: a snackbar request,
+ * optionally with an action button (e.g. "Undo"). When [actionLabelRes] is set the snackbar
+ * stays longer and runs [onAction] if the user taps it.
  *
  * The companion [UiEventHost] is a tiny VM-side helper that wraps a buffered channel + the
  * matching [Flow] exposure pattern used across every ViewModel here, so each VM does not
  * have to repeat the four lines that wire it up.
  */
-data class ShowSnackbar(@StringRes val messageRes: Int)
+data class ShowSnackbar(
+    @StringRes val messageRes: Int,
+    @StringRes val actionLabelRes: Int? = null,
+    val onAction: (() -> Unit)? = null,
+)
 
 /**
  * Per-VM helper around a buffered channel. Emit fires-and-forgets — the screen consumes via
@@ -41,7 +49,12 @@ fun CollectUiEvents(events: Flow<ShowSnackbar>, host: SnackbarHostState) {
     val resources = LocalContext.current.resources
     LaunchedEffect(events, host) {
         events.collect { event ->
-            host.showSnackbar(resources.getString(event.messageRes))
+            val result = host.showSnackbar(
+                message = resources.getString(event.messageRes),
+                actionLabel = event.actionLabelRes?.let(resources::getString),
+                duration = if (event.actionLabelRes != null) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) event.onAction?.invoke()
         }
     }
 }
