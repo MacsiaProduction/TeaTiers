@@ -6,10 +6,14 @@ import kotlin.test.assertNotNull
 import org.springframework.http.HttpStatus
 
 /**
- * Unit tests for the app-update manifest endpoint (decision #119). The controller returns a
- * `ResponseEntity` from plain properties, so it's exercised directly — no Spring context needed.
+ * Unit tests for the app-update manifest endpoint (decision #119). With a blank `manifest-url` the
+ * [AppManifestSource] never touches the network, so the controller is exercised directly off the
+ * static-override props — no Spring context needed.
  */
 class AppUpdateControllerTest {
+
+    private fun controllerFor(props: AppUpdateProperties) =
+        AppUpdateController(AppManifestSource(props))
 
     private fun configured() = AppUpdateProperties(
         latestVersionCode = 2,
@@ -27,14 +31,14 @@ class AppUpdateControllerTest {
 
     @Test
     fun `204 when no release is configured`() {
-        val response = AppUpdateController(AppUpdateProperties()).latest(ifNoneMatch = null)
+        val response = controllerFor(AppUpdateProperties()).latest(ifNoneMatch = null)
 
         assertEquals(HttpStatus.NO_CONTENT, response.statusCode)
     }
 
     @Test
     fun `200 with the manifest, sha fields lowercased, and an ETag when configured`() {
-        val response = AppUpdateController(configured()).latest(ifNoneMatch = null)
+        val response = controllerFor(configured()).latest(ifNoneMatch = null)
 
         assertEquals(HttpStatus.OK, response.statusCode)
         val body = response.body!!
@@ -49,7 +53,7 @@ class AppUpdateControllerTest {
 
     @Test
     fun `304 when If-None-Match matches the current ETag`() {
-        val controller = AppUpdateController(configured())
+        val controller = controllerFor(configured())
         val etag = controller.latest(ifNoneMatch = null).headers.eTag!!
 
         val cached = controller.latest(ifNoneMatch = etag)
@@ -59,9 +63,17 @@ class AppUpdateControllerTest {
 
     @Test
     fun `ETag changes when the release changes`() {
-        val v2 = AppUpdateController(configured()).latest(null).headers.eTag
-        val v3 = AppUpdateController(configured().copy(latestVersionCode = 3)).latest(null).headers.eTag
+        val v2 = controllerFor(configured()).latest(null).headers.eTag
+        val v3 = controllerFor(configured().copy(latestVersionCode = 3)).latest(null).headers.eTag
 
         assert(v2 != v3) { "a new release must produce a new ETag" }
+    }
+
+    @Test
+    fun `static config overrides the fetched manifest (emergency pin)`() {
+        // latest-version-code > 0 => the operator's static config wins over any auto-fetched manifest.
+        val source = AppManifestSource(configured())
+
+        assertEquals(2, source.current()!!.latestVersionCode)
     }
 }
