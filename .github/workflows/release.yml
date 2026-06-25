@@ -36,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # need all tags + history to compare versionCode against the previous release
 
       - name: Require a v* tag
         # On a tag push GITHUB_REF_NAME is the tag (v0.1.0); on a manual workflow_dispatch from a
@@ -46,6 +48,27 @@ jobs:
             v[0-9]*) echo "Release ref: $GITHUB_REF_NAME" ;;
             *) echo "::error::Release must be cut from a v* tag, got '$GITHUB_REF_NAME'. Push a tag: git tag v0.1.0 && git push origin v0.1.0"; exit 1 ;;
           esac
+
+      - name: Verify version bump (REL-P1-1)
+        # Block the two release-breaking version mistakes before we build/sign/publish anything:
+        #   1. the tag must match versionName (a v0.1.1 tag on a 0.1.0 build is a mislabelled release);
+        #   2. versionCode must strictly increase — Android refuses to install a non-higher versionCode
+        #      as an update, so a stale code ships an APK existing users can never auto-update to.
+        working-directory: app
+        run: |
+          set -euo pipefail
+          vn=$(grep -oE 'versionName *= *"[^"]+"' build.gradle.kts | head -1 | grep -oE '"[^"]+"' | tr -d '"')
+          vc=$(grep -oE 'versionCode *= *[0-9]+' build.gradle.kts | head -1 | grep -oE '[0-9]+')
+          want="${GITHUB_REF_NAME#v}"
+          [ "$vn" = "$want" ] || { echo "::error::tag $GITHUB_REF_NAME != versionName $vn — bump app/build.gradle.kts"; exit 1; }
+          prev=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
+          if [ -n "$prev" ]; then
+            oldvc=$(git show "$prev:app/build.gradle.kts" | grep -oE 'versionCode *= *[0-9]+' | head -1 | grep -oE '[0-9]+')
+            [ "$vc" -gt "$oldvc" ] || { echo "::error::versionCode $vc must be > previous release $prev ($oldvc) — bump app/build.gradle.kts"; exit 1; }
+            echo "OK: versionName $vn matches tag; versionCode $vc > $prev ($oldvc)"
+          else
+            echo "OK: first tagged release — versionCode $vc, versionName $vn"
+          fi
 
       - uses: actions/setup-java@v5
         with:
