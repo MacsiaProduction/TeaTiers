@@ -37,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -47,9 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TypeChip
@@ -215,15 +211,14 @@ private fun TeaThumb(uri: String?, fallbackType: com.macsia.teatiers.domain.mode
     if (uri == null) {
         LiquorSwatch(type = fallbackType, size = ThumbSize)
     } else {
-        val context = LocalContext.current
-        val request = remember(uri) { ImageRequest.Builder(context).data(uri).crossfade(true).build() }
         Box(
             modifier = Modifier
                 .size(ThumbSize)
                 .clip(MaterialTheme.shapes.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            AsyncImage(model = request, contentDescription = null, modifier = Modifier.fillMaxSize())
+            // Shared loader: gets the broken-image fallback for a revoked/deleted file (audit #6).
+            PhotoImage(uri = uri, modifier = Modifier.fillMaxSize())
         }
     }
 }

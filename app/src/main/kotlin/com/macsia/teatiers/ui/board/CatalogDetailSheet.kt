@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -36,7 +37,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
@@ -146,13 +147,16 @@ private fun CatalogDetailContent(detail: CatalogTeaDetail, onUse: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         detail.images.forEach { image ->
-            AsyncImage(
+            SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(image.url)
                     .crossfade(true)
                     .build(),
-                contentDescription = null,
+                contentDescription = stringResource(R.string.a11y_catalog_image),
                 contentScale = ContentScale.Crop,
+                // Catalog images are remote (Wikidata/server) — a dead URL or offline shows a
+                // broken-image glyph instead of a blank tinted banner (audit #6).
+                error = { PhotoLoadError(Modifier.fillMaxSize()) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)

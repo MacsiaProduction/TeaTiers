@@ -81,7 +81,11 @@ fun PhotoGallery(photos: List<TeaPhoto>, modifier: Modifier = Modifier) {
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                PhotoImage(uri = photo.uri, modifier = Modifier.fillMaxSize())
+                PhotoImage(
+                    uri = photo.uri,
+                    contentDescription = stringResource(R.string.a11y_photo_in_gallery, page + 1, photos.size),
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
         if (photos.size > 1) {
@@ -163,7 +167,10 @@ private fun PhotoZoomDialog(photos: List<TeaPhoto>, startIndex: Int, onDismiss: 
                     .background(Color.Black),
             ) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                    ZoomablePhoto(uri = photos[page].uri)
+                    ZoomablePhoto(
+                        uri = photos[page].uri,
+                        contentDescription = stringResource(R.string.a11y_photo_in_gallery, page + 1, photos.size),
+                    )
                 }
                 IconButton(
                     onClick = onDismiss,
@@ -183,7 +190,7 @@ private fun PhotoZoomDialog(photos: List<TeaPhoto>, startIndex: Int, onDismiss: 
 }
 
 @Composable
-private fun ZoomablePhoto(uri: String) {
+private fun ZoomablePhoto(uri: String, contentDescription: String? = null) {
     var scale by remember(uri) { mutableFloatStateOf(1f) }
     var offsetX by remember(uri) { mutableFloatStateOf(0f) }
     var offsetY by remember(uri) { mutableFloatStateOf(0f) }
@@ -218,7 +225,7 @@ private fun ZoomablePhoto(uri: String) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        PhotoImage(uri = uri, modifier = Modifier.fillMaxSize())
+        PhotoImage(uri = uri, contentDescription = contentDescription, modifier = Modifier.fillMaxSize())
     }
 }
 

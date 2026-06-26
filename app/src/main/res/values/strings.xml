@@ -194,6 +194,9 @@
     <string name="a11y_photo_move_left">Переместить фото левее</string>
     <string name="a11y_photo_move_right">Переместить фото правее</string>
     <string name="a11y_photo_zoom_close">Закрыть просмотр фото</string>
+    <string name="a11y_photo_in_gallery">Фото %1$d из %2$d</string>
+    <string name="a11y_photo_failed">Не удалось загрузить фото</string>
+    <string name="a11y_catalog_image">Изображение чая из каталога</string>
     <string name="confirm_remove_photo_title">Удалить фото?</string>
     <string name="confirm_remove_photo_message">Фото будет удалено с этого чая. Действие необратимо.</string>
 
