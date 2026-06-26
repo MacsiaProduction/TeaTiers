@@ -2,6 +2,8 @@ package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.db.PlacementEntity
+import com.macsia.teatiers.data.db.TierEntity
+import com.macsia.teatiers.data.repository.DeletedTier
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.Board
@@ -114,7 +116,7 @@ class BoardViewModelTest {
         coEvery { repository.renameTier(any(), any(), any()) } just Runs
         coEvery { repository.setTierColor(any(), any(), any()) } just Runs
         coEvery { repository.reorderTiers(any(), any()) } just Runs
-        coEvery { repository.removeTier(any(), any()) } just Runs
+        coEvery { repository.removeTier(any(), any()) } returns null
         val viewModel = BoardViewModel(repository, enrichmentManager)
         viewModel.bind("b")
 
@@ -130,6 +132,29 @@ class BoardViewModelTest {
         coVerify(exactly = 1) { repository.setTierColor(eq("b"), eq("s"), eq(0xFF356A4BL)) }
         coVerify(exactly = 1) { repository.reorderTiers(eq("b"), eq(listOf("a", "s"))) }
         coVerify(exactly = 1) { repository.removeTier(eq("b"), eq("a")) }
+    }
+
+    @Test
+    fun `removeTier offers an undo that restores the tier`() = runTest {
+        val tier = TierEntity(id = "s", boardId = "b", label = "S", position = 0, colorArgb = null)
+        val deleted = DeletedTier(tier = tier, placements = emptyList())
+        coEvery { repository.removeTier("b", "s") } returns deleted
+        coEvery { repository.restoreTier(deleted) } just Runs
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        viewModel.bind("b")
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.removeTier("s")
+        advanceUntilIdle()
+
+        val event = events.single()
+        assertEquals(R.string.snackbar_tier_deleted, event.messageRes)
+        assertEquals(R.string.action_undo, event.actionLabelRes)
+
+        event.onAction!!.invoke() // user taps "Вернуть"
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.restoreTier(deleted) }
     }
 
     @Test

@@ -88,6 +88,9 @@ abstract class TeaDao {
     @Query("DELETE FROM boards WHERE id = :boardId")
     abstract suspend fun deleteBoardRow(boardId: String)
 
+    @Query("UPDATE boards SET name = :name WHERE id = :boardId")
+    abstract suspend fun updateBoardName(boardId: String, name: String)
+
     // Out-of-Room wipe sentinel (decision #111): numeric-only user-data counts, no content.
     @Query("SELECT COUNT(*) FROM tea_samples")
     abstract suspend fun teaCount(): Int
@@ -401,6 +404,30 @@ abstract class TeaDao {
     open suspend fun createBoardWithTiers(board: BoardEntity, tiers: List<TierEntity>) {
         insertBoards(listOf(board))
         if (tiers.isNotEmpty()) insertTiers(tiers)
+    }
+
+    /**
+     * Re-inserts a board deleted by [deleteBoardRow] together with the tiers + placements that
+     * cascaded with it, in one transaction. Backs the board-delete Undo. The shared samples were
+     * never deleted (board delete only cascades the board's own tiers + placements), so they are
+     * not part of the snapshot and the restored placements' teaId FK still resolves.
+     */
+    @Transaction
+    open suspend fun restoreBoard(board: BoardEntity, tiers: List<TierEntity>, placements: List<PlacementEntity>) {
+        insertBoards(listOf(board))
+        if (tiers.isNotEmpty()) insertTiers(tiers)
+        if (placements.isNotEmpty()) insertPlacements(placements)
+    }
+
+    /**
+     * Re-inserts a tier deleted by [removeTier] and moves its placements back out of the tray to
+     * the restored tier (their original tierId + position from the pre-delete snapshot), in one
+     * transaction. Backs the tier-delete Undo.
+     */
+    @Transaction
+    open suspend fun restoreTier(tier: TierEntity, reassigned: List<PlacementMove>) {
+        insertTiers(listOf(tier))
+        applyPlacements(reassigned)
     }
 
     /**

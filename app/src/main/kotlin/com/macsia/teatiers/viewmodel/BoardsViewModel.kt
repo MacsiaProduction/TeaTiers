@@ -3,6 +3,7 @@ package com.macsia.teatiers.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
+import com.macsia.teatiers.data.repository.DeletedBoard
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.TierTemplate
@@ -51,10 +52,41 @@ class BoardsViewModel @Inject constructor(
         }
     }
 
-    /** Deletes a board (tier-list). The board's teas persist (shared, #42); only its arrangement goes. */
+    /** Renames a board; blank names are ignored by the repository, so the dialog can dispatch directly. */
+    fun renameBoard(boardId: String, name: String) {
+        viewModelScope.launch {
+            runCatching { repository.renameBoard(boardId, name) }
+                .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
+        }
+    }
+
+    /**
+     * Deletes a board (tier-list). The board's teas persist (shared, #42); only its arrangement
+     * goes. Offers an Undo snackbar that reinstates the whole board from the returned snapshot —
+     * deleting a whole arrangement is high-stakes, so the confirm dialog and Undo both guard it.
+     */
     fun deleteBoard(boardId: String) {
         viewModelScope.launch {
-            runCatching { repository.deleteBoard(boardId) }
+            val deleted = runCatching { repository.deleteBoard(boardId) }
+                .getOrElse {
+                    eventHost.emit(ShowSnackbar(R.string.error_generic))
+                    return@launch
+                }
+            if (deleted != null) {
+                eventHost.emit(
+                    ShowSnackbar(
+                        messageRes = R.string.snackbar_board_deleted,
+                        actionLabelRes = R.string.action_undo,
+                        onAction = { restoreBoard(deleted) },
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun restoreBoard(deleted: DeletedBoard) {
+        viewModelScope.launch {
+            runCatching { repository.restoreBoard(deleted) }
                 .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }

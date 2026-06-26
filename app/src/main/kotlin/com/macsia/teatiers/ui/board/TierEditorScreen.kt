@@ -33,6 +33,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +60,7 @@ import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.ui.theme.TierColorPresetsArgb
 import com.macsia.teatiers.ui.theme.pickOnColorArgb
 import com.macsia.teatiers.viewmodel.BoardViewModel
+import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.TierWithPlacements
 
 private val ScreenInset = 16.dp
@@ -85,6 +88,8 @@ fun TierEditorScreen(
     val order = tiers.map { it.tier.id }
     val ramp = TeaTheme.colors.tierRamp
     val newTierLabel = stringResource(R.string.tier_new_label)
+    val snackbarHostState = remember { SnackbarHostState() }
+    CollectUiEvents(viewModel.events, snackbarHostState)
 
     var colorDialogTierId by remember { mutableStateOf<String?>(null) }
     var deleteDialogTier by remember { mutableStateOf<TierWithPlacements?>(null) }
@@ -104,6 +109,7 @@ fun TierEditorScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innerPadding).imePadding(),

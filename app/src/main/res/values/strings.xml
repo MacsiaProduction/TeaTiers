@@ -130,6 +130,8 @@
     <string name="action_add_another_sample">Добавить ещё образец</string>
     <string name="action_undo">Вернуть</string>
     <string name="snackbar_placement_removed">Чай убран с подборки</string>
+    <string name="snackbar_board_deleted">Подборка удалена</string>
+    <string name="snackbar_tier_deleted">Тир удалён</string>
 
     <!-- Optimistic catalog-enrichment status shown on the tea card (decisions.md #21/#28). -->
     <string name="enrichment_status_pending">Уточняем…</string>
@@ -361,6 +363,8 @@
     <string name="board_delete_confirm_title">Удалить подборку?</string>
     <string name="board_delete_confirm_message">Подборка «%1$s» будет удалена. Чаи останутся в вашей коллекции — удаляется только сама подборка.</string>
     <string name="board_delete_confirm_action">Удалить</string>
+    <string name="action_rename">Переименовать</string>
+    <string name="board_rename_title">Переименовать подборку</string>
 
     <!-- Browse the whole shared catalog (#42 follow-up): list all catalog teas, add one to a board. -->
     <string name="a11y_browse_catalog_open">Каталог чаёв</string>

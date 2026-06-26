@@ -77,6 +77,7 @@ fun BoardsScreen(
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
+    var boardToRename by remember { mutableStateOf<BoardSummary?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -132,6 +133,7 @@ fun BoardsScreen(
                     BoardSummaryCard(
                         summary = summary,
                         onClick = { onOpenBoard(summary.id) },
+                        onRename = { boardToRename = summary },
                         onDelete = { boardToDelete = summary },
                     )
                 }
@@ -167,10 +169,26 @@ fun BoardsScreen(
             },
         )
     }
+
+    boardToRename?.let { board ->
+        RenameBoardDialog(
+            initialName = board.name,
+            onRename = { name ->
+                viewModel.renameBoard(board.id, name)
+                boardToRename = null
+            },
+            onDismiss = { boardToRename = null },
+        )
+    }
 }
 
 @Composable
-private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun BoardSummaryCard(
+    summary: BoardSummary,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     val countText = pluralStringResource(R.plurals.tea_count, summary.teaCount, summary.teaCount)
     // The tappable area (title + count + swatches) is one merged TalkBack node that opens the board;
@@ -219,6 +237,13 @@ private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelet
                     )
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_rename)) },
+                        onClick = {
+                            menuOpen = false
+                            onRename()
+                        },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.board_delete)) },
                         onClick = {
@@ -318,6 +343,40 @@ private fun CreateBoardDialog(
                 onClick = { onCreate(label.trim(), template) },
                 enabled = canCreate,
             ) { Text(stringResource(R.string.action_create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun RenameBoardDialog(
+    initialName: String,
+    onRename: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Keyed on the board's current name so reopening for a different board re-seeds the field
+    // (and a rotation mid-typing keeps the edit).
+    var name by rememberSaveable(initialName) { mutableStateOf(initialName) }
+    val canSave = name.trim().isNotEmpty()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.board_rename_title)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.boards_create_name_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().imePadding(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onRename(name.trim()) }, enabled = canSave) {
+                Text(stringResource(R.string.action_save))
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }

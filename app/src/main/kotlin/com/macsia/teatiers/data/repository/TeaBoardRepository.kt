@@ -40,6 +40,25 @@ import javax.inject.Singleton
 data class AddedTea(val teaId: String, val created: Boolean)
 
 /**
+ * A board removed by [TeaBoardRepository.deleteBoard], captured with the rows that cascaded with
+ * it so [TeaBoardRepository.restoreBoard] can fully reinstate it (backs the delete Undo).
+ */
+data class DeletedBoard(
+    val board: BoardEntity,
+    val tiers: List<TierEntity>,
+    val placements: List<PlacementEntity>,
+)
+
+/**
+ * A tier removed by [TeaBoardRepository.removeTier], captured with the placements it held (each
+ * with its in-tier slot) so [TeaBoardRepository.restoreTier] can put them back (Undo).
+ */
+data class DeletedTier(
+    val tier: TierEntity,
+    val placements: List<PlacementEntity>,
+)
+
+/**
  * Room-backed single source of truth for boards (M1; shared-teas reopening per decisions.md
  * #42). Boards are exposed as a hot [StateFlow] collected on the app scope so the synchronous
  * reads below see loaded data and an added tea shows up on every screen at once.
@@ -173,13 +192,31 @@ class TeaBoardRepository @Inject constructor(
         return boardId
     }
 
+    /** Renames a board; blank names are ignored so a board always keeps a usable title. No-op if unknown. */
+    suspend fun renameBoard(boardId: String, name: String) {
+        val clean = name.trim().ifEmpty { return }
+        if (board(boardId) == null) return
+        dao.updateBoardName(boardId, clean)
+    }
+
     /**
      * Deletes a whole board (tier-list). Its tiers + placements cascade via FK; the shared teas
      * themselves persist (they live in the collection independent of any board, #42) — deleting a
-     * board removes only its tier arrangement, not the teas. No-op if the board is unknown.
+     * board removes only its tier arrangement, not the teas. Returns a [DeletedBoard] snapshot (or
+     * null if the board was unknown) so the caller can offer an Undo. The snapshot reuses the
+     * export reads (board + its tiers + its placements), filtered to the board in Kotlin.
      */
-    suspend fun deleteBoard(boardId: String) {
+    suspend fun deleteBoard(boardId: String): DeletedBoard? {
+        val board = dao.allBoards().firstOrNull { it.id == boardId } ?: return null
+        val tiers = dao.allTiers().filter { it.boardId == boardId }
+        val placements = dao.allPlacements().filter { it.boardId == boardId }
         dao.deleteBoardRow(boardId)
+        return DeletedBoard(board, tiers, placements)
+    }
+
+    /** Re-inserts a board removed by [deleteBoard] from its [DeletedBoard] snapshot (Undo). */
+    suspend fun restoreBoard(deleted: DeletedBoard) {
+        dao.restoreBoard(deleted.board, deleted.tiers, deleted.placements)
     }
 
     /**
@@ -349,11 +386,23 @@ class TeaBoardRepository @Inject constructor(
         if (positions.isNotEmpty()) dao.reorderTiers(positions)
     }
 
-    /** Removes a tier and drops its placements into the unranked tray (open item #11). */
-    suspend fun removeTier(boardId: String, tierId: String) {
-        val board = board(boardId) ?: return
-        if (!board.hasTier(tierId)) return
+    /**
+     * Removes a tier and drops its placements into the unranked tray (open item #11). Returns a
+     * [DeletedTier] snapshot (or null if the board/tier was unknown) so the caller can offer an
+     * Undo — captured BEFORE the reassignment so each placement keeps its original tier + slot.
+     */
+    suspend fun removeTier(boardId: String, tierId: String): DeletedTier? {
+        val board = board(boardId) ?: return null
+        if (!board.hasTier(tierId)) return null
+        val tier = dao.allTiers().firstOrNull { it.id == tierId } ?: return null
+        val placements = dao.allPlacements().filter { it.tierId == tierId }
         dao.removeTier(tierId, computeTrayReassignment(board, tierId))
+        return DeletedTier(tier, placements)
+    }
+
+    /** Re-inserts a tier removed by [removeTier] and returns its placements to it (Undo). */
+    suspend fun restoreTier(deleted: DeletedTier) {
+        dao.restoreTier(deleted.tier, deleted.placements.map { PlacementMove(it.id, it.tierId, it.position) })
     }
 
     /**

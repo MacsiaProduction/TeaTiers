@@ -79,6 +79,14 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
+    override suspend fun updateBoardName(boardId: String, name: String) {
+        val index = boards.indexOfFirst { it.id == boardId }
+        if (index >= 0) {
+            boards[index] = boards[index].copy(name = name)
+            refresh()
+        }
+    }
+
     override suspend fun teaCount(): Int = teas.size
 
     override suspend fun photoCount(): Int = photos.size
