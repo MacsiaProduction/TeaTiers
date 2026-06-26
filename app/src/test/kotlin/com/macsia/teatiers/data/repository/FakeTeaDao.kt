@@ -118,11 +118,15 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
-    // @Upsert: replace the ref with this id, or insert it.
-    override suspend fun upsertRef(ref: CatalogRefEntity) {
+    // Storage primitives behind the inherited (monotonic-publicId) upsertRef, so the fake exercises
+    // the real merge logic rather than masking it.
+    override suspend fun upsertRefRow(ref: CatalogRefEntity) {
         catalogRefs.removeAll { it.id == ref.id }
         catalogRefs += ref
     }
+
+    override suspend fun loadRefPublicId(refId: Long): String? =
+        catalogRefs.firstOrNull { it.id == refId }?.catalogPublicId
 
     override suspend fun insertTeas(teas: List<TeaSampleEntity>) {
         this.teas += teas

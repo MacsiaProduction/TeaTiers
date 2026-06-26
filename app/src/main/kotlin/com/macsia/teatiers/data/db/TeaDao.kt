@@ -127,9 +127,28 @@ abstract class TeaDao {
      * Catalog-refresh writer (#132 / finding #6/#22): upserts the FULL cached facts of a catalog ref
      * (overwrites ref columns only — never touches any sample). Called when enrichment resolves a
      * sample to a ref, so the stub created at link time populates with real origin/brand/blurb/etc.
+     *
+     * [CatalogRefEntity.catalogPublicId] is the durable cross-rebuild key (#137-C2): lazily backfilled
+     * and MONOTONIC — null -> UUID, never back. An older server omits it (null), and a naive full-row
+     * upsert would wipe a UUID we'd already stamped, dropping the app back to the volatile Long id. So
+     * when the incoming publicId is null we keep whatever the row already holds.
      */
+    @Transaction
+    open suspend fun upsertRef(ref: CatalogRefEntity) {
+        val merged = if (ref.catalogPublicId == null) {
+            ref.copy(catalogPublicId = loadRefPublicId(ref.id))
+        } else {
+            ref
+        }
+        upsertRefRow(merged)
+    }
+
     @Upsert
-    abstract suspend fun upsertRef(ref: CatalogRefEntity)
+    abstract suspend fun upsertRefRow(ref: CatalogRefEntity)
+
+    /** The durable public id currently stored for a ref (null for a stub / older row); the monotonic-merge read. */
+    @Query("SELECT catalogPublicId FROM catalog_refs WHERE id = :refId")
+    abstract suspend fun loadRefPublicId(refId: Long): String?
 
     @Insert
     abstract suspend fun insertTeas(teas: List<TeaSampleEntity>)
