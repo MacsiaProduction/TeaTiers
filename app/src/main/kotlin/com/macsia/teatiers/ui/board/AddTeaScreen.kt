@@ -231,14 +231,15 @@ fun AddTeaScreen(
                     },
                 )
             }
+            // The requirement is "≥1 name in ANY locale" (#132), so the label + hint live at the name
+            // GROUP level, not pinned to the ru field (which made an empty form look like ru alone was
+            // required — audit #7). No per-field error outline; the group hint below carries it.
+            FieldLabel(stringResource(R.string.field_names_section))
             OutlinedTextField(
                 value = form.nameRu,
                 onValueChange = { v -> viewModel.update { it.copy(nameRu = v) } },
                 label = { Text(stringResource(R.string.field_name_ru)) },
                 singleLine = true,
-                // P1-2 (#132): ru is no longer required — error only when NO name in any locale is set.
-                isError = !form.isValid,
-                supportingText = { Text(stringResource(R.string.field_name_ru_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(nameRuFocusRequester),
@@ -266,6 +267,16 @@ fun AddTeaScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+            // One group-level requirement line for all four name fields; red until satisfied (audit #7).
+            Text(
+                text = stringResource(R.string.field_name_required_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (form.isValid) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+            )
 
             FieldLabel(stringResource(R.string.field_type))
             ChipRow {
