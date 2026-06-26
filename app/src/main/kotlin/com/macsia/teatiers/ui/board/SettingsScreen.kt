@@ -368,7 +368,10 @@ private fun UpdateDialogs(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { onOpenUrl(releasesUrl) }) {
+                // Deep-link the actual APK asset so the user isn't left hunting the releases index;
+                // fall back to the releases page if an older manifest carries no apkUrl.
+                val downloadUrl = state.manifest.apkUrl.ifBlank { releasesUrl }
+                TextButton(onClick = { onOpenUrl(downloadUrl) }) {
                     Text(stringResource(R.string.update_download_github))
                 }
             },
