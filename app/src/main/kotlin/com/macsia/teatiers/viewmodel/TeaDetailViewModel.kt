@@ -132,6 +132,10 @@ class TeaDetailViewModel @Inject constructor(
     /**
      * Deletes the user-tea everywhere from the detail screen — every board the tea sits on
      * loses its placement (FK cascade). Destructive; UI gates this behind a confirm dialog.
+     *
+     * No Undo snackbar here: this path pops back to the previous screen on success, so an in-place
+     * snackbar would vanish with it. The confirm dialog is the safety net for this entry point; the
+     * in-place board delete (BoardViewModel) offers Undo instead. The snapshot return is ignored.
      */
     fun deleteTea(onDeleted: () -> Unit) {
         val id = teaId.value ?: return

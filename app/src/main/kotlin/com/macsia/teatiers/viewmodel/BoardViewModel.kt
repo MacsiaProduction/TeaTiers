@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.db.PlacementEntity
+import com.macsia.teatiers.data.repository.DeletedTea
+import com.macsia.teatiers.data.repository.DeletedTier
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -101,11 +103,31 @@ class BoardViewModel @Inject constructor(
     }
 
     /**
-     * Deletes the user-tea everywhere — every board the tea was placed on loses its placement
-     * via FK cascade. Destructive; UI gates this behind a confirmation dialog.
+     * Deletes the user-tea everywhere — every board the tea was placed on loses its placement via
+     * FK cascade. Offers an Undo snackbar that reinstates the tea with its flavors, photos, and
+     * every placement. UI also gates this behind a confirmation dialog.
      */
     fun deleteTea(teaId: String) {
-        guarded { repository.deleteTea(teaId) }
+        viewModelScope.launch {
+            val deleted = runCatching { repository.deleteTea(teaId) }
+                .getOrElse {
+                    eventHost.emit(ShowSnackbar(R.string.error_generic))
+                    return@launch
+                }
+            if (deleted != null) {
+                eventHost.emit(
+                    ShowSnackbar(
+                        messageRes = R.string.snackbar_tea_deleted,
+                        actionLabelRes = R.string.action_undo,
+                        onAction = { restoreTea(deleted) },
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun restoreTea(deleted: DeletedTea) {
+        guarded { repository.restoreTea(deleted) }
     }
 
     fun addTier(label: String) {
@@ -128,8 +150,31 @@ class BoardViewModel @Inject constructor(
         guarded { repository.reorderTiers(board, orderedTierIds) }
     }
 
+    /**
+     * Removes a tier; its placements fall into the unranked tray (they are not deleted). Offers an
+     * Undo snackbar that restores the tier and pulls those placements back into it.
+     */
     fun removeTier(tierId: String) {
         val board = boardId.value ?: return
-        guarded { repository.removeTier(board, tierId) }
+        viewModelScope.launch {
+            val deleted = runCatching { repository.removeTier(board, tierId) }
+                .getOrElse {
+                    eventHost.emit(ShowSnackbar(R.string.error_generic))
+                    return@launch
+                }
+            if (deleted != null) {
+                eventHost.emit(
+                    ShowSnackbar(
+                        messageRes = R.string.snackbar_tier_deleted,
+                        actionLabelRes = R.string.action_undo,
+                        onAction = { restoreTier(deleted) },
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun restoreTier(deleted: DeletedTier) {
+        guarded { repository.restoreTier(deleted) }
     }
 }

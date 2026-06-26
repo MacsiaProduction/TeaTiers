@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test
 
 /**
  * End-to-end repository coverage for the photos surface (decisions.md #43): add → row + file,
- * remove → renumber + delete file, reorder → contiguous positions, deleteTea → file cascade.
+ * remove → renumber + delete file, reorder → contiguous positions, deleteTea → keeps files for Undo.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PhotoRepositoryTest {
@@ -121,22 +121,35 @@ class PhotoRepositoryTest {
     }
 
     @Test
-    fun `deleteTea cascades photo files`() = runTest(UnconfinedTestDispatcher()) {
-        val photoStore = FakePhotoStore()
-        val repository = repo(photoStore)
-        advanceUntilIdle()
+    fun `deleteTea keeps photo files for Undo and restoreTea re-references them`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val photoStore = FakePhotoStore()
+            val repository = repo(photoStore)
+            advanceUntilIdle()
 
-        repository.addPhoto("green", fakeUri("content://a"))
-        repository.addPhoto("green", fakeUri("content://b"))
-        advanceUntilIdle()
+            repository.addPhoto("green", fakeUri("content://a"))
+            repository.addPhoto("green", fakeUri("content://b"))
+            advanceUntilIdle()
 
-        repository.deleteTea("green")
-        advanceUntilIdle()
+            val deleted = repository.deleteTea("green")
+            advanceUntilIdle()
 
-        // The user-tea is gone, both files were asked to be deleted, and the boards Flow
-        // reflects an empty placement set so the UI can no longer reach the tea.
-        assertNull(repository.tea("green"))
-        assertEquals(setOf("/fake/1.jpg", "/fake/2.jpg"), photoStore.deleted.toSet())
-        assertTrue(repository.boards.value.single().placements.values.flatten().isEmpty())
-    }
+            // The tea + its rows are gone, but the files are deliberately NOT deleted: an Undo
+            // re-references them; the app-open sweep reclaims them only if the delete is never undone.
+            assertNotNull(deleted)
+            assertNull(repository.tea("green"))
+            assertTrue(repository.boards.value.single().placements.values.flatten().isEmpty())
+            assertTrue(photoStore.deleted.isEmpty())
+            assertEquals(setOf("/fake/1.jpg", "/fake/2.jpg"), photoStore.onDisk)
+
+            repository.restoreTea(deleted!!)
+            advanceUntilIdle()
+
+            // Undo brings the tea back with its photos pointing at the same, still-present files.
+            val photos = repository.tea("green")?.photos.orEmpty()
+            assertEquals(listOf("/fake/1.jpg", "/fake/2.jpg"), photos.map { it.uri })
+            assertTrue(
+                repository.boards.value.single().placements.getValue("s").any { it.tea.id == "green" },
+            )
+        }
 }

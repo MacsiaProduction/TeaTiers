@@ -88,6 +88,9 @@ abstract class TeaDao {
     @Query("DELETE FROM boards WHERE id = :boardId")
     abstract suspend fun deleteBoardRow(boardId: String)
 
+    @Query("UPDATE boards SET name = :name WHERE id = :boardId")
+    abstract suspend fun updateBoardName(boardId: String, name: String)
+
     // Out-of-Room wipe sentinel (decision #111): numeric-only user-data counts, no content.
     @Query("SELECT COUNT(*) FROM tea_samples")
     abstract suspend fun teaCount(): Int
@@ -145,10 +148,6 @@ abstract class TeaDao {
 
     @Query("SELECT * FROM tea_photos WHERE teaId = :teaId ORDER BY position")
     abstract suspend fun loadPhotos(teaId: String): List<PhotoEntity>
-
-    /** URIs only — used to enumerate files to delete from disk before the row goes. */
-    @Query("SELECT uri FROM tea_photos WHERE teaId = :teaId")
-    abstract suspend fun loadPhotoUrisFor(teaId: String): List<String>
 
     @Query("SELECT uri FROM tea_photos WHERE id = :photoId")
     abstract suspend fun loadPhotoUri(photoId: String): String?
@@ -401,6 +400,51 @@ abstract class TeaDao {
     open suspend fun createBoardWithTiers(board: BoardEntity, tiers: List<TierEntity>) {
         insertBoards(listOf(board))
         if (tiers.isNotEmpty()) insertTiers(tiers)
+    }
+
+    /**
+     * Re-inserts a board deleted by [deleteBoardRow] together with the tiers + placements that
+     * cascaded with it, in one transaction. Backs the board-delete Undo. The shared samples were
+     * never deleted (board delete only cascades the board's own tiers + placements), so they are
+     * not part of the snapshot and the restored placements' teaId FK still resolves.
+     */
+    @Transaction
+    open suspend fun restoreBoard(board: BoardEntity, tiers: List<TierEntity>, placements: List<PlacementEntity>) {
+        insertBoards(listOf(board))
+        if (tiers.isNotEmpty()) insertTiers(tiers)
+        if (placements.isNotEmpty()) insertPlacements(placements)
+    }
+
+    /**
+     * Re-inserts a tier deleted by [removeTier] and moves its placements back out of the tray to
+     * the restored tier (their original tierId + position from the pre-delete snapshot), in one
+     * transaction. Backs the tier-delete Undo.
+     */
+    @Transaction
+    open suspend fun restoreTier(tier: TierEntity, reassigned: List<PlacementMove>) {
+        insertTiers(listOf(tier))
+        applyPlacements(reassigned)
+    }
+
+    /**
+     * Re-inserts a tea deleted by [deleteTea] together with its flavors, purchases, placements, and
+     * photo rows, in one transaction. Backs the tea-delete Undo. The catalog ref is stubbed first so
+     * the `catalogTeaId` FK holds even if the ref was evicted while the tea was gone (mirrors [addTea]).
+     */
+    @Transaction
+    open suspend fun restoreTea(
+        tea: TeaSampleEntity,
+        flavors: List<FlavorEntity>,
+        purchases: List<PurchaseLocationEntity>,
+        placements: List<PlacementEntity>,
+        photos: List<PhotoEntity>,
+    ) {
+        tea.catalogTeaId?.let { insertRefStub(it, tea.type) }
+        insertTeas(listOf(tea))
+        insertFlavors(flavors)
+        insertPurchases(purchases)
+        if (placements.isNotEmpty()) insertPlacements(placements)
+        if (photos.isNotEmpty()) insertPhotos(photos)
     }
 
     /**

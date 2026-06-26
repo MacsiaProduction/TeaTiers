@@ -75,8 +75,10 @@ fun BoardsScreen(
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
+    val showIntro by viewModel.showIntro.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
+    var boardToRename by remember { mutableStateOf<BoardSummary?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -128,10 +130,16 @@ fun BoardsScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (showIntro) {
+                    item(key = "intro") {
+                        IntroCard(onDismiss = viewModel::dismissIntro)
+                    }
+                }
                 items(boards, key = { it.id }) { summary ->
                     BoardSummaryCard(
                         summary = summary,
                         onClick = { onOpenBoard(summary.id) },
+                        onRename = { boardToRename = summary },
                         onDelete = { boardToDelete = summary },
                     )
                 }
@@ -167,10 +175,26 @@ fun BoardsScreen(
             },
         )
     }
+
+    boardToRename?.let { board ->
+        RenameBoardDialog(
+            initialName = board.name,
+            onRename = { name ->
+                viewModel.renameBoard(board.id, name)
+                boardToRename = null
+            },
+            onDismiss = { boardToRename = null },
+        )
+    }
 }
 
 @Composable
-private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun BoardSummaryCard(
+    summary: BoardSummary,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     val countText = pluralStringResource(R.plurals.tea_count, summary.teaCount, summary.teaCount)
     // The tappable area (title + count + swatches) is one merged TalkBack node that opens the board;
@@ -220,6 +244,13 @@ private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelet
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_rename)) },
+                        onClick = {
+                            menuOpen = false
+                            onRename()
+                        },
+                    )
+                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.board_delete)) },
                         onClick = {
                             menuOpen = false
@@ -227,6 +258,38 @@ private fun BoardSummaryCard(summary: BoardSummary, onClick: () -> Unit, onDelet
                         },
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One-time first-run explainer (audit: onboarding). A new user lands on seeded sample boards with
+ * no context for the S–F tier idea; this card supplies it and notes the boards are editable
+ * examples. Dismissible, persisted via [BoardsViewModel.dismissIntro] so it shows only once.
+ */
+@Composable
+private fun IntroCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                text = stringResource(R.string.boards_intro_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.boards_intro_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.boards_intro_dismiss))
             }
         }
     }
@@ -318,6 +381,40 @@ private fun CreateBoardDialog(
                 onClick = { onCreate(label.trim(), template) },
                 enabled = canCreate,
             ) { Text(stringResource(R.string.action_create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun RenameBoardDialog(
+    initialName: String,
+    onRename: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Keyed on the board's current name so reopening for a different board re-seeds the field
+    // (and a rotation mid-typing keeps the edit).
+    var name by rememberSaveable(initialName) { mutableStateOf(initialName) }
+    val canSave = name.trim().isNotEmpty()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.board_rename_title)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.boards_create_name_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().imePadding(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onRename(name.trim()) }, enabled = canSave) {
+                Text(stringResource(R.string.action_save))
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }

@@ -112,6 +112,67 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `renameBoard trims the name and ignores blanks`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        repository.renameBoard("b", "  Мои улуны  ")
+        advanceUntilIdle()
+        assertEquals("Мои улуны", repository.boards.value.single().name)
+
+        repository.renameBoard("b", "   ")
+        advanceUntilIdle()
+        assertEquals("Мои улуны", repository.boards.value.single().name) // blank is ignored
+    }
+
+    @Test
+    fun `restoreBoard reinstates a deleted board with its tiers and placements`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repositoryWithSeed()
+            advanceUntilIdle()
+            val before = repository.boards.value.single()
+
+            val deleted = repository.deleteBoard("b")
+            advanceUntilIdle()
+            assertNotNull(deleted)
+            assertTrue(repository.boards.value.isEmpty())
+
+            repository.restoreBoard(deleted!!)
+            advanceUntilIdle()
+
+            val after = repository.boards.value.single()
+            assertEquals(before.name, after.name)
+            assertEquals(before.tiers.map { it.id }, after.tiers.map { it.id })
+            assertEquals(
+                before.placements.getValue("s").map { it.tea.id },
+                after.placements.getValue("s").map { it.tea.id },
+            )
+            assertEquals(before.unranked.map { it.tea.id }, after.unranked.map { it.tea.id })
+        }
+
+    @Test
+    fun `restoreTier puts the tier back and returns its placements to it`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repositoryWithSeed()
+            advanceUntilIdle()
+
+            val deleted = repository.removeTier("b", tierId = "s")
+            advanceUntilIdle()
+            assertNotNull(deleted)
+            // Tier gone; its tea fell into the tray.
+            assertEquals(listOf("a"), repository.boards.value.single().tiers.map { it.id })
+            assertTrue(repository.boards.value.single().unranked.any { it.tea.id == "green" })
+
+            repository.restoreTier(deleted!!)
+            advanceUntilIdle()
+
+            val board = repository.boards.value.single()
+            assertEquals(listOf("s", "a"), board.tiers.map { it.id }) // back at its original slot
+            assertEquals(listOf("green"), board.placements.getValue("s").map { it.tea.id })
+            assertTrue(board.unranked.none { it.tea.id == "green" }) // no longer doubled in the tray
+        }
+
+    @Test
     fun `addTea places a brand-new tea in a known tier`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
@@ -322,6 +383,35 @@ class TeaBoardRepositoryTest {
         }
         assertNull(repository.tea("green"))
     }
+
+    @Test
+    fun `restoreTea reinstates a deleted tea on every board it sat on`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val board1 = seededBoard
+            val board2 = Board(
+                id = "b2",
+                name = "Доска 2",
+                tiers = listOf(Tier("b2-s", "S", 0)),
+                placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+                unranked = emptyList(),
+            )
+            val repository = repositoryWithSeed(listOf(board1, board2))
+            advanceUntilIdle()
+
+            val deleted = repository.deleteTea("green")
+            advanceUntilIdle()
+            assertNotNull(deleted)
+            assertNull(repository.tea("green"))
+
+            repository.restoreTea(deleted!!)
+            advanceUntilIdle()
+
+            assertNotNull(repository.tea("green"))
+            val onBoard1 = repository.boards.value.first { it.id == "b" }.placements.getValue("s")
+            val onBoard2 = repository.boards.value.first { it.id == "b2" }.placements.getValue("b2-s")
+            assertEquals(listOf("green"), onBoard1.map { it.tea.id })
+            assertEquals(listOf("green"), onBoard2.map { it.tea.id })
+        }
 
     @Test
     fun `placementCountForTea reports how many boards a tea sits on`() = runTest(UnconfinedTestDispatcher()) {

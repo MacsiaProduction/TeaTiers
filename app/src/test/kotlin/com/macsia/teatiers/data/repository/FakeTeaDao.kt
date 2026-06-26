@@ -79,6 +79,14 @@ class FakeTeaDao : TeaDao() {
         }
     }
 
+    override suspend fun updateBoardName(boardId: String, name: String) {
+        val index = boards.indexOfFirst { it.id == boardId }
+        if (index >= 0) {
+            boards[index] = boards[index].copy(name = name)
+            refresh()
+        }
+    }
+
     override suspend fun teaCount(): Int = teas.size
 
     override suspend fun photoCount(): Int = photos.size
@@ -181,9 +189,6 @@ class FakeTeaDao : TeaDao() {
 
     override suspend fun loadPhotos(teaId: String): List<PhotoEntity> =
         photos.filter { it.teaId == teaId }.sortedBy { it.position }
-
-    override suspend fun loadPhotoUrisFor(teaId: String): List<String> =
-        photos.filter { it.teaId == teaId }.map { it.uri }
 
     override suspend fun loadPhotoUri(photoId: String): String? =
         photos.firstOrNull { it.id == photoId }?.uri
