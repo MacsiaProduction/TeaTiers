@@ -40,8 +40,14 @@ sealed interface BackupResult {
     data class Exported(val teaCount: Int) : BackupResult
     data class Imported(val teaCount: Int) : BackupResult
 
-    /** The picked file is not a readable TeaTiers backup (bad zip/JSON or a newer format). */
+    /** The picked file is not a readable TeaTiers backup (bad zip, or unparseable/blank JSON). */
     data object InvalidFile : BackupResult
+
+    /** The backup was written by a newer app version whose format we can't faithfully restore. */
+    data object IncompatibleVersion : BackupResult
+
+    /** The archive is missing photo files its data references — a truncated/corrupt backup. */
+    data object IncompleteArchive : BackupResult
 
     /** The picked archive breaches the import size/count bounds (too large or a zip bomb). */
     data object TooLarge : BackupResult
@@ -121,8 +127,9 @@ class BackupManager @Inject constructor(
             if (extracted.json.isBlank()) return@withContext BackupResult.InvalidFile
             val bundle = runCatching { json.decodeFromString<BackupBundle>(extracted.json) }
                 .getOrElse { return@withContext BackupResult.InvalidFile }
-            // We cannot faithfully restore a bundle written by a newer app version.
-            if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return@withContext BackupResult.InvalidFile
+            // We cannot faithfully restore a bundle written by a newer app version — tell the user to
+            // update rather than claiming their (valid) backup "isn't a TeaTiers backup".
+            if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return@withContext BackupResult.IncompatibleVersion
 
             // Atomic guard (review P1-5): every photo the data declares must actually be present in the
             // archive. If any is missing, reject the WHOLE restore and leave current data untouched —
@@ -131,7 +138,7 @@ class BackupManager @Inject constructor(
             val missing = declared.filter { it !in extracted.photoFiles }
             if (missing.isNotEmpty()) {
                 Log.w(TAG, "Import rejected: ${missing.size} declared photo(s) missing from the archive")
-                return@withContext BackupResult.InvalidFile
+                return@withContext BackupResult.IncompleteArchive
             }
 
             // Validated — apply. Stream each staged photo into the live store, then swap the DB.

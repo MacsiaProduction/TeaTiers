@@ -81,6 +81,8 @@ class BackupViewModel @Inject constructor(
         is BackupResult.Exported -> R.string.backup_export_done
         is BackupResult.Imported -> R.string.backup_import_done
         BackupResult.InvalidFile -> R.string.backup_invalid_file
+        BackupResult.IncompatibleVersion -> R.string.backup_incompatible_version
+        BackupResult.IncompleteArchive -> R.string.backup_incomplete_archive
         BackupResult.TooLarge -> R.string.backup_too_large
         BackupResult.Failed -> R.string.backup_failed
     }

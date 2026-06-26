@@ -84,8 +84,14 @@ class BackupManagerTest {
     )
 
     /** A valid backup zip carrying the snapshot + the [photos] bundled file entries (name -> bytes). */
-    private fun archiveBytes(photos: Map<String, ByteArray> = mapOf("ph1.png" to byteArrayOf(1, 2, 3))): ByteArray {
-        val bundle = snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0")
+    private fun archiveBytes(photos: Map<String, ByteArray> = mapOf("ph1.png" to byteArrayOf(1, 2, 3))): ByteArray =
+        archiveOf(snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0"), photos)
+
+    /** Zips an arbitrary [bundle] (+ [photos]) — lets a test forge e.g. a newer formatVersion. */
+    private fun archiveOf(
+        bundle: BackupBundle,
+        photos: Map<String, ByteArray> = mapOf("ph1.png" to byteArrayOf(1, 2, 3)),
+    ): ByteArray {
         val out = ByteArrayOutputStream()
         val sources = photos.map { (name, bytes) -> BackupArchive.PhotoSource(name) { bytes.inputStream() } }
         BackupArchive.write(out, json.encodeToString(bundle), sources)
@@ -156,14 +162,32 @@ class BackupManagerTest {
     fun `import rejects a backup that omits a declared photo and leaves data untouched`() = runTest {
         // The snapshot's ph1 declares the bundled file "ph1.png"; build an archive that OMITS it.
         // Atomic restore (review P1-5): a missing declared photo rejects the WHOLE import — the old
-        // code silently dropped it and half-restored the tea without its photo.
+        // code silently dropped it and half-restored the tea without its photo. Surfaced as a distinct
+        // IncompleteArchive (not the generic "not a backup") so the user knows the file is truncated.
         val dao = mockk<TeaDao>(relaxed = true)
         val photoStore = FakePhotoStore()
         val (manager, uri) = managerReading(archiveBytes(photos = emptyMap()), dao, photoStore)
 
         val result = manager.importFrom(uri)
 
-        assertTrue(result is BackupResult.InvalidFile, "expected InvalidFile for a missing photo, got $result")
+        assertTrue(result is BackupResult.IncompleteArchive, "expected IncompleteArchive for a missing photo, got $result")
+        coVerify(exactly = 0) { dao.replaceAll(any()) }
+        assertTrue(photoStore.reconcileCalls.isEmpty(), "a rejected import must not touch the live photo store")
+    }
+
+    @Test
+    fun `import of a newer-format backup is IncompatibleVersion and writes nothing`() = runTest {
+        // A backup whose formatVersion is ahead of this build can't be faithfully restored — the user
+        // is told to update, not that their (valid) file isn't a backup.
+        val newer = snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "9.9.9")
+            .copy(formatVersion = BACKUP_FORMAT_VERSION + 1)
+        val dao = mockk<TeaDao>(relaxed = true)
+        val photoStore = FakePhotoStore()
+        val (manager, uri) = managerReading(archiveOf(newer), dao, photoStore)
+
+        val result = manager.importFrom(uri)
+
+        assertTrue(result is BackupResult.IncompatibleVersion, "expected IncompatibleVersion, got $result")
         coVerify(exactly = 0) { dao.replaceAll(any()) }
         assertTrue(photoStore.reconcileCalls.isEmpty(), "a rejected import must not touch the live photo store")
     }
