@@ -71,6 +71,32 @@ class BoardsViewModelTest {
     }
 
     @Test
+    fun `createBoard emits the new board id so the screen can open it`() = runTest {
+        coEvery { repository.createBoard(any(), any()) } returns "board-new"
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        val opened = mutableListOf<String>()
+        backgroundScope.launch { viewModel.createdBoard.collect { opened += it } }
+
+        viewModel.createBoard("Подборка", TierTemplate.F_TO_S)
+        advanceUntilIdle()
+
+        assertEquals(listOf("board-new"), opened)
+    }
+
+    @Test
+    fun `createBoard with a blank label emits no navigation`() = runTest {
+        coEvery { repository.createBoard(any(), any()) } returns null // repository rejects blank
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        val opened = mutableListOf<String>()
+        backgroundScope.launch { viewModel.createdBoard.collect { opened += it } }
+
+        viewModel.createBoard("   ", TierTemplate.F_TO_S)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), opened)
+    }
+
+    @Test
     fun `createBoard forwards each template kind verbatim`() = runTest {
         coEvery { repository.createBoard(any(), any()) } returns "board-x"
         val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
