@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,7 +55,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
@@ -268,7 +270,7 @@ private fun AddPhotoTile(onClick: () -> Unit) {
 }
 
 @Composable
-fun PhotoImage(uri: String, modifier: Modifier = Modifier) {
+fun PhotoImage(uri: String, modifier: Modifier = Modifier, contentDescription: String? = null) {
     val context = LocalContext.current
     val request = remember(uri) {
         ImageRequest.Builder(context)
@@ -276,11 +278,32 @@ fun PhotoImage(uri: String, modifier: Modifier = Modifier) {
             .crossfade(true)
             .build()
     }
-    AsyncImage(
+    SubcomposeAsyncImage(
         model = request,
-        contentDescription = null,
+        contentDescription = contentDescription,
+        // A revoked/deleted/offline image renders a broken-image glyph instead of a silent blank
+        // box — the same fallback at every size, from a strip thumb to full-screen zoom (audit #6).
+        error = { PhotoLoadError(Modifier.fillMaxSize()) },
         modifier = modifier.clip(MaterialTheme.shapes.medium).background(Color.Black.copy(alpha = 0.06f)),
     )
+}
+
+/**
+ * Fallback for a photo that can't be loaded (file gone, gallery permission revoked, an offline
+ * catalog image). The glyph scales with its container — capped — so it reads on a small thumbnail
+ * and a full-screen view alike.
+ */
+@Composable
+fun PhotoLoadError(modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val iconSize = (minOf(maxWidth, maxHeight) * 0.4f).coerceIn(14.dp, 40.dp)
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = stringResource(R.string.a11y_photo_failed),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(iconSize),
+        )
+    }
 }
 
 /**
