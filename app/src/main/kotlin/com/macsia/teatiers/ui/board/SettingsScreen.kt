@@ -220,19 +220,37 @@ fun SettingsScreen(
                         updateViewModel.check()
                     },
                 )
-                val status = when (updateState) {
-                    UpdateUiState.Checking -> stringResource(R.string.update_checking)
-                    UpdateUiState.Idle -> if (updateChecked) stringResource(R.string.update_up_to_date) else null
-                    is UpdateUiState.Failed -> stringResource(R.string.update_check_failed)
-                    is UpdateUiState.Available, UpdateUiState.Working -> null // shown as a dialog
-                }
-                if (status != null) {
-                    Text(
-                        text = status,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                if (updateState is UpdateUiState.Failed) {
+                    // The check failed (no/flaky network); make it visible and offer a retry rather
+                    // than a faint grey line the user can't act on (audit P2).
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.update_check_failed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { updateViewModel.check() }) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                    }
+                } else {
+                    val status = when (updateState) {
+                        UpdateUiState.Checking -> stringResource(R.string.update_checking)
+                        UpdateUiState.Idle -> if (updateChecked) stringResource(R.string.update_up_to_date) else null
+                        else -> null // Available / Working are shown as a dialog
+                    }
+                    if (status != null) {
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
             }
 
