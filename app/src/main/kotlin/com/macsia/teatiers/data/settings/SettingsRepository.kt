@@ -35,6 +35,17 @@ class SettingsRepository @Inject constructor(
             )
         }
 
+    /**
+     * Whether the user has dismissed the first-run intro on the boards screen. Defaults to false
+     * (show it) and flips once on dismiss; a corrupt read degrades to "not dismissed" so the worst
+     * case is showing the (dismissible) card again rather than crashing.
+     */
+    val introDismissed: Flow<Boolean> = dataStore.data
+        .catch { error ->
+            if (error is IOException) emit(emptyPreferences()) else throw error
+        }
+        .map { prefs -> prefs[KEY_INTRO_DISMISSED] ?: false }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { it[KEY_THEME_MODE] = mode.name }
     }
@@ -43,11 +54,16 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[KEY_DYNAMIC_COLOR] = enabled }
     }
 
+    suspend fun setIntroDismissed() {
+        dataStore.edit { it[KEY_INTRO_DISMISSED] = true }
+    }
+
     private fun String.toThemeModeOrDefault(): ThemeMode =
         runCatching { ThemeMode.valueOf(this) }.getOrDefault(ThemeMode.SYSTEM)
 
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val KEY_INTRO_DISMISSED = booleanPreferencesKey("intro_dismissed")
     }
 }

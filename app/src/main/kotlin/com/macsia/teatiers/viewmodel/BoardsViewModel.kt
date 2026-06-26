@@ -6,6 +6,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.DeletedBoard
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
+import com.macsia.teatiers.data.settings.SettingsRepository
 import com.macsia.teatiers.domain.model.TierTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class BoardsViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
+    private val settings: SettingsRepository,
     enrichmentManager: TeaEnrichmentManager,
 ) : ViewModel() {
 
@@ -40,6 +42,20 @@ class BoardsViewModel @Inject constructor(
             // Seed from the current snapshot so the list never flashes empty on open.
             initialValue = repository.boards.value.map { it.toSummary() },
         )
+
+    /** First-run intro card visibility — shown until the user taps "Понятно" (audit: onboarding). */
+    val showIntro: StateFlow<Boolean> = settings.introDismissed
+        .map { dismissed -> !dismissed }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            // Default hidden so the card fades in once the flag loads rather than flashing then hiding.
+            initialValue = false,
+        )
+
+    fun dismissIntro() {
+        viewModelScope.launch { runCatching { settings.setIntroDismissed() } }
+    }
 
     /**
      * Creates a board with the given label and the tier set prescribed by [template]. Blank

@@ -75,6 +75,7 @@ fun BoardsScreen(
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
+    val showIntro by viewModel.showIntro.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
     var boardToRename by remember { mutableStateOf<BoardSummary?>(null) }
@@ -129,6 +130,11 @@ fun BoardsScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (showIntro) {
+                    item(key = "intro") {
+                        IntroCard(onDismiss = viewModel::dismissIntro)
+                    }
+                }
                 items(boards, key = { it.id }) { summary ->
                     BoardSummaryCard(
                         summary = summary,
@@ -252,6 +258,38 @@ private fun BoardSummaryCard(
                         },
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * One-time first-run explainer (audit: onboarding). A new user lands on seeded sample boards with
+ * no context for the S–F tier idea; this card supplies it and notes the boards are editable
+ * examples. Dismissible, persisted via [BoardsViewModel.dismissIntro] so it shows only once.
+ */
+@Composable
+private fun IntroCard(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Text(
+                text = stringResource(R.string.boards_intro_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.boards_intro_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.boards_intro_dismiss))
             }
         }
     }
