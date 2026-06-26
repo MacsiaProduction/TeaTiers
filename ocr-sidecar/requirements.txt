@@ -2,7 +2,7 @@
 # rapidocr + onnxruntime versions are the run-13-locked pair; the rest is the FastAPI surface.
 rapidocr==3.9.0
 onnxruntime==1.27.0
-fastapi==0.138.0
+fastapi==0.138.1
 uvicorn[standard]==0.49.0
 python-multipart==0.0.32
 pillow==12.2.0
