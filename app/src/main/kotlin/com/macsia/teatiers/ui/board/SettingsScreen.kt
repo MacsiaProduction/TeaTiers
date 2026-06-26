@@ -83,6 +83,7 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val backupBusy by backupViewModel.busy.collectAsStateWithLifecycle()
+    val safetyBackupAvailable by backupViewModel.safetyBackupAvailable.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     // True once the user taps "Check for updates", so an Idle result reads as "up to date" (not blank).
     var updateChecked by rememberSaveable { mutableStateOf(false) }
@@ -91,6 +92,7 @@ fun SettingsScreen(
     val resources = LocalResources.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showImportConfirm by rememberSaveable { mutableStateOf(false) }
+    var showSafetyConfirm by rememberSaveable { mutableStateOf(false) }
 
     // SAF "save to" picker: the user chooses where the .zip lands (Files / Yandex Disk / ...).
     val exportLauncher = rememberLauncherForActivityResult(
@@ -209,6 +211,14 @@ fun SettingsScreen(
                     hint = stringResource(R.string.backup_import_hint),
                     onClick = { showImportConfirm = true },
                 )
+                // Only after a restore has left a pre-import snapshot to fall back to (auto safety-backup).
+                if (safetyBackupAvailable) {
+                    ActionRow(
+                        title = stringResource(R.string.backup_undo_restore),
+                        hint = stringResource(R.string.backup_undo_restore_hint),
+                        onClick = { showSafetyConfirm = true },
+                    )
+                }
             }
 
             SettingsSection(title = stringResource(R.string.settings_updates_section)) {
@@ -315,6 +325,27 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showImportConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (showSafetyConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSafetyConfirm = false },
+            title = { Text(stringResource(R.string.backup_undo_restore_confirm_title)) },
+            text = { Text(stringResource(R.string.backup_undo_restore_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSafetyConfirm = false
+                        backupViewModel.restoreSafetyBackup()
+                    },
+                ) { Text(stringResource(R.string.backup_import_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSafetyConfirm = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,6 +77,7 @@ fun BoardsScreen(
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
+    val loading by viewModel.loading.collectAsStateWithLifecycle()
     val showIntro by viewModel.showIntro.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
@@ -122,7 +124,12 @@ fun BoardsScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
-        if (boards.isEmpty()) {
+        if (loading && boards.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator() }
+        } else if (boards.isEmpty()) {
             EmptyBoards(
                 onCreate = { showCreateDialog = true },
                 modifier = Modifier.fillMaxSize().padding(innerPadding),

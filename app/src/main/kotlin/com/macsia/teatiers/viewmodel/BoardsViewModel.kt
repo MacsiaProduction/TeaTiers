@@ -51,6 +51,16 @@ class BoardsViewModel @Inject constructor(
             initialValue = repository.boards.value.map { it.toSummary() },
         )
 
+    /** True until Room's first boards read lands, so the screen shows a spinner rather than flashing
+     *  the empty state on a cold start with existing boards (audit: boards loading state). */
+    val loading: StateFlow<Boolean> = repository.boardsLoaded
+        .map { loaded -> !loaded }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = !repository.boardsLoaded.value,
+        )
+
     /** First-run intro card visibility — shown until the user taps "Понятно" (audit: onboarding). */
     val showIntro: StateFlow<Boolean> = settings.introDismissed
         .map { dismissed -> !dismissed }

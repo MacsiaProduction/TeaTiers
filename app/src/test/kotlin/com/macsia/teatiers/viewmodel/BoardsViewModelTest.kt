@@ -42,6 +42,7 @@ class BoardsViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { repository.boards } returns MutableStateFlow(emptyList<Board>())
+        every { repository.boardsLoaded } returns MutableStateFlow(true)
         every { settings.introDismissed } returns flowOf(false)
     }
 
