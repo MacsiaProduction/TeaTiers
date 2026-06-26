@@ -385,6 +385,35 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `restoreTea reinstates a deleted tea on every board it sat on`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val board1 = seededBoard
+            val board2 = Board(
+                id = "b2",
+                name = "Доска 2",
+                tiers = listOf(Tier("b2-s", "S", 0)),
+                placements = mapOf("b2-s" to listOf(place("b2", tea("green")))),
+                unranked = emptyList(),
+            )
+            val repository = repositoryWithSeed(listOf(board1, board2))
+            advanceUntilIdle()
+
+            val deleted = repository.deleteTea("green")
+            advanceUntilIdle()
+            assertNotNull(deleted)
+            assertNull(repository.tea("green"))
+
+            repository.restoreTea(deleted!!)
+            advanceUntilIdle()
+
+            assertNotNull(repository.tea("green"))
+            val onBoard1 = repository.boards.value.first { it.id == "b" }.placements.getValue("s")
+            val onBoard2 = repository.boards.value.first { it.id == "b2" }.placements.getValue("b2-s")
+            assertEquals(listOf("green"), onBoard1.map { it.tea.id })
+            assertEquals(listOf("green"), onBoard2.map { it.tea.id })
+        }
+
+    @Test
     fun `placementCountForTea reports how many boards a tea sits on`() = runTest(UnconfinedTestDispatcher()) {
         val board1 = seededBoard
         val board2 = Board(

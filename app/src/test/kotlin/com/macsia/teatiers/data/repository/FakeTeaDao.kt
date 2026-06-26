@@ -190,9 +190,6 @@ class FakeTeaDao : TeaDao() {
     override suspend fun loadPhotos(teaId: String): List<PhotoEntity> =
         photos.filter { it.teaId == teaId }.sortedBy { it.position }
 
-    override suspend fun loadPhotoUrisFor(teaId: String): List<String> =
-        photos.filter { it.teaId == teaId }.map { it.uri }
-
     override suspend fun loadPhotoUri(photoId: String): String? =
         photos.firstOrNull { it.id == photoId }?.uri
 

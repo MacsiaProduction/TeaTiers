@@ -4,12 +4,15 @@ import android.net.Uri
 import android.util.Log
 import com.macsia.teatiers.data.db.BoardEntity
 import com.macsia.teatiers.data.db.BoardWithChildren
+import com.macsia.teatiers.data.db.FlavorEntity
 import com.macsia.teatiers.data.db.PhotoEntity
 import com.macsia.teatiers.data.db.PhotoPosition
 import com.macsia.teatiers.data.db.PlacementEntity
 import com.macsia.teatiers.data.db.PlacementMove
+import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaMatchKeyRow
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
 import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
@@ -56,6 +59,20 @@ data class DeletedBoard(
 data class DeletedTier(
     val tier: TierEntity,
     val placements: List<PlacementEntity>,
+)
+
+/**
+ * A user-tea removed by [TeaBoardRepository.deleteTea], captured with everything that cascaded
+ * with it — its flavors, purchases, placements on every board, and photo rows — so
+ * [TeaBoardRepository.restoreTea] can fully reinstate it (backs the delete Undo). The photo
+ * *files* are not part of the snapshot: they are left on disk for the restore to re-reference.
+ */
+data class DeletedTea(
+    val tea: TeaSampleEntity,
+    val flavors: List<FlavorEntity>,
+    val purchases: List<PurchaseLocationEntity>,
+    val placements: List<PlacementEntity>,
+    val photos: List<PhotoEntity>,
 )
 
 /**
@@ -293,15 +310,28 @@ class TeaBoardRepository @Inject constructor(
     }
 
     /**
-     * Deletes the user-tea everywhere: removes the tea row and (via FK cascade) every
-     * placement on every board, plus its flavors, purchases, and photos. The photo files on
-     * disk are deleted *before* the row goes so a half-failed cascade leaves the DB clean —
-     * the file delete is best-effort, the DB delete is the authoritative fact.
+     * Deletes the user-tea everywhere: removes the tea row and (via FK cascade) every placement on
+     * every board, plus its flavors, purchases, and photo rows. Returns a [DeletedTea] snapshot (or
+     * null if the tea was unknown) so the caller can offer an Undo; the snapshot reuses the export
+     * reads filtered to this tea.
+     *
+     * The photo *files* on disk are deliberately NOT deleted here — an Undo re-references them. The
+     * files orphaned by a delete the user does not undo are reclaimed by the app-open orphan sweep
+     * (see [init]); this trades an immediate file delete for a recoverable one.
      */
-    suspend fun deleteTea(teaId: String) {
-        val photoPaths = dao.loadPhotoUrisFor(teaId)
+    suspend fun deleteTea(teaId: String): DeletedTea? {
+        val tea = dao.loadTeaRow(teaId) ?: return null
+        val flavors = dao.allFlavors().filter { it.teaId == teaId }
+        val purchases = dao.allPurchases().filter { it.teaId == teaId }
+        val placements = dao.allPlacements().filter { it.teaId == teaId }
+        val photos = dao.loadPhotos(teaId)
         dao.deleteTea(teaId)
-        photoPaths.filter { it.startsWith("/") }.forEach { runCatching { photoStore.delete(it) } }
+        return DeletedTea(tea, flavors, purchases, placements, photos)
+    }
+
+    /** Re-inserts a tea removed by [deleteTea] from its [DeletedTea] snapshot (Undo). */
+    suspend fun restoreTea(deleted: DeletedTea) {
+        dao.restoreTea(deleted.tea, deleted.flavors, deleted.purchases, deleted.placements, deleted.photos)
     }
 
     /**

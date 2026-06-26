@@ -2,7 +2,9 @@ package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.db.PlacementEntity
+import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
+import com.macsia.teatiers.data.repository.DeletedTea
 import com.macsia.teatiers.data.repository.DeletedTier
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
@@ -101,13 +103,43 @@ class BoardViewModelTest {
 
     @Test
     fun `deleteTea forwards to the repository`() = runTest {
-        coEvery { repository.deleteTea(any()) } just Runs
+        coEvery { repository.deleteTea(any()) } returns null
         val viewModel = BoardViewModel(repository, enrichmentManager)
 
         viewModel.deleteTea("tea-1")
         advanceUntilIdle()
 
         coVerify(exactly = 1) { repository.deleteTea(eq("tea-1")) }
+    }
+
+    @Test
+    fun `deleteTea offers an undo that restores the tea`() = runTest {
+        val snapshot = DeletedTea(
+            tea = TeaSampleEntity(
+                id = "tea-1", nameRu = "Зелёный", nameZh = null, pinyin = null, nameEn = null,
+                type = "GREEN", origin = null, shortBlurb = null, notes = null,
+            ),
+            flavors = emptyList(),
+            purchases = emptyList(),
+            placements = emptyList(),
+            photos = emptyList(),
+        )
+        coEvery { repository.deleteTea("tea-1") } returns snapshot
+        coEvery { repository.restoreTea(snapshot) } just Runs
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.deleteTea("tea-1")
+        advanceUntilIdle()
+
+        val event = events.single()
+        assertEquals(R.string.snackbar_tea_deleted, event.messageRes)
+        assertEquals(R.string.action_undo, event.actionLabelRes)
+
+        event.onAction!!.invoke() // user taps "Вернуть"
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.restoreTea(snapshot) }
     }
 
     @Test

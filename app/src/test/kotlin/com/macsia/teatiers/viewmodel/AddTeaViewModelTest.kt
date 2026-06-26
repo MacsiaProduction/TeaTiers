@@ -363,7 +363,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 1
-        coEvery { repository.deleteTea(eq("t1")) } just Runs
+        coEvery { repository.deleteTea(eq("t1")) } returns null
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()

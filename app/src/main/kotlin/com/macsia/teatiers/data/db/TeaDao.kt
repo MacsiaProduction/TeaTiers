@@ -149,10 +149,6 @@ abstract class TeaDao {
     @Query("SELECT * FROM tea_photos WHERE teaId = :teaId ORDER BY position")
     abstract suspend fun loadPhotos(teaId: String): List<PhotoEntity>
 
-    /** URIs only — used to enumerate files to delete from disk before the row goes. */
-    @Query("SELECT uri FROM tea_photos WHERE teaId = :teaId")
-    abstract suspend fun loadPhotoUrisFor(teaId: String): List<String>
-
     @Query("SELECT uri FROM tea_photos WHERE id = :photoId")
     abstract suspend fun loadPhotoUri(photoId: String): String?
 
@@ -428,6 +424,27 @@ abstract class TeaDao {
     open suspend fun restoreTier(tier: TierEntity, reassigned: List<PlacementMove>) {
         insertTiers(listOf(tier))
         applyPlacements(reassigned)
+    }
+
+    /**
+     * Re-inserts a tea deleted by [deleteTea] together with its flavors, purchases, placements, and
+     * photo rows, in one transaction. Backs the tea-delete Undo. The catalog ref is stubbed first so
+     * the `catalogTeaId` FK holds even if the ref was evicted while the tea was gone (mirrors [addTea]).
+     */
+    @Transaction
+    open suspend fun restoreTea(
+        tea: TeaSampleEntity,
+        flavors: List<FlavorEntity>,
+        purchases: List<PurchaseLocationEntity>,
+        placements: List<PlacementEntity>,
+        photos: List<PhotoEntity>,
+    ) {
+        tea.catalogTeaId?.let { insertRefStub(it, tea.type) }
+        insertTeas(listOf(tea))
+        insertFlavors(flavors)
+        insertPurchases(purchases)
+        if (placements.isNotEmpty()) insertPlacements(placements)
+        if (photos.isNotEmpty()) insertPhotos(photos)
     }
 
     /**
