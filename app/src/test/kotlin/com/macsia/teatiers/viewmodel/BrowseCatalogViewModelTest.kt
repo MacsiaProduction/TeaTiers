@@ -2,6 +2,7 @@ package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.data.repository.CatalogBrowseResult
 import com.macsia.teatiers.data.repository.CatalogRepository
+import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.CatalogName
@@ -163,6 +164,42 @@ class BrowseCatalogViewModelTest {
         assertFalse(recovered.appendFailed)
         assertEquals(listOf(1L, 2L), recovered.teas.map { it.id })
         assertTrue(recovered.endReached)
+    }
+
+    @Test
+    fun `a query switches the list to a single page of search results`() = runTest {
+        coEvery { catalogRepository.browse(any(), any()) } returns
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 5L)
+        coEvery { catalogRepository.search(any(), any()) } returns
+            CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        vm.setQuery("улун")
+        advanceUntilIdle()
+
+        val state = vm.state.value as BrowseCatalogUiState.Loaded
+        assertEquals(listOf(9L), state.teas.map { it.id })
+        assertTrue(state.endReached) // search has no load-more
+        assertFalse(state.canLoadMore)
+    }
+
+    @Test
+    fun `clearing the query returns to the browse list`() = runTest {
+        coEvery { catalogRepository.browse(any(), any()) } returns
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
+        coEvery { catalogRepository.search(any(), any()) } returns
+            CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        vm.setQuery("улун")
+        advanceUntilIdle()
+        vm.setQuery("")
+        advanceUntilIdle()
+
+        val state = vm.state.value as BrowseCatalogUiState.Loaded
+        assertEquals(listOf(1L), state.teas.map { it.id })
     }
 
     @Test

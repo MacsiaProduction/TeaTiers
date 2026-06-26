@@ -18,6 +18,10 @@
     <!-- Empty tier (polish): replaces the generic "Пока пусто" with a drop hint. -->
     <string name="tier_empty_drop_hint">Перетащите чай сюда</string>
 
+    <!-- Share a board (tier list) as plain text. -->
+    <string name="a11y_board_share">Поделиться подборкой</string>
+    <string name="board_share_chooser">Поделиться подборкой</string>
+
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
@@ -33,6 +37,8 @@
     <string name="my_teas_empty_title">Здесь будут все ваши чаи</string>
     <string name="my_teas_empty_hint">Добавьте чай на любую подборку — он появится здесь.</string>
     <string name="my_teas_none_found">Ничего не найдено</string>
+    <string name="my_teas_none_found_hint">Измените запрос или сбросьте фильтр.</string>
+    <string name="my_teas_filter_all">Все</string>
     <string name="my_teas_no_board">Не в подборках</string>
     <string name="a11y_my_teas_open">Мои чаи</string>
     <string name="a11y_search_clear">Очистить поиск</string>
@@ -69,6 +75,8 @@
     <string name="backup_import_confirm_title">Восстановить из файла?</string>
     <string name="backup_import_confirm_message">Все текущие подборки, чаи, заметки и фото будут заменены данными из файла. Это действие необратимо.</string>
     <string name="backup_import_confirm_action">Заменить</string>
+    <!-- Blocking progress while a backup export/import/share runs (can be slow with many photos). -->
+    <string name="backup_working">Пожалуйста, подождите…</string>
 
     <string name="settings_about_section">О приложении</string>
     <!-- %1$s — versionName (e.g. 0.1.0). -->
@@ -158,6 +166,7 @@
     <string name="detail_flavor_mine">Моя оценка</string>
     <string name="detail_flavor_reference">Справочно из каталога</string>
     <string name="detail_flavor_use_reference">Использовать как мою оценку</string>
+    <string name="detail_reference_applied">Справочная оценка применена</string>
     <string name="detail_notes_title">Заметки</string>
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
@@ -172,6 +181,8 @@
     <string name="a11y_add_photo">Добавить фото</string>
     <string name="a11y_remove_photo">Удалить это фото</string>
     <string name="a11y_photo_drag_handle">Перетащите, чтобы изменить порядок</string>
+    <string name="a11y_photo_move_left">Переместить фото левее</string>
+    <string name="a11y_photo_move_right">Переместить фото правее</string>
     <string name="a11y_photo_zoom_close">Закрыть просмотр фото</string>
     <string name="confirm_remove_photo_title">Удалить фото?</string>
     <string name="confirm_remove_photo_message">Фото будет удалено с этого чая. Действие необратимо.</string>
@@ -179,6 +190,11 @@
     <!-- Add tea -->
     <string name="add_tea_action">Добавить чай</string>
     <string name="add_tea_title">Новый чай</string>
+    <!-- Unsaved-changes guard: shown when leaving the add/edit form with pending edits. -->
+    <string name="discard_changes_title">Выйти без сохранения?</string>
+    <string name="discard_changes_message">Введённые данные не сохранятся.</string>
+    <string name="discard_changes_confirm">Выйти</string>
+    <string name="discard_changes_keep">Продолжить</string>
     <string name="edit_tea_title">Редактирование</string>
     <string name="edit_tea_action">Изменить</string>
     <string name="a11y_edit_tea">Редактировать чай</string>
@@ -271,6 +287,14 @@
         <item quantity="few">%d чая</item>
         <item quantity="many">%d чаёв</item>
         <item quantity="other">%d чая</item>
+    </plurals>
+
+    <!-- Tier delete confirm when the tier has teas. %1$d — count, %2$s — tier label. -->
+    <plurals name="tier_delete_message_count">
+        <item quantity="one">%1$d чай из тира «%2$s» переедет в «Без ранга». Сам тир будет удалён.</item>
+        <item quantity="few">%1$d чая из тира «%2$s» переедут в «Без ранга». Сам тир будет удалён.</item>
+        <item quantity="many">%1$d чаёв из тира «%2$s» переедут в «Без ранга». Сам тир будет удалён.</item>
+        <item quantity="other">%1$d чая из тира «%2$s» переедут в «Без ранга». Сам тир будет удалён.</item>
     </plurals>
 
     <!-- How many boards a tea sits on, in the "my teas" list. %d — board count. -->

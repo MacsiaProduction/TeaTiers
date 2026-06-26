@@ -6,6 +6,8 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.domain.model.CatalogImage
+import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.Tea
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -78,30 +80,37 @@ class TeaDetailViewModel @Inject constructor(
         )
 
     /**
-     * Reference flavor profile of the linked catalog tea (decisions.md #23), fetched on demand when
-     * the user-tea carries a [Tea.catalogTeaId]. Keyed on the catalog id (distinct) so a boards
-     * re-emit never re-fetches. Network-only and fail-closed: unlinked/offline/error all yield an
-     * empty list, so the screen simply omits the "catalog reference" block.
+     * Reference detail of the linked catalog tea (decisions.md #23), fetched on demand when the
+     * user-tea carries a [Tea.catalogTeaId]. Keyed on the catalog id (distinct) so a boards re-emit
+     * never re-fetches. Network-only and fail-closed: unlinked/offline/error yield null, so the
+     * screen simply omits the catalog reference block. One fetch backs both flavors and images.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val referenceFlavors: StateFlow<List<FlavorScore>> = tea
+    private val referenceDetail: StateFlow<CatalogTeaDetail?> = tea
         .map { it?.catalogTeaId }
         .distinctUntilChanged()
         .mapLatest { catalogId ->
-            if (catalogId == null) {
-                emptyList()
-            } else {
-                when (val result = catalog.detail(catalogId)) {
-                    is CatalogDetailResult.Loaded -> result.detail.flavors
-                    else -> emptyList()
-                }
-            }
+            if (catalogId == null) null
+            else (catalog.detail(catalogId) as? CatalogDetailResult.Loaded)?.detail
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
+            initialValue = null,
         )
+
+    /** Reference flavor profile from [referenceDetail]; empty when unlinked/offline/error. */
+    val referenceFlavors: StateFlow<List<FlavorScore>> = referenceDetail
+        .map { it?.flavors.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Curated CC catalog images, shown on the detail screen only when the user has taken no photos
+     * of their own (audit #9). Not persisted onto the user-tea — display-only, with attribution.
+     */
+    val referenceImages: StateFlow<List<CatalogImage>> = referenceDetail
+        .map { it?.images.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * Copies the catalog reference profile into the user's own ratings (#23 one-tap suggestion),
@@ -115,6 +124,7 @@ class TeaDetailViewModel @Inject constructor(
         if (reference.isEmpty()) return
         viewModelScope.launch {
             runCatching { repository.updateTea(id, current.copy(flavor = reference)) }
+                .onSuccess { eventHost.emit(ShowSnackbar(R.string.detail_reference_applied)) }
                 .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }

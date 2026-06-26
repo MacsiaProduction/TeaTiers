@@ -4,13 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.data.repository.CatalogBrowseResult
 import com.macsia.teatiers.data.repository.CatalogRepository
+import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.CatalogTea
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -53,6 +59,7 @@ sealed interface BrowseCatalogUiState {
  * user's boards for the "add to a board" picker. Adding itself is delegated to the existing add
  * form (the screen navigates to it pre-picked), so this VM only paginates + lists boards.
  */
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BrowseCatalogViewModel @Inject constructor(
     private val catalogRepository: CatalogRepository,
@@ -71,20 +78,69 @@ class BrowseCatalogViewModel @Inject constructor(
             initialValue = boardRepository.boards.value.map { BoardPick(it.id, it.name) },
         )
 
+    /** Catalog search box atop the browse list (audit #4). Blank/short => the paginated browse. */
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+
     private var nextCursor: Long? = null
     private var loading = false
 
     init {
-        loadFirstPage()
+        // collectLatest cancels an in-flight load when the query changes, so a stale result never
+        // overwrites a newer one. A blank/short query shows the cursor-paginated browse; otherwise
+        // the same fuzzy catalog search the add form uses, capped at one page (no load-more).
+        viewModelScope.launch {
+            _query
+                .map { it.trim() }
+                .distinctUntilChanged()
+                .debounce { q -> if (q.length < MIN_CATALOG_QUERY_LEN) 0L else CATALOG_SEARCH_DEBOUNCE_MS }
+                .collectLatest { q ->
+                    if (q.length < MIN_CATALOG_QUERY_LEN) loadFirstPageSuspending() else runSearch(q)
+                }
+        }
     }
 
-    /** (Re)loads the first page — on open, and as the retry from an empty-list failure. */
+    fun setQuery(value: String) {
+        _query.value = value
+    }
+
+    /** (Re)loads the first browse page — on open (blank query) and as the empty-list retry. */
     fun loadFirstPage() {
-        if (loading) return
+        viewModelScope.launch { loadFirstPageSuspending() }
+    }
+
+    private suspend fun loadFirstPageSuspending() {
         loading = true
         _state.value = BrowseCatalogUiState.Loading
-        viewModelScope.launch {
+        try {
             applyFirst(catalogRepository.browse(cursor = null))
+        } finally {
+            loading = false
+        }
+    }
+
+    private suspend fun runSearch(query: String) {
+        loading = true
+        _state.value = BrowseCatalogUiState.Loading
+        try {
+            _state.value = when (val result = catalogRepository.search(query)) {
+                is CatalogSearchResult.Loaded ->
+                    if (result.teas.isEmpty()) {
+                        BrowseCatalogUiState.Empty
+                    } else {
+                        // Search returns a single page; mark endReached so the scroll-near-end
+                        // trigger and the load-more footer stay off in search mode.
+                        BrowseCatalogUiState.Loaded(
+                            teas = result.teas,
+                            endReached = true,
+                            appending = false,
+                            appendFailed = false,
+                        )
+                    }
+                CatalogSearchResult.Offline -> BrowseCatalogUiState.Offline
+                CatalogSearchResult.Error -> BrowseCatalogUiState.Error
+            }
+        } finally {
             loading = false
         }
     }
@@ -102,14 +158,17 @@ class BrowseCatalogViewModel @Inject constructor(
         }
     }
 
-    /** Retries the failed page: the next page if a load-more failed, else the first page. */
+    /** Retries the failed page: the active search, else the next page if a load-more failed, else the first. */
     fun retry() {
+        val q = _query.value.trim()
         val current = _state.value
-        if (current is BrowseCatalogUiState.Loaded && current.appendFailed) {
-            _state.value = current.copy(appendFailed = false)
-            loadMore()
-        } else {
-            loadFirstPage()
+        when {
+            q.length >= MIN_CATALOG_QUERY_LEN -> viewModelScope.launch { runSearch(q) }
+            current is BrowseCatalogUiState.Loaded && current.appendFailed -> {
+                _state.value = current.copy(appendFailed = false)
+                loadMore()
+            }
+            else -> loadFirstPage()
         }
     }
 

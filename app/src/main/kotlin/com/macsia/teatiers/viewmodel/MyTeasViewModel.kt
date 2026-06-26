@@ -33,6 +33,11 @@ class MyTeasViewModel @Inject constructor(
         typeFilter.value = if (typeFilter.value == type) null else type
     }
 
+    /** The explicit "All" chip: drop any type filter. */
+    fun clearTypeFilter() {
+        typeFilter.value = null
+    }
+
     val state: StateFlow<MyTeasUiState> = combine(
         repository.allTeas,
         repository.boards,
