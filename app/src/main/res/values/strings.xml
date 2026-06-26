@@ -75,6 +75,8 @@
     <string name="backup_export_done">Резервная копия сохранена</string>
     <string name="backup_import_done">Данные восстановлены</string>
     <string name="backup_invalid_file">Файл не похож на резервную копию TeaTiers</string>
+    <string name="backup_incompatible_version">Копия создана в более новой версии TeaTiers. Обновите приложение и попробуйте снова.</string>
+    <string name="backup_incomplete_archive">Файл повреждён — в архиве не хватает фотографий. Данные не изменены.</string>
     <string name="backup_too_large">Файл резервной копии слишком большой</string>
     <string name="backup_failed">Не удалось. Попробуйте ещё раз.</string>
     <string name="backup_import_confirm_title">Восстановить из файла?</string>
