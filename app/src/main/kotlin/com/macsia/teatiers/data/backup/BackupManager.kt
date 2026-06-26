@@ -135,11 +135,20 @@ class BackupManager @Inject constructor(
     suspend fun restoreSafetyBackup(): BackupResult = withContext(Dispatchers.IO) {
         val file = safetyBackupFile
         if (!file.exists()) return@withContext BackupResult.InvalidFile
-        runImport(protect = false) { file.inputStream() }
+        val result = runImport(protect = false) { file.inputStream() }
+        // One-shot undo: once the snapshot is reinstated, drop it. Leaving it on disk would keep the
+        // "undo last restore" entry live, and a second tap would re-restore this now-stale snapshot
+        // over anything the user added since — silent data loss (finding #1).
+        if (result is BackupResult.Imported) file.delete()
+        result
     }
 
     private val safetyBackupFile: File
         get() = File(File(context.filesDir, SAFETY_DIR), SAFETY_FILE)
+
+    /** Where [stageSafetyBackup] writes the pre-import snapshot before [commitSafetyBackup] promotes it. */
+    private val safetyTmpFile: File
+        get() = File(File(context.filesDir, SAFETY_DIR), "$SAFETY_FILE.tmp")
 
     /**
      * Shared validated-restore core. Streams the archive [openStream] yields into a fresh staging dir
@@ -149,6 +158,12 @@ class BackupManager @Inject constructor(
      */
     private suspend fun runImport(protect: Boolean, openStream: () -> InputStream?): BackupResult {
         val stagingDir = File(context.cacheDir, IMPORT_STAGING_DIR).apply { deleteRecursively() }
+        // Photos streamed into the LIVE store during this import, plus whether the swap committed. Both
+        // are read in `finally`: a failed apply must delete the partial photos it wrote (the live DB is
+        // untouched / rolled back, so they reference nothing) and drop the uncommitted safety snapshot
+        // (findings #14A / #14B).
+        val restoredPaths = HashMap<String, String>()
+        var imported = false
         return try {
             val extracted = try {
                 openStream()?.use { BackupArchive.extractTo(it, stagingDir) }
@@ -175,19 +190,22 @@ class BackupManager @Inject constructor(
             }
 
             // Validated and about to destroy the live corpus — snapshot it first so a wrong-file restore
-            // is undoable (auto safety-backup). Skipped when restoring that very snapshot.
-            if (protect) writeSafetyBackup()
+            // is undoable (auto safety-backup). Staged to a temp now; promoted to the live undo only
+            // after the swap below succeeds, so a failed/no-op import never leaves a misleading undo or
+            // clobbers an earlier one (finding #14B). Skipped when restoring that very snapshot.
+            val staged = protect && stageSafetyBackup()
 
             // Apply. Stream each staged photo into the live store, then swap the DB.
-            val restoredPaths = HashMap<String, String>()
             for (name in declared) {
-                val staged = extracted.photoFiles.getValue(name)
-                val path = staged.inputStream().use { photoStore.importInto(name, it) }
+                val src = extracted.photoFiles.getValue(name)
+                val path = src.inputStream().use { photoStore.importInto(name, it) }
                     ?: return BackupResult.Failed
                 restoredPaths[name] = path
             }
             val entities = bundle.toSeedEntities(restoredPaths)
             dao.replaceAll(entities)
+            imported = true
+            if (staged) commitSafetyBackup()
             // A destructive replace-all orphans every photo file the *old* corpus referenced. Sweep
             // them now, keeping exactly the files the freshly-imported rows point at (review
             // 2026-06-18). Best-effort: the DB is already restored, so a sweep failure must not fail
@@ -201,27 +219,42 @@ class BackupManager @Inject constructor(
             BackupResult.Failed
         } finally {
             runCatching { stagingDir.deleteRecursively() }
+            // Drop any uncommitted safety snapshot (a successful commit already renamed it away).
+            runCatching { safetyTmpFile.delete() }
+            // On any non-success path, the photos already streamed into the live store are orphans —
+            // delete them now instead of waiting for the next app-open reconcile (finding #14A).
+            if (!imported) restoredPaths.values.forEach { p -> runCatching { photoStore.delete(p) } }
         }
     }
 
     /**
-     * Snapshots the CURRENT corpus to [safetyBackupFile] right before a destructive restore. Skipped
-     * when the DB holds no teas (nothing to protect — and so a previous, meaningful safety copy is not
-     * clobbered by an empty one). Written via a temp then renamed so a crash mid-write can't leave a
-     * half-zip the undo would reject. Best-effort: a failure here only forgoes the undo, it must never
-     * block the restore the user explicitly asked for.
+     * Snapshots the CURRENT corpus to [safetyTmpFile] right before a destructive restore, returning
+     * true when a snapshot was written. Skipped (returns false) when the DB holds no teas — nothing to
+     * protect, and so a previous, meaningful safety copy is not clobbered by an empty one. The snapshot
+     * is only promoted to the live undo by [commitSafetyBackup] once the restore actually succeeds.
+     * Best-effort: a failure here only forgoes the undo, it must never block the restore the user
+     * explicitly asked for.
      */
-    private suspend fun writeSafetyBackup() {
-        runCatching {
-            if (dao.teaCount() == 0) return
-            val dir = File(context.filesDir, SAFETY_DIR).apply { mkdirs() }
-            val tmp = File(dir, "$SAFETY_FILE.tmp")
-            FileOutputStream(tmp).use { writeArchive(it) }
-            if (!tmp.renameTo(safetyBackupFile)) {
-                tmp.copyTo(safetyBackupFile, overwrite = true)
-                tmp.delete()
-            }
-        }.onFailure { Log.w(TAG, "Pre-import safety backup failed; restore proceeds without an undo", it) }
+    private suspend fun stageSafetyBackup(): Boolean = runCatching {
+        if (dao.teaCount() == 0) return false
+        safetyTmpFile.parentFile?.mkdirs()
+        FileOutputStream(safetyTmpFile).use { writeArchive(it) }
+        true
+    }.onFailure { Log.w(TAG, "Pre-import safety backup failed; restore proceeds without an undo", it) }
+        .getOrDefault(false)
+
+    /**
+     * Promotes the staged snapshot ([stageSafetyBackup]) to the live undo, atomically via rename so a
+     * crash mid-write can't leave a half-zip the undo would reject. Called only after the destructive
+     * swap succeeds, so the undo always reflects a restore that really happened.
+     */
+    private fun commitSafetyBackup() {
+        if (!safetyTmpFile.renameTo(safetyBackupFile)) {
+            runCatching {
+                safetyTmpFile.copyTo(safetyBackupFile, overwrite = true)
+                safetyTmpFile.delete()
+            }.onFailure { Log.w(TAG, "Could not commit safety backup", it) }
+        }
     }
 
     /** Serializes the current DB + bundles photo files into [out]; returns the exported tea count. */

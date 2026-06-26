@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger
 class FakePhotoStore : PhotoStore {
 
     val failures: MutableSet<String> = mutableSetOf()
+
+    /** Bundled photo names whose [importInto] should fail (null), to exercise partial-restore cleanup. */
+    val importFailures: MutableSet<String> = mutableSetOf()
     val deleted: MutableList<String> = mutableListOf()
     val stored: MutableMap<String, String> = mutableMapOf()
 
@@ -45,6 +48,7 @@ class FakePhotoStore : PhotoStore {
 
     override suspend fun importInto(originalName: String, input: InputStream): String? {
         input.readBytes()
+        if (originalName in importFailures) return null
         val path = "/fake/imported-${counter.incrementAndGet()}.jpg"
         onDisk += path
         return path

@@ -109,10 +109,18 @@ class AndroidPhotoStore @Inject constructor(
     override suspend fun reconcile(keepPaths: Set<String>): Int = withContext(Dispatchers.IO) {
         // Only ever scoped to our own private dir, so it can never sweep anything but tea photos.
         val files = rootDir.listFiles() ?: return@withContext 0
+        // Keep-check by BOTH the stored (absolute) path AND its canonical form: if filesDir ever
+        // resolves through a symlink (e.g. /data/user/0 vs /data/data), the swept file's absolutePath
+        // and the DB's stored uri can differ for the same physical file — a raw string compare would
+        // then sweep a still-referenced photo. We only ever WIDEN the keep set, never narrow it.
+        val keep = HashSet(keepPaths)
+        keepPaths.forEach { p -> runCatching { File(p).canonicalPath }.getOrNull()?.let { keep += it } }
         val now = System.currentTimeMillis()
         var deleted = 0
         for (file in files) {
-            if (!file.isFile || file.absolutePath in keepPaths) continue
+            val canonical = runCatching { file.canonicalPath }.getOrNull()
+            val kept = file.absolutePath in keep || (canonical != null && canonical in keep)
+            if (!file.isFile || kept) continue
             // Grace window: never sweep a file written in the last RECENT_GRACE_MS. It may be an
             // in-flight copyIn whose DB row hasn't been inserted yet (so it isn't in keepPaths) —
             // the app-open sweep would otherwise TOCTOU-delete a photo a concurrent add just wrote.
