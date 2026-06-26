@@ -305,7 +305,11 @@ fun AddTeaScreen(
             // already carries data (e.g. editing, audit #17).
             val hasSampleData = listOf(form.vendor, form.product, form.harvestYear, form.batch, form.grade)
                 .any { it.isNotBlank() }
-            val sampleVisible = sampleExpanded || hasSampleData
+            // Auto-expand once when the section gains data (e.g. an edit prefill), but then let the
+            // chevron collapse it. Previously `|| hasSampleData` pinned it open, so the collapse
+            // chevron silently did nothing whenever a field was filled (audit P2).
+            LaunchedEffect(hasSampleData) { if (hasSampleData) sampleExpanded = true }
+            val sampleVisible = sampleExpanded
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

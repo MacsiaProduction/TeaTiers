@@ -31,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -304,16 +306,20 @@ private fun Attribution(source: String?, sourceUrl: String?, license: String?) {
 @Composable
 private fun LinkedText(text: String, url: String?) {
     val context = LocalContext.current
-    val color =
-        if (url != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = color,
-        modifier = if (url != null) {
-            Modifier.clickable { context.openExternalUrl(url) }
-        } else {
-            Modifier
-        },
-    )
+    if (url != null) {
+        // Underline + ↗ so it reads as a link that leaves the app, not just tinted text (audit).
+        Text(
+            text = "$text  ↗",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clickable(role = Role.Button) { context.openExternalUrl(url) },
+        )
+    } else {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }

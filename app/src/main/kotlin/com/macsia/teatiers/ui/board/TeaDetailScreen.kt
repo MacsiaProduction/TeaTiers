@@ -275,6 +275,14 @@ private fun TeaDetailBody(
         // the reference as a one-tap starting point.
         if (tea.flavor.isNotEmpty() || referenceFlavors.isNotEmpty()) {
             Section(title = stringResource(R.string.detail_flavor_title)) {
+                // Scale legend so the bars/radar aren't an unlabeled 0–5 mystery (audit). The
+                // "mine vs reference" blocks are distinguished by their own headers, not colour alone.
+                Text(
+                    text = stringResource(R.string.flavor_scale_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
                 if (tea.flavor.isNotEmpty()) {
                     FlavorBlock(stringResource(R.string.detail_flavor_mine), tea.flavor, liquor)
                     if (referenceFlavors.isNotEmpty()) {
