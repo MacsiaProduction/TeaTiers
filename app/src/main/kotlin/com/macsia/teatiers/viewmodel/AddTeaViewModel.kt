@@ -68,6 +68,14 @@ class AddTeaViewModel @Inject constructor(
     private val _form = MutableStateFlow(AddTeaForm())
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
 
+    /**
+     * The form as last bound (empty in add mode, the loaded tea in edit mode); [isDirty] compares
+     * against it so the screen can warn before discarding edits (audit #3). Edit-mode photo changes
+     * persist immediately, so only the draft photos (add mode) count toward dirtiness here.
+     */
+    private var pristineForm = AddTeaForm()
+    fun isDirty(): Boolean = _form.value != pristineForm || _draftPhotos.value.isNotEmpty()
+
     /** "Scan packaging" flow (slice 3): Idle → Recognizing → Review(text) → applied to sourceText. */
     private val _scan = MutableStateFlow<ScanUiState>(ScanUiState.Idle)
     val scan: StateFlow<ScanUiState> = _scan.asStateFlow()
@@ -190,6 +198,7 @@ class AddTeaViewModel @Inject constructor(
         this.boardId.value = boardId
         _editingTeaId.value = teaId
         _form.value = AddTeaForm()
+        pristineForm = AddTeaForm()
         _placementCount.value = 0
         _draftPhotos.value = emptyList()
         _catalogQuery.value = ""
@@ -199,7 +208,9 @@ class AddTeaViewModel @Inject constructor(
                 val tea = repository.tea(teaId)
                 val count = repository.placementCountForTea(teaId)
                 if (_editingTeaId.value == teaId) {
-                    _form.value = tea?.toForm() ?: AddTeaForm()
+                    val loaded = tea?.toForm() ?: AddTeaForm()
+                    _form.value = loaded
+                    pristineForm = loaded
                     _placementCount.value = count
                 }
             }

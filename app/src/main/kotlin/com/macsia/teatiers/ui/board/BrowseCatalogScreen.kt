@@ -1,6 +1,5 @@
 package com.macsia.teatiers.ui.board
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,6 +77,7 @@ fun BrowseCatalogScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val boards by viewModel.boards.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
     var teaToPlace by remember { mutableStateOf<CatalogTea?>(null) }
 
     Scaffold(
@@ -93,21 +96,43 @@ fun BrowseCatalogScreen(
             )
         },
     ) { innerPadding ->
-        Box(Modifier.fillMaxSize().padding(innerPadding)) {
-            when (val s = state) {
-                BrowseCatalogUiState.Loading -> CenteredProgress()
-                BrowseCatalogUiState.Empty -> CenteredMessage(stringResource(R.string.browse_catalog_empty))
-                BrowseCatalogUiState.Offline ->
-                    RetryMessage(stringResource(R.string.browse_catalog_offline), viewModel::retry)
-                BrowseCatalogUiState.Error ->
-                    RetryMessage(stringResource(R.string.browse_catalog_error), viewModel::retry)
-                is BrowseCatalogUiState.Loaded ->
-                    BrowseList(
-                        state = s,
-                        onPick = { teaToPlace = it },
-                        onLoadMore = viewModel::loadMore,
-                        onRetryMore = viewModel::retry,
+        Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = viewModel::setQuery,
+                label = { Text(stringResource(R.string.catalog_search_label)) },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.setQuery("") }) {
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.a11y_search_clear))
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            Box(Modifier.fillMaxSize()) {
+                when (val s = state) {
+                    BrowseCatalogUiState.Loading -> CenteredProgress()
+                    BrowseCatalogUiState.Empty -> CenteredMessage(
+                        stringResource(
+                            if (query.isNotBlank()) R.string.my_teas_none_found
+                            else R.string.browse_catalog_empty,
+                        ),
                     )
+                    BrowseCatalogUiState.Offline ->
+                        RetryMessage(stringResource(R.string.browse_catalog_offline), viewModel::retry)
+                    BrowseCatalogUiState.Error ->
+                        RetryMessage(stringResource(R.string.browse_catalog_error), viewModel::retry)
+                    is BrowseCatalogUiState.Loaded ->
+                        BrowseList(
+                            state = s,
+                            onPick = { teaToPlace = it },
+                            onLoadMore = viewModel::loadMore,
+                            onRetryMore = viewModel::retry,
+                        )
+                }
             }
         }
     }
@@ -120,6 +145,11 @@ fun BrowseCatalogScreen(
             onPick = { boardId ->
                 teaToPlace = null
                 onAddToBoard(boardId, tea.id)
+            },
+            // No boards yet: send the user back to the home screen, which owns board creation.
+            onGoCreateBoard = {
+                teaToPlace = null
+                onBack()
             },
         )
     }
@@ -214,34 +244,47 @@ private fun BoardPickerDialog(
     boards: List<BoardPick>,
     onDismiss: () -> Unit,
     onPick: (String) -> Unit,
+    onGoCreateBoard: () -> Unit,
 ) {
+    val hasBoards = boards.isNotEmpty()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.browse_pick_board_title, tea.displayName)) },
         text = {
-            if (boards.isEmpty()) {
+            if (!hasBoards) {
                 Text(stringResource(R.string.browse_pick_board_empty))
             } else {
                 Column(
                     modifier = Modifier
                         .heightIn(max = 320.dp)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    // TextButton rows read as tappable (the bare-Text rows did not), full-width left-aligned.
                     boards.forEach { board ->
-                        Text(
-                            text = board.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPick(board.id) }
-                                .padding(vertical = 14.dp),
-                        )
+                        TextButton(
+                            onClick = { onPick(board.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
+                        ) {
+                            Text(
+                                text = board.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Start,
+                            )
+                        }
                     }
                 }
             }
         },
-        confirmButton = {},
+        // With no boards, the primary action takes the user to where boards are created.
+        confirmButton = {
+            if (!hasBoards) {
+                TextButton(onClick = onGoCreateBoard) {
+                    Text(stringResource(R.string.boards_create_action))
+                }
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.browse_pick_board_cancel))

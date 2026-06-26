@@ -1,6 +1,7 @@
 package com.macsia.teatiers.ui.board
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -113,7 +116,12 @@ fun AddTeaScreen(
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    // Guard the back paths (system back + nav arrow): warn before dropping an in-progress form.
+    val attemptBack = { if (viewModel.isDirty()) confirmDiscard = true else onBack() }
+    BackHandler(enabled = true) { attemptBack() }
     var flavorsExpanded by remember { mutableStateOf(false) }
+    var sampleExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
@@ -142,7 +150,7 @@ fun AddTeaScreen(
                     Text(stringResource(if (isEdit) R.string.edit_tea_title else R.string.add_tea_title))
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = attemptBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.a11y_back),
@@ -278,47 +286,66 @@ fun AddTeaScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // P1-1 sample identity (#132): distinguishes two samples of the same catalog tea.
-            FieldLabel(stringResource(R.string.field_sample_section))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = form.vendor,
-                    onValueChange = { v -> viewModel.update { it.copy(vendor = v) } },
-                    label = { Text(stringResource(R.string.field_vendor)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = form.product,
-                    onValueChange = { v -> viewModel.update { it.copy(product = v) } },
-                    label = { Text(stringResource(R.string.field_product)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
+            // P1-1 sample identity (#132): distinguishes two samples of the same catalog tea. Power-user
+            // detail — collapsed by default to keep the casual add path short; auto-expanded when it
+            // already carries data (e.g. editing, audit #17).
+            val hasSampleData = listOf(form.vendor, form.product, form.harvestYear, form.batch, form.grade)
+                .any { it.isNotBlank() }
+            val sampleVisible = sampleExpanded || hasSampleData
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { sampleExpanded = !sampleExpanded },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FieldLabel(stringResource(R.string.field_sample_section))
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = if (sampleVisible) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = form.harvestYear,
-                    onValueChange = { v -> viewModel.update { it.copy(harvestYear = v.filter(Char::isDigit).take(4)) } },
-                    label = { Text(stringResource(R.string.field_harvest_year)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = form.batch,
-                    onValueChange = { v -> viewModel.update { it.copy(batch = v) } },
-                    label = { Text(stringResource(R.string.field_batch)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = form.grade,
-                    onValueChange = { v -> viewModel.update { it.copy(grade = v) } },
-                    label = { Text(stringResource(R.string.field_grade)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
+            if (sampleVisible) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = form.vendor,
+                        onValueChange = { v -> viewModel.update { it.copy(vendor = v) } },
+                        label = { Text(stringResource(R.string.field_vendor)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = form.product,
+                        onValueChange = { v -> viewModel.update { it.copy(product = v) } },
+                        label = { Text(stringResource(R.string.field_product)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = form.harvestYear,
+                        onValueChange = { v -> viewModel.update { it.copy(harvestYear = v.filter(Char::isDigit).take(4)) } },
+                        label = { Text(stringResource(R.string.field_harvest_year)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = form.batch,
+                        onValueChange = { v -> viewModel.update { it.copy(batch = v) } },
+                        label = { Text(stringResource(R.string.field_batch)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = form.grade,
+                        onValueChange = { v -> viewModel.update { it.copy(grade = v) } },
+                        label = { Text(stringResource(R.string.field_grade)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             PhotoStripField(
@@ -441,6 +468,25 @@ fun AddTeaScreen(
             )
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDiscard = false
+                    onBack()
+                }) { Text(stringResource(R.string.discard_changes_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) {
+                    Text(stringResource(R.string.discard_changes_keep))
+                }
+            },
+        )
     }
 
     if (confirmDelete) {

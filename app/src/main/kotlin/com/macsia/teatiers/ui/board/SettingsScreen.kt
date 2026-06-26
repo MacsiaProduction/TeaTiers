@@ -1,6 +1,5 @@
 package com.macsia.teatiers.ui.board
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -50,7 +49,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.core.os.LocaleListCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,6 +81,7 @@ fun SettingsScreen(
     diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val backupBusy by backupViewModel.busy.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     // True once the user taps "Check for updates", so an Idle result reads as "up to date" (not blank).
     var updateChecked by rememberSaveable { mutableStateOf(false) }
@@ -303,19 +302,26 @@ fun SettingsScreen(
         )
     }
 
+    if (backupBusy) {
+        AlertDialog(
+            onDismissRequest = {}, // a backup op in flight can't be dismissed
+            confirmButton = {},
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(stringResource(R.string.backup_working))
+                }
+            },
+        )
+    }
+
     UpdateDialogs(
         state = updateState,
         releasesUrl = stringResource(R.string.update_releases_url),
         onDismiss = updateViewModel::dismiss,
-        onOpenUrl = { url ->
-            try {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            } catch (_: ActivityNotFoundException) {
-                // No browser to handle the link; nothing more we can do here.
-            }
-        },
+        // openExternalUrl toasts when no browser can handle the link, instead of a silent no-op.
+        onOpenUrl = context::openExternalUrl,
     )
 }
 

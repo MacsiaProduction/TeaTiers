@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -160,7 +161,16 @@ fun TierEditorScreen(
         AlertDialog(
             onDismissRequest = { deleteDialogTier = null },
             title = { Text(stringResource(R.string.tier_delete_title)) },
-            text = { Text(stringResource(R.string.tier_delete_message, row.tier.label)) },
+            text = {
+                val count = row.placements.size
+                Text(
+                    if (count > 0) {
+                        pluralStringResource(R.plurals.tier_delete_message_count, count, count, row.tier.label)
+                    } else {
+                        stringResource(R.string.tier_delete_message, row.tier.label)
+                    },
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.removeTier(row.tier.id)

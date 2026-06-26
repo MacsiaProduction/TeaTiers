@@ -124,6 +124,9 @@ fun PhotoStripField(
                         state = state,
                         onCommitOrder = onReorder,
                         onRemove = { pendingRemove = photo },
+                        // TalkBack reorder fallback: drag is unreachable without sight (audit #6).
+                        onMoveLeft = { onReorder(ids.swapped(index, index - 1)) },
+                        onMoveRight = { onReorder(ids.swapped(index, index + 1)) },
                     )
                 }
                 AddPhotoTile(
@@ -165,9 +168,13 @@ private fun PhotoThumbnail(
     state: PhotoStripDragState,
     onCommitOrder: (List<String>) -> Unit,
     onRemove: () -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit,
 ) {
     val a11yLabel = stringResource(R.string.a11y_photo_thumbnail, index + 1, total)
     val removeLabel = stringResource(R.string.a11y_remove_photo)
+    val moveLeftLabel = stringResource(R.string.a11y_photo_move_left)
+    val moveRightLabel = stringResource(R.string.a11y_photo_move_right)
     val isDragging = state.draggedId == photo.id
 
     // While the finger is down we follow it 1:1 (snap spec); when the user releases the
@@ -177,10 +184,12 @@ private fun PhotoThumbnail(
         animationSpec = if (isDragging) snap() else spring(dampingRatio = 0.7f, stiffness = 700f),
         label = "photo-thumb-offset",
     )
-    val a11yActions = remember(photo.id, onRemove) {
-        listOf(
-            CustomAccessibilityAction(removeLabel) { onRemove(); true },
-        )
+    val a11yActions = remember(photo.id, index, total, onRemove, onMoveLeft, onMoveRight) {
+        buildList {
+            if (index > 0) add(CustomAccessibilityAction(moveLeftLabel) { onMoveLeft(); true })
+            if (index < total - 1) add(CustomAccessibilityAction(moveRightLabel) { onMoveRight(); true })
+            add(CustomAccessibilityAction(removeLabel) { onRemove(); true })
+        }
     }
 
     Box(
@@ -215,22 +224,29 @@ private fun PhotoThumbnail(
         ) {
             PhotoImage(uri = photo.uri, modifier = Modifier.fillMaxSize())
         }
+        // 40dp touch target (Material min ~48dp; capped at 40 to fit the 96dp thumb corner) with a
+        // smaller 24dp visual badge inside, so the affordance stays light but is not a mis-tap trap (audit #7).
         IconButton(
             onClick = onRemove,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(2.dp)
-                .size(24.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    shape = MaterialTheme.shapes.small,
-                ),
+                .size(40.dp),
         ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.a11y_remove_photo),
-                modifier = Modifier.size(16.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        shape = MaterialTheme.shapes.small,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.a11y_remove_photo),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
@@ -276,6 +292,15 @@ fun PhotoImage(uri: String, modifier: Modifier = Modifier) {
  * The constructor seed is the *initial* visible order; [endDrag] returns the new ordered ids
  * when something actually moved (else null so the caller skips the write).
  */
+/** Returns a copy with items [i] and [j] swapped; the original if either index is out of range. */
+private fun List<String>.swapped(i: Int, j: Int): List<String> {
+    if (i !in indices || j !in indices) return this
+    return toMutableList().also {
+        it[i] = this[j]
+        it[j] = this[i]
+    }
+}
+
 internal class PhotoStripDragState(initialOrder: List<String>) {
     private val initialOrder: List<String> = initialOrder.toList()
     private val workingOrder: MutableList<String> = initialOrder.toMutableList()

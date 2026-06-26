@@ -47,9 +47,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.CatalogImage
 import com.macsia.teatiers.domain.model.FlavorScore
+import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
+import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
 import com.macsia.teatiers.ui.components.LiquorSwatch
@@ -73,6 +76,7 @@ fun TeaDetailScreen(
     LaunchedEffect(teaId) { viewModel.bind(teaId) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val referenceFlavors by viewModel.referenceFlavors.collectAsStateWithLifecycle()
+    val referenceImages by viewModel.referenceImages.collectAsStateWithLifecycle()
     val loaded = uiState as? TeaDetailUiState.Loaded
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -147,6 +151,7 @@ fun TeaDetailScreen(
                 TeaDetailBody(
                     tea = state.tea,
                     referenceFlavors = referenceFlavors,
+                    referenceImages = referenceImages,
                     onUseReference = viewModel::useReferenceAsMyRating,
                     modifier = Modifier
                         .fillMaxSize()
@@ -184,6 +189,7 @@ fun TeaDetailScreen(
 private fun TeaDetailBody(
     tea: Tea,
     referenceFlavors: List<FlavorScore>,
+    referenceImages: List<CatalogImage>,
     onUseReference: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -232,6 +238,34 @@ private fun TeaDetailBody(
         if (tea.photos.isNotEmpty()) {
             Section(title = stringResource(R.string.detail_photos_title)) {
                 PhotoGallery(photos = tea.photos, modifier = Modifier.fillMaxWidth())
+            }
+        } else if (referenceImages.isNotEmpty()) {
+            // No user photos yet: fall back to the catalog's curated CC images (audit #9), shown with
+            // attribution. Display-only — they are not copied onto the user-tea.
+            Section(title = stringResource(R.string.detail_photos_title)) {
+                PhotoGallery(
+                    photos = referenceImages.mapIndexed { i, image ->
+                        TeaPhoto(
+                            id = "ref-$i",
+                            uri = image.url,
+                            position = i,
+                            source = PhotoSource.CATALOG,
+                            license = image.license,
+                            sourceUrl = image.sourceUrl,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                referenceImages.forEach { image ->
+                    (image.license ?: image.sourceUrl)?.let { credit ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.catalog_detail_image_credit, credit),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
 

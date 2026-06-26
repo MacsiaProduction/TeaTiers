@@ -47,4 +47,24 @@ class BoardModelsTest {
         assertEquals(3, summary.teaCount)
         assertEquals(listOf(TeaType.GREEN, TeaType.BLACK), summary.signatureTypes)
     }
+
+    @Test
+    fun `toShareText lists non-empty tiers then unranked, skipping empty tiers`() {
+        val ui = BoardUiState(
+            boardName = "My board",
+            tiers = listOf(
+                TierWithPlacements(
+                    Tier(id = "s", label = "S", position = 0),
+                    listOf(place("b", "Жасмин", TeaType.GREEN), place("b", "Лунцзин", TeaType.GREEN)),
+                ),
+                TierWithPlacements(Tier(id = "a", label = "A", position = 1), emptyList()),
+            ),
+            unranked = listOf(place("b", "Шу", TeaType.PUER)),
+        )
+
+        assertEquals(
+            "My board\nS: Жасмин, Лунцзин\nБез ранга: Шу",
+            ui.toShareText("Без ранга"),
+        )
+    }
 }

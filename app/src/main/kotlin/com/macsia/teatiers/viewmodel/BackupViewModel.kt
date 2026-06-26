@@ -10,6 +10,9 @@ import com.macsia.teatiers.data.backup.BackupResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,24 +35,44 @@ class BackupViewModel @Inject constructor(
     private val channel = Channel<BackupEvent>(capacity = 4)
     val events: Flow<BackupEvent> = channel.receiveAsFlow()
 
+    /** True while an export/import/share runs; the screen shows a blocking progress dialog (audit #5).
+     *  These ops can take seconds with many photos, and import is a destructive replace-all. */
+    private val _busy = MutableStateFlow(false)
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
     fun exportTo(uri: Uri) {
         viewModelScope.launch {
-            channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes()))
+            _busy.value = true
+            try {
+                channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes()))
+            } finally {
+                _busy.value = false
+            }
         }
     }
 
     fun importFrom(uri: Uri) {
         viewModelScope.launch {
-            channel.trySend(BackupEvent.Message(backupManager.importFrom(uri).messageRes()))
+            _busy.value = true
+            try {
+                channel.trySend(BackupEvent.Message(backupManager.importFrom(uri).messageRes()))
+            } finally {
+                _busy.value = false
+            }
         }
     }
 
     fun share() {
         viewModelScope.launch {
-            val uri = backupManager.createShareUri()
-            channel.trySend(
-                if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_failed),
-            )
+            _busy.value = true
+            try {
+                val uri = backupManager.createShareUri()
+                channel.trySend(
+                    if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_failed),
+                )
+            } finally {
+                _busy.value = false
+            }
         }
     }
 

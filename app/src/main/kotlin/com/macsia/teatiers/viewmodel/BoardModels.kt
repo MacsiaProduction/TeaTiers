@@ -23,6 +23,25 @@ data class BoardSummary(
     val signatureTypes: List<TeaType>,
 )
 
+/**
+ * Plain-text rendering of a board for sharing (one tier per line, "S: a, b"). Empty tiers are
+ * skipped; the unranked tray is appended last when non-empty. [unrankedLabel] is passed in so this
+ * stays pure (no Android resources) and unit-testable. Text — not an image — because it renders for
+ * a board of any length without scroll-capture quirks (audit #1, lazy first cut).
+ */
+fun BoardUiState.toShareText(unrankedLabel: String): String {
+    val lines = mutableListOf(boardName)
+    tiers.forEach { row ->
+        if (row.placements.isNotEmpty()) {
+            lines += "${row.tier.label}: " + row.placements.joinToString(", ") { it.tea.displayName }
+        }
+    }
+    if (unranked.isNotEmpty()) {
+        lines += "$unrankedLabel: " + unranked.joinToString(", ") { it.tea.displayName }
+    }
+    return lines.joinToString("\n")
+}
+
 fun Board.toUiState(): BoardUiState =
     BoardUiState(
         boardName = name,

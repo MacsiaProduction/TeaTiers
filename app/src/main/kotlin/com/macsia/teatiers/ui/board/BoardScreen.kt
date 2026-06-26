@@ -1,5 +1,6 @@
 package com.macsia.teatiers.ui.board
 
+import android.content.Intent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -64,6 +66,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -90,6 +93,7 @@ import com.macsia.teatiers.viewmodel.BoardUiState
 import com.macsia.teatiers.viewmodel.BoardViewModel
 import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.TierWithPlacements
+import com.macsia.teatiers.viewmodel.toShareText
 import kotlin.math.roundToInt
 
 private val ScreenInset = 16.dp
@@ -194,6 +198,21 @@ private fun BoardContent(
                     },
                     actions = {
                         if (state != null) {
+                            val context = LocalContext.current
+                            val shareChooserTitle = stringResource(R.string.board_share_chooser)
+                            IconButton(onClick = {
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TITLE, state.boardName)
+                                    putExtra(Intent.EXTRA_TEXT, state.toShareText(unrankedLabel))
+                                }
+                                context.startActivity(Intent.createChooser(send, shareChooserTitle))
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Share,
+                                    contentDescription = stringResource(R.string.a11y_board_share),
+                                )
+                            }
                             TextButton(onClick = onEditTiers) {
                                 Text(stringResource(R.string.tier_editor_action))
                             }
@@ -641,6 +660,25 @@ private fun DraggableTeaCard(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
             ) {
+                // Visible move-to-tier fallback so ranking never depends on discovering the
+                // long-press drag (audit #2). Mirrors the TalkBack custom actions above; appends
+                // to the end of the target group (Int.MAX_VALUE; the repository clamps it).
+                moveTargets
+                    .filter { groupKey(it.tierId) != currentKey }
+                    .forEach { target ->
+                        val label = if (target.tierId == null) {
+                            moveToUnrankedLabel
+                        } else {
+                            moveToTierTemplate.format(target.label)
+                        }
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                menuExpanded = false
+                                onMove(placement.placementId, target.tierId, Int.MAX_VALUE)
+                            },
+                        )
+                    }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.action_remove_from_board)) },
                     onClick = {

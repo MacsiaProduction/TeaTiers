@@ -118,6 +118,11 @@ fun MyTeasScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    FilterChip(
+                        selected = state.typeFilter == null,
+                        onClick = { viewModel.clearTypeFilter() },
+                        label = { Text(stringResource(R.string.my_teas_filter_all)) },
+                    )
                     state.availableTypes.forEach { type ->
                         FilterChip(
                             selected = state.typeFilter == type,
@@ -135,7 +140,7 @@ fun MyTeasScreen(
                 )
                 state.items.isEmpty() -> EmptyMyTeas(
                     title = stringResource(R.string.my_teas_none_found),
-                    hint = null,
+                    hint = stringResource(R.string.my_teas_none_found_hint),
                 )
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
