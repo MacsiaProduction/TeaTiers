@@ -56,6 +56,24 @@ class MyTeasModelsTest {
     }
 
     @Test
+    fun `query also matches origin, vendor, product, and harvest year`() {
+        // These are the sample-identity fields shown on the card; a user must be able to find a
+        // sample by what distinguishes it from another of the same tea (audit).
+        val teas = listOf(
+            Tea(id = "origin", nameRu = "Чай-о", type = TeaType.GREEN, origin = "Юньнань"),
+            Tea(id = "vendor", nameRu = "Чай-в", type = TeaType.GREEN, vendor = "Лавка Чая"),
+            Tea(id = "product", nameRu = "Чай-п", type = TeaType.GREEN, product = "Зимний сбор"),
+            Tea(id = "year", nameRu = "Чай-г", type = TeaType.GREEN, harvestYear = 2019),
+            Tea(id = "none", nameRu = "Пуэр", type = TeaType.GREEN),
+        )
+
+        assertEquals(listOf("origin"), filterMyTeas(teas, "юньнань", null).map { it.id })
+        assertEquals(listOf("vendor"), filterMyTeas(teas, "лавка", null).map { it.id })
+        assertEquals(listOf("product"), filterMyTeas(teas, "зимний", null).map { it.id })
+        assertEquals(listOf("year"), filterMyTeas(teas, "2019", null).map { it.id })
+    }
+
+    @Test
     fun `type filter narrows to one category`() {
         val teas = listOf(
             tea("g", "Зелёный", type = TeaType.GREEN),

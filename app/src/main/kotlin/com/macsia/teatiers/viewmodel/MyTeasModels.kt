@@ -35,8 +35,10 @@ fun placementCounts(boards: List<Board>): Map<String, Int> {
 
 /**
  * Filters + sorts the collection for display. Keeps teas matching [type] (when non-null) and whose
- * any name field contains [query] (case-insensitive substring over ru/en/pinyin/zh), then sorts by
- * the ru name lower-cased so Russian uppercase orders correctly (SQLite's ASCII-only collation
+ * name, origin, or sample identity (vendor / product / harvest year) contains [query] — those are
+ * the fields shown on the card, so two samples of the same tea are findable by what distinguishes
+ * them (audit). Case-insensitive substring. Then sorts by the resolved display title (ru → en →
+ * pinyin → zh) lower-cased so Russian uppercase orders correctly (SQLite's ASCII-only collation
  * cannot). Pure so it is unit-testable without Room or Compose.
  */
 fun filterMyTeas(teas: List<Tea>, query: String, type: TeaType?): List<Tea> {
@@ -53,4 +55,8 @@ private fun Tea.matchesQuery(needle: String): Boolean =
     nameRu?.lowercase()?.contains(needle) == true ||
         nameEn?.lowercase()?.contains(needle) == true ||
         pinyin?.lowercase()?.contains(needle) == true ||
-        nameZh?.contains(needle) == true
+        nameZh?.contains(needle) == true ||
+        origin?.lowercase()?.contains(needle) == true ||
+        vendor?.lowercase()?.contains(needle) == true ||
+        product?.lowercase()?.contains(needle) == true ||
+        harvestYear?.toString()?.contains(needle) == true
