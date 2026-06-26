@@ -55,11 +55,18 @@ fun TeaWithChildren.toDomain(): Tea = Tea(
     nameZh = tea.nameZh,
     pinyin = tea.pinyin,
     nameEn = tea.nameEn,
-    type = TeaType.valueOf(tea.type),
+    // Defensive: a backup (or a future-version DB) can carry a type/dimension/intensity this build
+    // doesn't know. Read-path mapping must never throw — an unknown type folds to OTHER, an unknown
+    // flavor axis is skipped, and intensity is clamped to the 0..5 [FlavorScore] invariant. Otherwise
+    // one bad row crashes every render and bricks the app on launch (no way back without a reinstall).
+    type = runCatching { TeaType.valueOf(tea.type) }.getOrDefault(TeaType.OTHER),
     origin = tea.origin,
     shortBlurb = tea.shortBlurb,
-    flavor = flavors.sortedBy { it.position }
-        .map { FlavorScore(FlavorDimension.valueOf(it.dimension), it.intensity) },
+    flavor = flavors.sortedBy { it.position }.mapNotNull { row ->
+        val dimension = runCatching { FlavorDimension.valueOf(row.dimension) }.getOrNull()
+            ?: return@mapNotNull null
+        FlavorScore(dimension, row.intensity.coerceIn(0, 5))
+    },
     notes = tea.notes,
     vendor = tea.vendor,
     product = tea.product,

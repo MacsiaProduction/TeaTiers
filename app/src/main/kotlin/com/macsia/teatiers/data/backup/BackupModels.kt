@@ -221,7 +221,10 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
         catalogRefs = refRows,
         teas = teaRows,
         placements = placements.map { PlacementEntity(it.id, it.boardId, it.teaId, it.tierId, it.position) },
-        flavors = flavors.map { FlavorEntity(it.teaId, it.dimension, it.intensity, it.position) },
+        // Dedup on the (teaId, dimension) composite PK: a malformed/hand-edited bundle carrying two
+        // rows for the same axis would otherwise abort the whole replaceAll transaction (finding #15).
+        flavors = flavors.distinctBy { it.teaId to it.dimension }
+            .map { FlavorEntity(it.teaId, it.dimension, it.intensity, it.position) },
         purchases = purchases.map { PurchaseLocationEntity(it.id, it.teaId, it.position, it.kind, it.label, it.value) },
         photos = photos.mapNotNull { photo ->
             val resolvedUri = when {

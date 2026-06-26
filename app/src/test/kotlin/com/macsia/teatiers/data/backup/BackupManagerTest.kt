@@ -267,4 +267,71 @@ class BackupManagerTest {
         // The missing file photo (ph1) is gone from the archive; the url photo (ph2) survives.
         assertEquals(listOf("ph2"), written.captured.photos.map { it.id })
     }
+
+    @Test
+    fun `undo is one-shot — a second restoreSafetyBackup finds no snapshot (finding 1)`() = runTest {
+        val dao = mockk<TeaDao>(relaxed = true)
+        coEvery { dao.teaCount() } returns 1
+        coEvery { dao.exportSnapshot() } returns snapshot()
+        val photoStore = FakePhotoStore()
+        val uri = mockk<Uri>()
+        val resolver = mockk<ContentResolver> {
+            every { openAssetFileDescriptor(uri, "r") } returns null
+            every { openInputStream(uri) } returns archiveBytes().inputStream()
+        }
+        val context = mockk<Context> {
+            every { contentResolver } returns resolver
+            every { cacheDir } returns this@BackupManagerTest.cacheDir
+            every { filesDir } returns this@BackupManagerTest.filesDir
+        }
+        val manager = BackupManager(context, dao, photoStore)
+
+        assertTrue(manager.importFrom(uri) is BackupResult.Imported)
+        assertTrue(manager.hasSafetyBackup())
+
+        // First undo consumes the snapshot...
+        assertTrue(manager.restoreSafetyBackup() is BackupResult.Imported)
+        assertFalse(manager.hasSafetyBackup(), "the undo must consume its one-shot snapshot")
+        // ...so a second tap can't re-restore a now-stale snapshot over data added since.
+        assertTrue(manager.restoreSafetyBackup() is BackupResult.InvalidFile)
+    }
+
+    @Test
+    fun `a failed import cleans partial photos and leaves no stale safety backup (findings 14A 14B)`() = runTest {
+        // Two file-backed photos; the SECOND fails to import. The restore must abort with no DB swap,
+        // delete the first photo it already streamed into the live store (orphan), and NOT leave a
+        // safety snapshot behind for a restore that never changed anything.
+        val dao = mockk<TeaDao>(relaxed = true)
+        coEvery { dao.teaCount() } returns 1
+        coEvery { dao.exportSnapshot() } returns snapshot()
+        val twoFilePhotos = snapshot().copy(
+            photos = listOf(
+                PhotoEntity("ph1", "tea1", "/data/tea_photos/a.png", 0, "USER", null, null, 1L),
+                PhotoEntity("phB", "tea1", "/data/tea_photos/b.jpg", 1, "USER", null, null, 2L),
+            ),
+        )
+        val bundle = twoFilePhotos.toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0")
+        val bytes = archiveOf(bundle, photos = mapOf("ph1.png" to byteArrayOf(1), "phB.jpg" to byteArrayOf(2)))
+        val photoStore = FakePhotoStore().apply { importFailures += "phB.jpg" }
+        val uri = mockk<Uri>()
+        val resolver = mockk<ContentResolver> {
+            every { openAssetFileDescriptor(uri, "r") } returns null
+            every { openInputStream(uri) } returns bytes.inputStream()
+        }
+        val context = mockk<Context> {
+            every { contentResolver } returns resolver
+            every { cacheDir } returns this@BackupManagerTest.cacheDir
+            every { filesDir } returns this@BackupManagerTest.filesDir
+        }
+        val manager = BackupManager(context, dao, photoStore)
+
+        val result = manager.importFrom(uri)
+
+        assertTrue(result is BackupResult.Failed, "a photo import failure must fail the whole restore, got $result")
+        coVerify(exactly = 0) { dao.replaceAll(any()) }
+        assertFalse(manager.hasSafetyBackup(), "a failed/no-op import must not leave a misleading undo")
+        // The first photo, already streamed into the live store, is cleaned up rather than orphaned.
+        assertEquals(1, photoStore.deleted.size, "the one already-written photo must be deleted")
+        assertTrue(photoStore.deleted.first().startsWith("/fake/imported-"), "deleted the staged import file")
+    }
 }

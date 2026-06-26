@@ -80,6 +80,9 @@ class BackupViewModel @Inject constructor(
             _busy.value = true
             try {
                 channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes()))
+                // The snapshot is consumed by a successful undo; refresh so the entry hides and a
+                // second tap can't re-restore a now-stale snapshot over newer data (finding #1).
+                _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
             } finally {
                 _busy.value = false
             }

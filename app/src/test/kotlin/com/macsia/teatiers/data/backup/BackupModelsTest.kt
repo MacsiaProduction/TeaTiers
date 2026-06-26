@@ -37,6 +37,24 @@ class BackupModelsTest {
     )
 
     @Test
+    fun `toSeedEntities dedups duplicate flavor rows on the composite key (finding 15)`() {
+        // A malformed/hand-edited bundle with two rows for the same (teaId, dimension) would otherwise
+        // abort the whole replaceAll on the tea_flavors composite PK.
+        val bundle = BackupBundle(
+            teas = listOf(BackupTea(id = "t", type = "GREEN")),
+            flavors = listOf(
+                BackupFlavor("t", "BITTERNESS", 2, 0),
+                BackupFlavor("t", "BITTERNESS", 4, 1),
+            ),
+        )
+
+        val seed = bundle.toSeedEntities(emptyMap())
+
+        assertEquals(1, seed.flavors.size, "duplicate (teaId, dimension) must collapse to one row")
+        assertEquals(2, seed.flavors.first().intensity, "the first occurrence wins")
+    }
+
+    @Test
     fun `file photo is bundled while url photo keeps its uri`() {
         val bundle = snapshot().toBundle(exportedAtEpochMs = 1_000L, appVersion = "0.1.0")
 

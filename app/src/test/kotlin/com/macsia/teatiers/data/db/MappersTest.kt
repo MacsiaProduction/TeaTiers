@@ -172,6 +172,29 @@ class MappersTest {
     }
 
     @Test
+    fun `toDomain tolerates an unknown type, unknown flavor axis, and out-of-range intensity`() {
+        // A backup (or future-version DB) row this build can't fully interpret must not crash the read
+        // path — otherwise one bad row throws on every render and bricks the app on launch (finding #2).
+        val tea = TeaSampleEntity("t", "Чай", null, null, null, "MYSTERY_TYPE", null, null, null)
+        val aggregate = TeaWithChildren(
+            tea = tea,
+            flavors = listOf(
+                FlavorEntity("t", "BITTERNESS", 9, 0), // intensity out of the 0..5 invariant
+                FlavorEntity("t", "NOT_A_DIMENSION", 3, 1), // unknown axis
+            ),
+            purchases = emptyList(),
+            photos = emptyList(),
+        )
+
+        val domain = aggregate.toDomain()
+
+        assertEquals(TeaType.OTHER, domain.type) // unknown type folds to OTHER
+        assertEquals(1, domain.flavor.size) // unknown axis is dropped
+        assertEquals(FlavorDimension.BITTERNESS, domain.flavor.first().dimension)
+        assertEquals(5, domain.flavor.first().intensity) // clamped into 0..5
+    }
+
+    @Test
     fun `purchase entity maps TEXT to free text and keeps the label`() {
         val entity = PurchaseLocationEntity("p", "t", 0, "TEXT", "метка", "Описание места")
 
