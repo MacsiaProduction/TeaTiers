@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +82,8 @@ fun BoardsScreen(
     var boardToRename by remember { mutableStateOf<BoardSummary?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
+    // Open a board the moment it's created so the user lands on it ready to add teas (audit P2).
+    LaunchedEffect(Unit) { viewModel.createdBoard.collect(onOpenBoard) }
 
     Scaffold(
         modifier = modifier,

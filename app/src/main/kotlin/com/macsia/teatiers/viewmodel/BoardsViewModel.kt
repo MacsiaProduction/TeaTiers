@@ -9,9 +9,12 @@ import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.data.settings.SettingsRepository
 import com.macsia.teatiers.domain.model.TierTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,6 +29,11 @@ class BoardsViewModel @Inject constructor(
 
     private val eventHost = UiEventHost()
     val events get() = eventHost.events
+
+    // One-shot navigation: a freshly created board is opened so the user lands on it ready to add
+    // teas, instead of guessing where it went in the list (audit P2).
+    private val createdBoardChannel = Channel<String>(Channel.BUFFERED)
+    val createdBoard: Flow<String> = createdBoardChannel.receiveAsFlow()
 
     init {
         // The boards list is the app's home, so this is the earliest reliable "app opened" hook:
@@ -64,6 +72,7 @@ class BoardsViewModel @Inject constructor(
     fun createBoard(label: String, template: TierTemplate) {
         viewModelScope.launch {
             runCatching { repository.createBoard(label, template) }
+                .onSuccess { id -> if (id != null) createdBoardChannel.trySend(id) }
                 .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }
     }
