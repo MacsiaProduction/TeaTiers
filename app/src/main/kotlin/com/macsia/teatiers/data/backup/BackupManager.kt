@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -25,6 +26,14 @@ private const val SHARE_DIR = "backups"
 
 /** Cache subdir an import streams into + validates before any live mutation (review P1-5). */
 private const val IMPORT_STAGING_DIR = "import-staging"
+
+/**
+ * App-private file holding the auto safety-backup: a snapshot of the corpus taken right before a
+ * destructive restore, so a user who imported the wrong file can undo it. A single rolling zip in
+ * internal storage (not the SAF-picked location) — it's a safety net, not a user-managed backup.
+ */
+private const val SAFETY_DIR = "safety"
+private const val SAFETY_FILE = "pre-import.zip"
 
 /**
  * Reject a picked import larger than this by its SAF-declared (compressed, on-disk zip) size before reading
@@ -112,24 +121,48 @@ class BackupManager @Inject constructor(
         if (declaredSize != null && declaredSize > MAX_ARCHIVE_BYTES) {
             return@withContext BackupResult.TooLarge
         }
-        // Stream the archive into a fresh staging dir (photos to files, never the corpus in RAM), so
-        // we can fully VALIDATE it before touching any live data (review P1-5). A leftover dir from a
-        // killed import is cleared first; `finally` clears it on every exit path.
+        runImport(protect = true) { context.contentResolver.openInputStream(uri) }
+    }
+
+    /** True when an auto safety-backup is on hand to undo the last restore (drives the Settings entry). */
+    fun hasSafetyBackup(): Boolean = safetyBackupFile.exists()
+
+    /**
+     * Restores the pre-import safety snapshot ([writeSafetyBackup]) — the user's "undo my last
+     * restore". Does NOT take a fresh safety backup (`protect = false`): that would overwrite the good
+     * copy with the very data we're about to discard. [BackupResult.InvalidFile] when none exists.
+     */
+    suspend fun restoreSafetyBackup(): BackupResult = withContext(Dispatchers.IO) {
+        val file = safetyBackupFile
+        if (!file.exists()) return@withContext BackupResult.InvalidFile
+        runImport(protect = false) { file.inputStream() }
+    }
+
+    private val safetyBackupFile: File
+        get() = File(File(context.filesDir, SAFETY_DIR), SAFETY_FILE)
+
+    /**
+     * Shared validated-restore core. Streams the archive [openStream] yields into a fresh staging dir
+     * (photos to files, never the corpus in RAM) and fully VALIDATES it before touching any live data
+     * (review P1-5). A leftover dir from a killed import is cleared first; `finally` clears it on every
+     * exit path. When [protect] is set, snapshots the current corpus just before the destructive swap.
+     */
+    private suspend fun runImport(protect: Boolean, openStream: () -> InputStream?): BackupResult {
         val stagingDir = File(context.cacheDir, IMPORT_STAGING_DIR).apply { deleteRecursively() }
-        return@withContext try {
+        return try {
             val extracted = try {
-                context.contentResolver.openInputStream(uri)?.use { BackupArchive.extractTo(it, stagingDir) }
-                    ?: return@withContext BackupResult.Failed
+                openStream()?.use { BackupArchive.extractTo(it, stagingDir) }
+                    ?: return BackupResult.Failed
             } catch (e: BackupArchive.TooLargeException) {
                 Log.w(TAG, "Import rejected: archive too large", e)
-                return@withContext BackupResult.TooLarge
+                return BackupResult.TooLarge
             }
-            if (extracted.json.isBlank()) return@withContext BackupResult.InvalidFile
+            if (extracted.json.isBlank()) return BackupResult.InvalidFile
             val bundle = runCatching { json.decodeFromString<BackupBundle>(extracted.json) }
-                .getOrElse { return@withContext BackupResult.InvalidFile }
+                .getOrElse { return BackupResult.InvalidFile }
             // We cannot faithfully restore a bundle written by a newer app version — tell the user to
             // update rather than claiming their (valid) backup "isn't a TeaTiers backup".
-            if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return@withContext BackupResult.IncompatibleVersion
+            if (bundle.formatVersion > BACKUP_FORMAT_VERSION) return BackupResult.IncompatibleVersion
 
             // Atomic guard (review P1-5): every photo the data declares must actually be present in the
             // archive. If any is missing, reject the WHOLE restore and leave current data untouched —
@@ -138,15 +171,19 @@ class BackupManager @Inject constructor(
             val missing = declared.filter { it !in extracted.photoFiles }
             if (missing.isNotEmpty()) {
                 Log.w(TAG, "Import rejected: ${missing.size} declared photo(s) missing from the archive")
-                return@withContext BackupResult.IncompleteArchive
+                return BackupResult.IncompleteArchive
             }
 
-            // Validated — apply. Stream each staged photo into the live store, then swap the DB.
+            // Validated and about to destroy the live corpus — snapshot it first so a wrong-file restore
+            // is undoable (auto safety-backup). Skipped when restoring that very snapshot.
+            if (protect) writeSafetyBackup()
+
+            // Apply. Stream each staged photo into the live store, then swap the DB.
             val restoredPaths = HashMap<String, String>()
             for (name in declared) {
                 val staged = extracted.photoFiles.getValue(name)
                 val path = staged.inputStream().use { photoStore.importInto(name, it) }
-                    ?: return@withContext BackupResult.Failed
+                    ?: return BackupResult.Failed
                 restoredPaths[name] = path
             }
             val entities = bundle.toSeedEntities(restoredPaths)
@@ -165,6 +202,26 @@ class BackupManager @Inject constructor(
         } finally {
             runCatching { stagingDir.deleteRecursively() }
         }
+    }
+
+    /**
+     * Snapshots the CURRENT corpus to [safetyBackupFile] right before a destructive restore. Skipped
+     * when the DB holds no teas (nothing to protect — and so a previous, meaningful safety copy is not
+     * clobbered by an empty one). Written via a temp then renamed so a crash mid-write can't leave a
+     * half-zip the undo would reject. Best-effort: a failure here only forgoes the undo, it must never
+     * block the restore the user explicitly asked for.
+     */
+    private suspend fun writeSafetyBackup() {
+        runCatching {
+            if (dao.teaCount() == 0) return
+            val dir = File(context.filesDir, SAFETY_DIR).apply { mkdirs() }
+            val tmp = File(dir, "$SAFETY_FILE.tmp")
+            FileOutputStream(tmp).use { writeArchive(it) }
+            if (!tmp.renameTo(safetyBackupFile)) {
+                tmp.copyTo(safetyBackupFile, overwrite = true)
+                tmp.delete()
+            }
+        }.onFailure { Log.w(TAG, "Pre-import safety backup failed; restore proceeds without an undo", it) }
     }
 
     /** Serializes the current DB + bundles photo files into [out]; returns the exported tea count. */

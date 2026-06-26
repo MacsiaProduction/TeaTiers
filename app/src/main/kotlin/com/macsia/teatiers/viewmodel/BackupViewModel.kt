@@ -40,6 +40,15 @@ class BackupViewModel @Inject constructor(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    /** True once a restore has left an auto safety-backup on hand; gates the "undo last restore" entry. */
+    private val _safetyBackupAvailable = MutableStateFlow(false)
+    val safetyBackupAvailable: StateFlow<Boolean> = _safetyBackupAvailable.asStateFlow()
+
+    init {
+        // A safety copy may survive a process restart, so reflect any existing one on open.
+        viewModelScope.launch { _safetyBackupAvailable.value = backupManager.hasSafetyBackup() }
+    }
+
     fun exportTo(uri: Uri) {
         viewModelScope.launch {
             _busy.value = true
@@ -55,7 +64,22 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch {
             _busy.value = true
             try {
-                channel.trySend(BackupEvent.Message(backupManager.importFrom(uri).messageRes()))
+                val result = backupManager.importFrom(uri)
+                channel.trySend(BackupEvent.Message(result.messageRes()))
+                // A completed restore leaves a pre-import safety copy; surface the undo entry.
+                _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
+
+    /** Undoes the last restore by reinstating the pre-import safety snapshot (auto safety-backup). */
+    fun restoreSafetyBackup() {
+        viewModelScope.launch {
+            _busy.value = true
+            try {
+                channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes()))
             } finally {
                 _busy.value = false
             }

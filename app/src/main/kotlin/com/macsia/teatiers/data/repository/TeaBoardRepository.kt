@@ -30,9 +30,12 @@ import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -109,8 +112,19 @@ class TeaBoardRepository @Inject constructor(
         this.clock = clock
     }
 
+    private val _boardsLoaded = MutableStateFlow(false)
+
+    /**
+     * Flips true on the first DB emission of [boards] so the home screen can show a spinner instead of
+     * flashing the "no boards yet" empty state before Room's first read lands on a cold start. The
+     * seeded `emptyList()` of [boards] is indistinguishable from a genuinely empty corpus by value
+     * alone, so loaded-ness needs its own signal.
+     */
+    val boardsLoaded: StateFlow<Boolean> = _boardsLoaded.asStateFlow()
+
     val boards: StateFlow<List<Board>> = dao.observeBoards()
         .map { rows -> rows.map(BoardWithChildren::toDomain) }
+        .onEach { _boardsLoaded.value = true }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /**

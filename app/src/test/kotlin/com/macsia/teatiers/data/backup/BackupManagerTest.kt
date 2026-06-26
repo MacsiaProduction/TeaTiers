@@ -48,6 +48,9 @@ class BackupManagerTest {
     @TempDir
     lateinit var cacheDir: File
 
+    @TempDir
+    lateinit var filesDir: File
+
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -135,6 +138,49 @@ class BackupManagerTest {
         assertTrue(photoStore.deleted.contains("/fake/old-orphan.jpg"), "orphan must be swept")
         assertFalse(photoStore.onDisk.contains("/fake/old-orphan.jpg"))
         assertTrue(photoStore.onDisk.contains(importedPath), "imported file must be kept")
+    }
+
+    @Test
+    fun `a destructive import snapshots the current data, then restoreSafetyBackup undoes it`() = runTest {
+        // teaCount > 0 -> the pre-import safety snapshot is taken (it's skipped on an empty DB). The
+        // current corpus is snapshot() (its ph1 file is absent here, so only the url photo survives the
+        // export filter); the incoming archive is a separate valid backup.
+        val dao = mockk<TeaDao>(relaxed = true)
+        coEvery { dao.teaCount() } returns 1
+        coEvery { dao.exportSnapshot() } returns snapshot()
+        val photoStore = FakePhotoStore()
+        val uri = mockk<Uri>()
+        val resolver = mockk<ContentResolver> {
+            every { openAssetFileDescriptor(uri, "r") } returns null
+            every { openInputStream(uri) } returns archiveBytes().inputStream()
+        }
+        val context = mockk<Context> {
+            every { contentResolver } returns resolver
+            every { cacheDir } returns this@BackupManagerTest.cacheDir
+            every { filesDir } returns this@BackupManagerTest.filesDir
+        }
+        val manager = BackupManager(context, dao, photoStore)
+
+        assertFalse(manager.hasSafetyBackup(), "no snapshot before the first restore")
+        assertTrue(manager.importFrom(uri) is BackupResult.Imported)
+        assertTrue(manager.hasSafetyBackup(), "the destructive import must leave a safety snapshot")
+
+        // The snapshot is a real, restorable backup of the pre-import corpus (1 tea).
+        val undone = manager.restoreSafetyBackup()
+        assertTrue(undone is BackupResult.Imported, "expected the snapshot to restore, got $undone")
+        assertEquals(1, (undone as BackupResult.Imported).teaCount)
+    }
+
+    @Test
+    fun `restoreSafetyBackup with no snapshot is InvalidFile`() = runTest {
+        val dao = mockk<TeaDao>(relaxed = true)
+        val context = mockk<Context> {
+            every { filesDir } returns this@BackupManagerTest.filesDir
+            every { cacheDir } returns this@BackupManagerTest.cacheDir
+        }
+        val manager = BackupManager(context, dao, FakePhotoStore())
+
+        assertTrue(manager.restoreSafetyBackup() is BackupResult.InvalidFile)
     }
 
     @Test
