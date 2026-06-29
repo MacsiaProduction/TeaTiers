@@ -385,6 +385,9 @@ class AddTeaViewModel @Inject constructor(
         // toCatalogTea narrows to the search shape (no harvest year); carry the detail's over directly
         // so a catalog tea's harvest year prefills the form instead of being silently dropped.
         detail.harvestYear?.let { year -> _form.update { it.copy(harvestYear = year.toString()) } }
+        // toCatalogTea also narrows origin to the bare country; carry the detail's region-preferring
+        // origin (region ?: country) so the form keeps the more specific "where from" the sheet showed.
+        detail.origin?.let { origin -> _form.update { it.copy(origin = origin) } }
         _catalogDetailId.value = null
     }
 

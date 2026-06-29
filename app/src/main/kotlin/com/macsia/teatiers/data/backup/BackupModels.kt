@@ -97,6 +97,14 @@ data class BackupTea(
     // backup restores as an un-enriched custom tea (null / NONE), which is its correct state.
     val catalogTeaId: Long? = null,
     val enrichmentState: String = "NONE",
+    // v7 sample-identity columns (#132). Defaulted so an older bundle still decodes; without these the
+    // backup silently dropped user-entered vendor/product/harvest-year/batch/grade on every round trip.
+    val vendor: String? = null,
+    val product: String? = null,
+    val harvestYear: Int? = null,
+    val batch: String? = null,
+    val grade: String? = null,
+    val displayNamePref: String? = null,
 )
 
 @Serializable
@@ -166,6 +174,7 @@ fun SeedEntities.toBundle(exportedAtEpochMs: Long, appVersion: String): BackupBu
         BackupTea(
             it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
             it.catalogTeaId, it.enrichmentState,
+            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref,
         )
     },
     placements = placements.map { BackupPlacement(it.id, it.boardId, it.teaId, it.tierId, it.position) },
@@ -201,6 +210,7 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
         TeaSampleEntity(
             it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
             it.catalogTeaId, it.enrichmentState,
+            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref,
         )
     }
     // Restore the bundle's refs, then union in a stub for any linked sample whose ref is missing from

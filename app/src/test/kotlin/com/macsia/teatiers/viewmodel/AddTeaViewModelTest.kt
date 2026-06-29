@@ -605,6 +605,18 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `useCatalogDetail prefills the region-preferring origin, not the bare country`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+
+        // detail.origin = region ?: originCountry, so the more specific region the sheet showed must
+        // win in the form instead of the bare country that toCatalogTea narrows it to.
+        viewModel.useCatalogDetail(catalogTeaDetail(9L, ru = "Жоу Гуй", origin = "CN", region = "Уишань, Фуцзянь"))
+
+        assertEquals("Уишань, Фуцзянь", viewModel.form.value.origin)
+    }
+
+    @Test
     fun `bind with a catalogTeaId pre-picks the catalog tea into the form`() = runTest {
         // Entered from catalog browse: the form is prefilled from the chosen tea's detail, and the
         // catalog id rides along so submit skips a redundant re-enrichment.
@@ -729,12 +741,13 @@ class AddTeaViewModelTest {
         pinyin: String? = null,
         type: TeaType = TeaType.GREEN,
         origin: String? = null,
+        region: String? = null,
         verification: String = "verified",
     ): CatalogTeaDetail = CatalogTeaDetail(
         id = id,
         type = type,
         originCountry = origin,
-        region = null,
+        region = region,
         cultivar = null,
         oxidationMin = null,
         oxidationMax = null,

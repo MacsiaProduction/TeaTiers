@@ -21,10 +21,13 @@ class BackupModelsTest {
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
         catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", brand = "Acme", fetchedAtEpochMs = 7L)),
         teas = listOf(
-            // Catalog-linked + DONE so the round-trip assertions also guard the v5 enrichment fields.
+            // Catalog-linked + DONE so the round-trip assertions also guard the v5 enrichment fields,
+            // plus the v7 sample-identity columns (vendor/product/harvestYear/batch/grade/displayNamePref).
             TeaSampleEntity(
                 "tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice",
                 catalogTeaId = 42L, enrichmentState = "DONE",
+                vendor = "Wuyi Star", product = "Spring 2022", harvestYear = 2022,
+                batch = "B-12", grade = "AA", displayNamePref = "ru",
             ),
         ),
         placements = listOf(PlacementEntity("p1", "b1", "tea1", "t1", 0)),
