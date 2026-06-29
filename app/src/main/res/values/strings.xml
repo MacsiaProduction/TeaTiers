@@ -32,6 +32,7 @@
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
     <string name="error_cannot_open_link">Не удалось открыть ссылку.</string>
     <string name="add_tea_error_name_required">Укажите хотя бы одно название на любом языке.</string>
+    <string name="add_tea_catalog_applied">Заполнено из каталога.</string>
 
     <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
     <string name="a11y_board_summary">Подборка %1$s, %2$d %3$s</string>
@@ -163,6 +164,7 @@
     <string name="tier_new_label">Новый</string>
     <string name="tier_add">Добавить тир</string>
     <string name="tier_label_field">Метка</string>
+    <string name="tier_label_required">Метка не может быть пустой</string>
     <string name="tier_color_title">Цвет тира</string>
     <string name="tier_color_default">По умолчанию</string>
     <string name="tier_delete_title">Удалить тир?</string>

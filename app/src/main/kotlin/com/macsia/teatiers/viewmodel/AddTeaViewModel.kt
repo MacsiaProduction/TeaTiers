@@ -342,18 +342,24 @@ class AddTeaViewModel @Inject constructor(
      * Flavors/blurb need the detail endpoint and stay for a later M3 slice; this is search + prefill.
      */
     fun pickCatalogTea(tea: CatalogTea) {
+        val previous = _form.value
         _form.update { form ->
             form.copy(
                 nameRu = tea.nameRu ?: tea.displayName,
-                nameEn = tea.nameEn.orEmpty(),
-                pinyin = tea.pinyin.orEmpty(),
-                nameZh = tea.nameZh.orEmpty(),
+                // Keep a typed name when the catalog lacks that locale rather than blanking it — a
+                // ru-only catalog entry must not erase a "Dragon Well" the user already typed.
+                nameEn = tea.nameEn?.takeUnless { it.isBlank() } ?: form.nameEn,
+                pinyin = tea.pinyin?.takeUnless { it.isBlank() } ?: form.pinyin,
+                nameZh = tea.nameZh?.takeUnless { it.isBlank() } ?: form.nameZh,
                 type = tea.type,
                 origin = tea.originCountry ?: form.origin,
                 catalogTeaId = tea.id,
             )
         }
         _catalogQuery.value = ""
+        // The pick overwrites the form (names/type/origin); offer an Undo so it is never a silent,
+        // unrecoverable replace of what the user had typed.
+        eventHost.emit(ShowSnackbar(R.string.add_tea_catalog_applied, R.string.action_undo, onAction = { _form.value = previous }))
     }
 
     private fun CatalogSearchResult.toUiState(): CatalogSearchUiState = when (this) {
@@ -422,7 +428,7 @@ class AddTeaViewModel @Inject constructor(
      * happened (#43 polish lane 2). Repository failures surface a generic snackbar and leave
      * the form intact so the user can retry without re-typing.
      */
-    fun submit(onSaved: () -> Unit) {
+    fun submit(onSaved: (failedPhotoCount: Int) -> Unit) {
         val form = _form.value
         if (!form.isValid) {
             pendingNameFocus = true
@@ -432,17 +438,18 @@ class AddTeaViewModel @Inject constructor(
         val editing = _editingTeaId.value
         val board = boardId.value
         viewModelScope.launch {
+            var failedPhotos = 0
             val ok = runCatching {
                 if (editing != null) {
                     repository.updateTea(editing, form.toTea())
                 } else if (board != null) {
                     val tea = form.toTea()
                     val added = repository.addTea(board, tea, form.tierId, forceNew) ?: return@runCatching false
-                    // A failed copy on any single picked URI surfaces as a snackbar but does
-                    // not abort the save: the tea row is already in DB.
+                    // A failed copy is counted (the save still succeeds — the tea row is already in
+                    // DB); the screen surfaces the total on the destination it pops to, so the message
+                    // is not lost when this screen (and its snackbar host) is torn down on navigation.
                     _draftPhotos.value.forEach { draft ->
-                        val path = repository.addPhoto(added.teaId, draft.uri)
-                        if (path == null) eventHost.emit(ShowSnackbar(R.string.error_photo_copy_failed))
+                        if (repository.addPhoto(added.teaId, draft.uri) == null) failedPhotos++
                     }
                     _draftPhotos.value = emptyList()
                     // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT
@@ -460,7 +467,7 @@ class AddTeaViewModel @Inject constructor(
                 eventHost.emit(ShowSnackbar(R.string.error_generic))
                 false
             }
-            if (ok) onSaved()
+            if (ok) onSaved(failedPhotos)
         }
     }
 

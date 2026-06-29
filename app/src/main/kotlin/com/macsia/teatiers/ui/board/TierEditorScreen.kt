@@ -231,7 +231,9 @@ private fun TierEditRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = label.take(2),
+                    // Fall back to the saved label so clearing the field to retype doesn't blank the
+                    // swatch (and its a11y) while the DB still holds the old name.
+                    text = (label.takeIf { it.isNotBlank() } ?: row.tier.label).take(2),
                     color = onRamp,
                     style = MaterialTheme.typography.titleMedium,
                 )
@@ -243,6 +245,10 @@ private fun TierEditRow(
                     onLabelChange(it)
                 },
                 label = { Text(stringResource(R.string.tier_label_field)) },
+                isError = label.isBlank(),
+                // A blank label is ignored by the repository (the tier keeps its name), so flag it
+                // inline rather than silently not-saving while the field shows empty.
+                supportingText = { if (label.isBlank()) Text(stringResource(R.string.tier_label_required)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
