@@ -62,6 +62,18 @@ class AppUpdateControllerTest {
     }
 
     @Test
+    fun `304 when If-None-Match carries a weak validator prefix`() {
+        val controller = controllerFor(configured())
+        val etag = controller.latest(ifNoneMatch = null).headers.eTag!! // strong "<hash>"
+
+        // A CDN/proxy may revalidate with a weak validator (W/"<hash>"); RFC 7232 weak comparison
+        // means it must still match the strong ETag and yield 304.
+        val cached = controller.latest(ifNoneMatch = "W/$etag")
+
+        assertEquals(HttpStatus.NOT_MODIFIED, cached.statusCode)
+    }
+
+    @Test
     fun `ETag changes when the release changes`() {
         val v2 = controllerFor(configured()).latest(null).headers.eTag
         val v3 = controllerFor(configured().copy(latestVersionCode = 3)).latest(null).headers.eTag

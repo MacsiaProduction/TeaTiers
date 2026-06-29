@@ -85,6 +85,12 @@ class BrowseCatalogViewModel @Inject constructor(
     private var nextCursor: Long? = null
     private var loading = false
 
+    // Bumped whenever a load that redefines the list (first page / search / load-more) starts. A
+    // load-more runs in its own coroutine the query collectLatest can't cancel, so it captures the
+    // generation and drops its result if a newer load superseded it — instead of merging a stale
+    // browse page (and its nextCursor) into a freshly-switched search state.
+    private var loadGeneration = 0
+
     init {
         // collectLatest cancels an in-flight load when the query changes, so a stale result never
         // overwrites a newer one. A blank/short query shows the cursor-paginated browse; otherwise
@@ -110,6 +116,7 @@ class BrowseCatalogViewModel @Inject constructor(
     }
 
     private suspend fun loadFirstPageSuspending() {
+        loadGeneration++
         loading = true
         _state.value = BrowseCatalogUiState.Loading
         try {
@@ -120,6 +127,7 @@ class BrowseCatalogViewModel @Inject constructor(
     }
 
     private suspend fun runSearch(query: String) {
+        loadGeneration++
         loading = true
         _state.value = BrowseCatalogUiState.Loading
         try {
@@ -150,10 +158,11 @@ class BrowseCatalogViewModel @Inject constructor(
         val current = _state.value
         if (loading || current !is BrowseCatalogUiState.Loaded || !current.canLoadMore) return
         val cursor = nextCursor ?: return
+        val gen = ++loadGeneration
         loading = true
         _state.value = current.copy(appending = true)
         viewModelScope.launch {
-            applyMore(catalogRepository.browse(cursor = cursor))
+            applyMore(catalogRepository.browse(cursor = cursor), gen)
             loading = false
         }
     }
@@ -192,7 +201,10 @@ class BrowseCatalogViewModel @Inject constructor(
         }
     }
 
-    private fun applyMore(result: CatalogBrowseResult) {
+    private fun applyMore(result: CatalogBrowseResult, gen: Int) {
+        // Superseded: a query change started a search/first-page (bumping the generation) while this
+        // browse page was in flight — drop it rather than merge a stale page into the new state.
+        if (gen != loadGeneration) return
         val current = _state.value as? BrowseCatalogUiState.Loaded ?: return
         _state.value = when (result) {
             is CatalogBrowseResult.Loaded -> {
