@@ -128,6 +128,10 @@ class TeaController(
         if (file.isEmpty) throw OcrBadRequestException("Empty image")
         if (file.size > ocrProperties.maxImageBytes) throw OcrImageTooLargeException()
         if (!ocrRateLimiter.tryAcquire(clientId(servletRequest))) throw RateLimitException()
+        // Global ceiling on the expensive sidecar path too (like /search and /resolve): the per-client
+        // limiter keys on a spoofable X-Forwarded-For, so without this a fabricated-XFF-per-request
+        // caller bypasses cost protection entirely (review finding). Key-churn can't reset this bucket.
+        if (!edgeRateBucket.tryConsume(1)) throw EdgeOverloadException()
         // Global concurrency gate (review F4): the sidecar serializes inference, so fast-fail 503
         // when it's saturated rather than blocking a Tomcat worker behind it. Released in finally.
         if (!ocrConcurrencyGate.tryAcquire()) throw OcrBusyException()
