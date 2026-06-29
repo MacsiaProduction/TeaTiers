@@ -31,7 +31,10 @@ class EnrichmentStubService(
     fun createOrGetStub(rawName: String, requestLocale: String?): StubResult {
         val name = rawName.trim()
         val dedupKey = DedupKeys.of(name, pinyin = null, type = TeaType.OTHER)
-        teaRepository.findByDedupKey(dedupKey)?.let {
+        // Active-scoped: a retracted/merged tombstone sharing this dedup_key (allowed by the
+        // active-only partial unique since V16) must not be returned as the existing row, nor throw on
+        // the now-non-unique plain lookup. Reuse only a live identity, else create a fresh stub.
+        teaRepository.findActiveByDedupKey(dedupKey)?.let {
             return StubResult(requireNotNull(it.id), created = false, state = it.enrichmentState)
         }
         val tea = Tea(

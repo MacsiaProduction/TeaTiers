@@ -37,7 +37,10 @@ class CatalogSeeder(
         var inserted = 0
         for (seed in bundle.teas) {
             val dedupKey = DedupKeys.ofSeed(seed)
-            if (teaRepository.findByDedupKey(dedupKey) != null) continue
+            // Active-scoped: skip only when a LIVE identity already holds this key. A retracted
+            // tombstone sharing it (allowed by the active-only partial unique since V16) must not block
+            // re-seeding, and the plain lookup is no longer single-result.
+            if (teaRepository.findActiveByDedupKey(dedupKey) != null) continue
             // saveAndFlush so the row (and its public_id) exists before the legacy-map FK insert.
             val saved = teaRepository.saveAndFlush(seed.toEntity(dedupKey))
             legacyIdMapRepository.recordOnce(requireNotNull(saved.id), saved.publicId)

@@ -28,7 +28,9 @@ class WikidataUpsertService(
     fun createOrGet(match: WikidataTea): CreateResult {
         teaRepository.findByWikidataQid(match.qid)?.let { return CreateResult(requireNotNull(it.id), false) }
         val dedupKey = dedupKeyFor(match)
-        teaRepository.findByDedupKey(dedupKey)?.let { return CreateResult(requireNotNull(it.id), false) }
+        // Active-scoped: since V16 a retracted/merged tombstone may share this dedup_key, so the plain
+        // lookup is no longer single-result — reuse only a live identity, else insert a fresh row.
+        teaRepository.findActiveByDedupKey(dedupKey)?.let { return CreateResult(requireNotNull(it.id), false) }
 
         // saveAndFlush so a concurrent insert's unique violation throws here (inside this tx) rather
         // than at an outer commit, letting the caller fall back to a read.
@@ -41,7 +43,7 @@ class WikidataUpsertService(
     /** Re-read after a lost insert race; null only if the row vanished between the conflict and now. */
     @Transactional(readOnly = true)
     fun findExisting(match: WikidataTea): Long? =
-        teaRepository.findByWikidataQid(match.qid)?.id ?: teaRepository.findByDedupKey(dedupKeyFor(match))?.id
+        teaRepository.findByWikidataQid(match.qid)?.id ?: teaRepository.findActiveByDedupKey(dedupKeyFor(match))?.id
 
     private fun dedupKeyFor(match: WikidataTea): String =
         DedupKeys.of(primaryName(match), pinyin = null, type = match.type)
