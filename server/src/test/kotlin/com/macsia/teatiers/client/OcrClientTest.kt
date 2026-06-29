@@ -55,10 +55,11 @@ class OcrClientTest {
     }
 
     @Test
-    fun `recognize degrades to null on a sidecar 5xx rather than throwing`() {
-        server.enqueue(MockResponse().setResponseCode(503))
+    fun `recognize retries then degrades to null on a sidecar 5xx rather than throwing`() {
+        repeat(2) { server.enqueue(MockResponse().setResponseCode(503)) }
 
         assertNull(clientFor().recognize(byteArrayOf(1, 2, 3), "x.jpg"))
+        assertEquals(2, server.requestCount, "a transient 5xx is retried once before degrading")
     }
 
     @Test
