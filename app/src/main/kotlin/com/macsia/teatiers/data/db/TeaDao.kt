@@ -102,6 +102,10 @@ abstract class TeaDao {
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM placements WHERE boardId = :boardId")
     abstract suspend fun nextPlacementPosition(boardId: String): Int
 
+    /** Whether this board already holds the given tea — the UNIQUE(boardId, teaId) invariant guard. */
+    @Query("SELECT EXISTS(SELECT 1 FROM placements WHERE boardId = :boardId AND teaId = :teaId)")
+    abstract suspend fun placementExists(boardId: String, teaId: String): Boolean
+
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM tiers WHERE boardId = :boardId")
     abstract suspend fun nextTierPosition(boardId: String): Int
 

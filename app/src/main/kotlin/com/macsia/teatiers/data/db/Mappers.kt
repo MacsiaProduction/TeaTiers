@@ -23,7 +23,9 @@ private object PurchaseKindDb {
 fun BoardWithChildren.toDomain(): Board {
     val sortedTiers = tiers.sortedBy { it.position }
     val placementsByTier = placements
-        .sortedBy { it.placement.position }
+        // Sort by position, with a stable id tie-break so equal positions (e.g. a rare concurrent add
+        // that read the same MAX) resolve deterministically instead of by unordered Room row order.
+        .sortedWith(compareBy({ it.placement.position }, { it.placement.id }))
         .groupBy { it.placement.tierId }
     return Board(
         id = board.id,
@@ -221,8 +223,9 @@ fun List<Board>.toSeedEntities(): SeedEntities {
     }
     // One catalog_refs stub per DISTINCT linked catalog id (FK target for tea_samples.catalogTeaId);
     // type comes from a linked sample. Custom/seed teas carry no catalogTeaId, so this is usually empty.
-    val refRows = teaRows.filter { it.catalogTeaId != null }
-        .associate { it.catalogTeaId!! to it.type }
+    val refRows = teaRows
+        .mapNotNull { tea -> tea.catalogTeaId?.let { it to tea.type } }
+        .toMap()
         .map { (id, type) -> CatalogRefEntity(id = id, type = type, fetchedAtEpochMs = 0L) }
     return SeedEntities(boardRows, tierRows, refRows, teaRows, placementRows, flavorRows, purchaseRows, photoRows)
 }

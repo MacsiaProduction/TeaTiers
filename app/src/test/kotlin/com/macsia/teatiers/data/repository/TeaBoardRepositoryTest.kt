@@ -673,4 +673,44 @@ class TeaBoardRepositoryTest {
             assertFalse(photoStore.onDisk.contains("/fake/orphan.jpg"))
             assertTrue(photoStore.onDisk.contains(knownPath))
         }
+
+    @Test
+    fun `addTea of a tea already on the board is an idempotent no-op, not a UNIQUE crash`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        // "green" is already on board b (tier s). Re-adding a name-matched tea resolves to the existing
+        // tea; the UNIQUE(boardId, teaId) invariant means this is a no-op, not a swallowed crash.
+        val added = repository.addTea("b", tea("green", nameRu = "green"), tierId = "a")
+        advanceUntilIdle()
+
+        assertEquals("green", added?.teaId)
+        assertFalse(added!!.created, "an already-present tea is not newly created")
+        val board = repository.boards.value.single()
+        assertEquals(1, board.placements.values.flatten().count { it.tea.id == "green" }, "green is not duplicated")
+        assertTrue(board.placements.getValue("s").any { it.tea.id == "green" }, "green stays in its original tier")
+        assertTrue(board.placements.getValue("a").none { it.tea.id == "green" }, "green was not added into tier a")
+    }
+
+    @Test
+    fun `restorePlacement is a no-op when the tea was re-added before undo`() = runTest(UnconfinedTestDispatcher()) {
+        val repository = repositoryWithSeed()
+        advanceUntilIdle()
+
+        // Remove green (capturing the undo snapshot)...
+        val removed = repository.removePlacement("b-green")
+        advanceUntilIdle()
+        assertNotNull(removed)
+
+        // ...the user re-adds green before tapping undo...
+        repository.addTea("b", tea("green", nameRu = "green"), tierId = "s")
+        advanceUntilIdle()
+
+        // ...then taps Undo. The tea is already back, so the undo no-ops instead of violating UNIQUE.
+        repository.restorePlacement(removed!!)
+        advanceUntilIdle()
+
+        val board = repository.boards.value.single()
+        assertEquals(1, board.placements.values.flatten().count { it.tea.id == "green" }, "undo did not duplicate or crash")
+    }
 }

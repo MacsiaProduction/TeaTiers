@@ -94,6 +94,9 @@ class FakeTeaDao : TeaDao() {
     override suspend fun nextPlacementPosition(boardId: String): Int =
         (placements.filter { it.boardId == boardId }.maxOfOrNull { it.position } ?: -1) + 1
 
+    override suspend fun placementExists(boardId: String, teaId: String): Boolean =
+        placements.any { it.boardId == boardId && it.teaId == teaId }
+
     override suspend fun nextTierPosition(boardId: String): Int =
         (tiers.filter { it.boardId == boardId }.maxOfOrNull { it.position } ?: -1) + 1
 
@@ -134,6 +137,13 @@ class FakeTeaDao : TeaDao() {
     }
 
     override suspend fun insertPlacements(placements: List<PlacementEntity>) {
+        // Enforce the real schema's UNIQUE(boardId, teaId) so tests catch a duplicate-placement
+        // insert the way Room would (SQLiteConstraintException) instead of silently appending.
+        for (p in placements) {
+            require(this.placements.none { it.boardId == p.boardId && it.teaId == p.teaId }) {
+                "UNIQUE(boardId, teaId) violated: board=${p.boardId} tea=${p.teaId}"
+            }
+        }
         this.placements += placements
         refresh()
     }
