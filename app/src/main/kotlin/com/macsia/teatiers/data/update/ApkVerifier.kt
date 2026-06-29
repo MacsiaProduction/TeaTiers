@@ -43,23 +43,16 @@ class ApkVerifier @Inject constructor(
 
     fun verify(apk: File, manifest: AppManifestDto, installedVersionCode: Long): ApkVerification {
         if (!apk.exists() || apk.length() == 0L) return ApkVerification.Rejected("missing apk")
-
-        if (!Sha256.ofFile(apk).equals(manifest.apkSha256.trim(), ignoreCase = true)) {
-            return ApkVerification.Rejected("sha256 mismatch")
-        }
-
-        val info = archiveInfo(apk.absolutePath) ?: return ApkVerification.Rejected("unreadable apk")
-
-        if (PackageInfoCompat.getLongVersionCode(info) <= installedVersionCode) {
-            return ApkVerification.Rejected("downgrade")
-        }
-
-        val pinned = manifest.signingCertSha256.trim()
-        if (pinned.isEmpty()) return ApkVerification.Rejected("no pinned signer")
-        if (signerCertSha256s(info).none { it.equals(pinned, ignoreCase = true) }) {
-            return ApkVerification.Rejected("signer mismatch")
-        }
-        return ApkVerification.Ok
+        // Extract the Android-coupled facts (file hash + archive signer/version), then hand the actual
+        // trust decision to the pure [decideApkVerification] so its branches are unit-testable.
+        val info = archiveInfo(apk.absolutePath)
+        return decideApkVerification(
+            actualSha256 = Sha256.ofFile(apk),
+            apkVersionCode = info?.let { PackageInfoCompat.getLongVersionCode(it) },
+            apkSignerCertSha256s = info?.let { signerCertSha256s(it) }.orEmpty(),
+            manifest = manifest,
+            installedVersionCode = installedVersionCode,
+        )
     }
 
     private fun archiveInfo(path: String): PackageInfo? {
@@ -81,4 +74,34 @@ class ApkVerifier @Inject constructor(
         @Suppress("DEPRECATION")
         return info.signatures?.map { Sha256.ofBytes(it.toByteArray()) }.orEmpty()
     }
+}
+
+/**
+ * Pure verification decision, split from the Android extraction (PackageManager + file hashing) so the
+ * trust-gate branches — sha256 pin, downgrade guard, signer-cert pin — are unit-testable without
+ * Robolectric or a real signed APK (mirrors how [decideUpdate] is split from [AppUpdateChecker]).
+ *
+ * [actualSha256] is the SHA-256 of the downloaded file; [apkVersionCode] is null when the archive was
+ * unreadable; [apkSignerCertSha256s] are the SHA-256s of the APK's CURRENT signer certs (never the
+ * rotation history — see [ApkVerifier]). The order matches the original: sha → readable → downgrade →
+ * signer, so the most fundamental mismatch is the reported reason.
+ */
+internal fun decideApkVerification(
+    actualSha256: String,
+    apkVersionCode: Long?,
+    apkSignerCertSha256s: List<String>,
+    manifest: AppManifestDto,
+    installedVersionCode: Long,
+): ApkVerification {
+    if (!actualSha256.equals(manifest.apkSha256.trim(), ignoreCase = true)) {
+        return ApkVerification.Rejected("sha256 mismatch")
+    }
+    if (apkVersionCode == null) return ApkVerification.Rejected("unreadable apk")
+    if (apkVersionCode <= installedVersionCode) return ApkVerification.Rejected("downgrade")
+    val pinned = manifest.signingCertSha256.trim()
+    if (pinned.isEmpty()) return ApkVerification.Rejected("no pinned signer")
+    if (apkSignerCertSha256s.none { it.equals(pinned, ignoreCase = true) }) {
+        return ApkVerification.Rejected("signer mismatch")
+    }
+    return ApkVerification.Ok
 }
