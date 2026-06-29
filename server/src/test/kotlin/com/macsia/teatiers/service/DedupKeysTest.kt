@@ -23,4 +23,14 @@ class DedupKeysTest {
     fun `missing pinyin yields an empty slug segment`() {
         assertEquals("assam||BLACK", DedupKeys.of("Assam", null, TeaType.BLACK))
     }
+
+    @Test
+    fun `keeps Cyrillic intact so names differing only by й-и or ё-е are distinct keys`() {
+        // foldDiacritics must NOT collapse Cyrillic (it matches Postgres f_unaccent, which leaves it
+        // alone): 'й'/'и' and 'ё'/'е' are different letters, so genuinely distinct Russian tea names
+        // must not share one dedup_key (the old blanket NFD + combining-mark strip merged them).
+        assertEquals("чай||GREEN", DedupKeys.of("Чай", null, TeaType.GREEN))
+        assertEquals("чаи||GREEN", DedupKeys.of("Чаи", null, TeaType.GREEN))
+        assertEquals("ёлка||OTHER", DedupKeys.of("Ёлка", null, TeaType.OTHER))
+    }
 }

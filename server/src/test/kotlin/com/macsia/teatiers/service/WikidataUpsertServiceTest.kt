@@ -31,7 +31,7 @@ class WikidataUpsertServiceTest {
     @Test
     fun `createOrGet inserts a new unverified CC0 row with all locale names`() {
         every { repository.findByWikidataQid("Q1069130") } returns null
-        every { repository.findByDedupKey(any()) } returns null
+        every { repository.findActiveByDedupKey(any()) } returns null
         val saved = slot<Tea>()
         every { repository.saveAndFlush(capture(saved)) } answers { saved.captured.also { it.id = 42L } }
 
@@ -69,7 +69,7 @@ class WikidataUpsertServiceTest {
     @Test
     fun `createOrGet returns the existing row on a dedup-key hit without inserting`() {
         every { repository.findByWikidataQid("Q1069130") } returns null
-        every { repository.findByDedupKey(DedupKeys.of("Longjing tea", null, TeaType.GREEN)) } returns Tea(
+        every { repository.findActiveByDedupKey(DedupKeys.of("Longjing tea", null, TeaType.GREEN)) } returns Tea(
             type = TeaType.GREEN, source = "curated", dedupKey = "k",
         ).also { it.id = 9L }
 
