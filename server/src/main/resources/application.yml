@@ -8,6 +8,13 @@ spring:
     url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/teatiers}
     username: ${POSTGRES_USER:teatiers}
     password: ${POSTGRES_PASSWORD:teatiers}
+    # Bounded pool + fail-fast acquire so a request burst sheds load cleanly instead of parking workers
+    # for the default 30s on the default 10 connections. Single-host hobby scale doesn't need more.
+    hikari:
+      maximum-pool-size: 16
+      connection-timeout: 5000
+      max-lifetime: 1500000
+      leak-detection-threshold: 20000
 
   jpa:
     open-in-view: false
@@ -36,6 +43,12 @@ spring:
 
 server:
   port: 8080
+  # Cap worker threads near the connection pool so a burst fast-fails rather than parking the 200
+  # default workers behind 16 connections (multi-second hangs). The bucket4j edge limiter is the
+  # primary guard; this is the backstop.
+  tomcat:
+    threads:
+      max: 50
 
 # TeaTiers catalog options.
 teatiers:
