@@ -325,6 +325,23 @@ class TeaControllerTest {
     }
 
     @Test
+    fun `ocr returns 503 problem json when the global edge ceiling is saturated`() {
+        // The per-client OCR limiter allows this caller, but the churn-immune global edge bucket —
+        // now also applied to /ocr — is exhausted, so an XFF-spoofing caller can't bypass cost control.
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
+        every { edgeRateBucket.tryConsume(1) } returns false
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1, 2, 3))),
+        )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("Service overloaded"))
+        // The expensive sidecar is never called once the global ceiling rejects.
+        verify(exactly = 0) { ocrService.recognize(any(), any()) }
+    }
+
+    @Test
     fun `ocr returns 503 busy when the global concurrency gate is saturated`() {
         every { ocrRateLimiter.tryAcquire(any()) } returns true
         // Drain both permits so the controller's gate tryAcquire fails fast (review F4).

@@ -84,9 +84,11 @@ class WikidataSparqlClient(
                     .retrieve()
                     .body(SparqlResponse::class.java)
             } catch (ex: RestClientException) {
-                // Transient transport/HTTP error -> retry, then degrade.
+                // Transient transport/HTTP error -> retry immediately, then degrade. No Thread.sleep:
+                // query() runs synchronously on the /resolve request thread, so parking the Tomcat
+                // worker for a backoff only deepens worker-pool exhaustion under a burst of cache
+                // misses — the per-attempt read timeout already bounds each wait.
                 lastError = ex
-                if (attempt < MAX_ATTEMPTS - 1) Thread.sleep(RETRY_BACKOFF_MS)
             } catch (ex: RuntimeException) {
                 // Any other client-side failure (e.g. a malformed request) is not transient: a tea
                 // lookup must never fail the caller's /resolve, so fail closed -> "unresolved".
@@ -138,7 +140,6 @@ class WikidataSparqlClient(
     private companion object {
         const val TEA_QID = "Q6097"
         const val MAX_ATTEMPTS = 2
-        const val RETRY_BACKOFF_MS = 500L
 
         // Wikidata tea-category QID -> our TeaType, ordered most-specific first so a pu'er (a
         // subclass of "fermented tea") resolves to PUER rather than DARK. QIDs verified live

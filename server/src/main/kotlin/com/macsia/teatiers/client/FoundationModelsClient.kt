@@ -63,17 +63,23 @@ class FoundationModelsClient(
                 "json_schema" to mapOf("name" to "tea_profile", "strict" to true, "schema" to FlavorPrompts.schema()),
             ),
         )
-        var lastError: Exception? = null
+        var lastError: String? = null
         repeat(props.maxAttempts) { attempt ->
-            try {
-                val response = restClient.post().uri("").body(body).retrieve().body(ChatResponse::class.java)
-                return response?.choices?.firstOrNull()?.message?.content
+            val content = try {
+                restClient.post().uri("").body(body).retrieve().body(ChatResponse::class.java)
+                    ?.choices?.firstOrNull()?.message?.content
             } catch (ex: RestClientException) {
-                lastError = ex
-                if (attempt < props.maxAttempts - 1) Thread.sleep(RETRY_BACKOFF_MS)
+                lastError = ex.message ?: ex.toString()
+                null
             }
+            if (!content.isNullOrBlank()) return content
+            // A 200 with empty/missing content (content filter, truncation, an empty completion) is a
+            // transient empty result, not the structured profile — retry rather than reporting it to
+            // the caller as an outage and marking the enrichment FAILED on the first blip.
+            lastError = lastError ?: "empty completion (HTTP 200, no content)"
+            if (attempt < props.maxAttempts - 1) Thread.sleep(RETRY_BACKOFF_MS)
         }
-        log.warn("Foundation Models call failed for {} after {} attempts: {}", modelSlug, props.maxAttempts, lastError?.message)
+        log.warn("Foundation Models call failed for {} after {} attempts: {}", modelSlug, props.maxAttempts, lastError)
         return null
     }
 

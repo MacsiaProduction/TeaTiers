@@ -48,6 +48,11 @@ class ClientDiagnosticsController(
         if (!tokenMatches(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
         }
+        // Reject an unknown kind BEFORE spending a daily-budget token (-> 422), so junk reports can't
+        // burn the global cap and deny the channel to real crash/migration reports (review finding).
+        if (!service.isAllowedKind(report.kind)) {
+            throw InvalidClientReportException("unknown report kind '${report.kind}'")
+        }
         if (!dailyBudget.tryAcquire()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build()
         }

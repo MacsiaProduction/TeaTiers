@@ -28,6 +28,10 @@ class ClientDiagnosticsService(
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
+    /** Whether a report kind passes the server allowlist — checked by the controller before it spends
+     *  a daily-budget token, so junk can't burn the cap. [record] re-checks as defense in depth. */
+    fun isAllowedKind(kind: String): Boolean = kind in ALLOWED_KINDS
+
     @Transactional
     fun record(report: ClientDiagnosticReportDto) {
         if (report.kind !in ALLOWED_KINDS) {

@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import org.springframework.http.HttpStatus
 
 /**
@@ -25,7 +26,7 @@ class ClientDiagnosticsControllerTest {
     private fun controller(enabled: Boolean = true, token: String = "s3cret", underBudget: Boolean = true) =
         ClientDiagnosticsController(
             ClientDiagnosticsProperties(enabled = enabled, token = token),
-            service,
+            service.also { every { it.isAllowedKind(any()) } returns true },
             dailyBudget.also { every { it.tryAcquire() } returns underBudget },
         )
 
@@ -78,6 +79,19 @@ class ClientDiagnosticsControllerTest {
         val response = controller(underBudget = false).report(token = "s3cret", report = crash)
 
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, response.statusCode)
+        verify(exactly = 0) { service.record(any()) }
+    }
+
+    @Test
+    fun `422 rejects an unknown kind BEFORE spending the daily budget`() {
+        val controller = controller()
+        every { service.isAllowedKind("weird") } returns false
+        val report = ClientDiagnosticReportDto(kind = "weird", stackTrace = "boom")
+
+        assertFailsWith<InvalidClientReportException> { controller.report(token = "s3cret", report = report) }
+
+        // Crucially, the junk report never consumed a budget token or hit the table.
+        verify(exactly = 0) { dailyBudget.tryAcquire() }
         verify(exactly = 0) { service.record(any()) }
     }
 }

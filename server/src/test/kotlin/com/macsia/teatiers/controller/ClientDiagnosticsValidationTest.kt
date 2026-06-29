@@ -29,6 +29,8 @@ class ClientDiagnosticsValidationTest {
 
     @Autowired lateinit var dailyBudget: DailyBudget
 
+    @Autowired lateinit var service: ClientDiagnosticsService
+
     @TestConfiguration
     @EnableConfigurationProperties(ClientDiagnosticsProperties::class)
     class MockConfig {
@@ -40,6 +42,9 @@ class ClientDiagnosticsValidationTest {
     @BeforeEach
     fun underBudget() {
         every { dailyBudget.tryAcquire() } returns true
+        // The relaxed service mock returns false for isAllowedKind by default, which would 422 a valid
+        // report; allow the known kind so the binding-validation tests exercise the @Valid boundary.
+        every { service.isAllowedKind(any()) } returns true
     }
 
     @Test
