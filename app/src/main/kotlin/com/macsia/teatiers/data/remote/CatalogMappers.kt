@@ -67,6 +67,7 @@ fun TeaDetailDto.toDomain(): CatalogTeaDetail = CatalogTeaDetail(
     originCountry = originCountry,
     region = region,
     cultivar = cultivar,
+    harvestYear = harvestYear,
     oxidationMin = oxidationMin,
     oxidationMax = oxidationMax,
     brand = brand,

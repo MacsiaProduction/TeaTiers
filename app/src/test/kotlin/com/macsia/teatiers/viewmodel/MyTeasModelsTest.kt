@@ -56,6 +56,18 @@ class MyTeasModelsTest {
     }
 
     @Test
+    fun `query matches a Latin string stored in the zh name case-insensitively`() {
+        // Some users store romanized/Latin text in the zh field; it must match case-insensitively
+        // like every other field (zh was previously the only one compared without lowercasing).
+        val teas = listOf(
+            tea("zh-latin", "Чай-x", nameZh = "DaHongPao"),
+            tea("none", "Пуэр"),
+        )
+
+        assertEquals(listOf("zh-latin"), filterMyTeas(teas, "dahongpao", null).map { it.id })
+    }
+
+    @Test
     fun `query also matches origin, vendor, product, and harvest year`() {
         // These are the sample-identity fields shown on the card; a user must be able to find a
         // sample by what distinguishes it from another of the same tea (audit).
