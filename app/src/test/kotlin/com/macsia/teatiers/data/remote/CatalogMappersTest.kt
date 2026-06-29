@@ -40,4 +40,11 @@ class CatalogMappersTest {
         assertTrue(d.images.isEmpty())
         assertNull(d.image)
     }
+
+    @Test
+    fun `maps harvestYear through and defaults to null when the server omits it`() {
+        // The server publishes harvestYear on the catalog detail; the client used to drop it silently.
+        assertEquals(2021, TeaDetailDto(id = 1, type = "GREEN", harvestYear = 2021).toDomain().harvestYear)
+        assertNull(detail().toDomain().harvestYear)
+    }
 }

@@ -14,6 +14,7 @@ data class CatalogTeaDetail(
     val originCountry: String?,
     val region: String?,
     val cultivar: String?,
+    val harvestYear: Int? = null,
     val oxidationMin: Int?,
     val oxidationMax: Int?,
     val brand: String?,

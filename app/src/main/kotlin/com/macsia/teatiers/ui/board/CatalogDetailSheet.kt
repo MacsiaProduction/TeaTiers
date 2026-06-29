@@ -43,6 +43,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
+import com.macsia.teatiers.domain.model.CatalogLocale
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
@@ -137,7 +138,7 @@ private fun CatalogDetailContent(detail: CatalogTeaDetail, onUse: () -> Unit) {
     val liquor = TeaTheme.colors.liquorByType[detail.type] ?: MaterialTheme.colorScheme.secondary
     // Catalog descriptions are keyed by locale (ru/en/...); prefer the device language, then fall back.
     val deviceLanguage = LocalConfiguration.current.locales[0].language
-    val description = detail.descriptionFor(deviceLanguage)
+    val description = detail.descriptionFor(CatalogLocale.forDeviceLanguage(deviceLanguage))
 
     Column(
         modifier = Modifier

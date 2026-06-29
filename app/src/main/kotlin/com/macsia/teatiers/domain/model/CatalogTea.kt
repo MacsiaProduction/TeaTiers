@@ -51,4 +51,15 @@ object CatalogLocale {
     const val RU = "ru"
     const val ZH_HANS = "zh-Hans"
     const val PINYIN = "pinyin"
+
+    /**
+     * Maps a device language subtag ([java.util.Locale.getLanguage], e.g. "zh") to the catalog's
+     * locale key (e.g. "zh-Hans"). `getLanguage()` strips the script subtag, so a Chinese device
+     * yields a bare "zh" that would never match the catalog's "zh-Hans" key — bridging it here makes
+     * a Chinese user see the zh blurb/name instead of the ru/en fallback.
+     */
+    fun forDeviceLanguage(language: String): String = when (language) {
+        "zh" -> ZH_HANS
+        else -> language
+    }
 }

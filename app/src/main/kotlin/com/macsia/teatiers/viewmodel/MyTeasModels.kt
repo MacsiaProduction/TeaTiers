@@ -55,7 +55,7 @@ private fun Tea.matchesQuery(needle: String): Boolean =
     nameRu?.lowercase()?.contains(needle) == true ||
         nameEn?.lowercase()?.contains(needle) == true ||
         pinyin?.lowercase()?.contains(needle) == true ||
-        nameZh?.contains(needle) == true ||
+        nameZh?.lowercase()?.contains(needle) == true ||
         origin?.lowercase()?.contains(needle) == true ||
         vendor?.lowercase()?.contains(needle) == true ||
         product?.lowercase()?.contains(needle) == true ||

@@ -382,6 +382,9 @@ class AddTeaViewModel @Inject constructor(
     /** Prefills the form from the opened detail and closes the sheet (and the search). */
     fun useCatalogDetail(detail: CatalogTeaDetail) {
         pickCatalogTea(detail.toCatalogTea())
+        // toCatalogTea narrows to the search shape (no harvest year); carry the detail's over directly
+        // so a catalog tea's harvest year prefills the form instead of being silently dropped.
+        detail.harvestYear?.let { year -> _form.update { it.copy(harvestYear = year.toString()) } }
         _catalogDetailId.value = null
     }
 

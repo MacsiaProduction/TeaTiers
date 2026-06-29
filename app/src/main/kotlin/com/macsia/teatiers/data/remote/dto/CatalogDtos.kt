@@ -80,6 +80,7 @@ data class TeaDetailDto(
     val originCountry: String? = null,
     val region: String? = null,
     val cultivar: String? = null,
+    val harvestYear: Int? = null,
     val oxidationMin: Int? = null,
     val oxidationMax: Int? = null,
     val brand: String? = null,
