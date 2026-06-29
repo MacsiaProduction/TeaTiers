@@ -19,7 +19,8 @@ class BackupModelsTest {
     private fun snapshot(): SeedEntities = SeedEntities(
         boards = listOf(BoardEntity("b1", "Daily", 0)),
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
-        catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", brand = "Acme", fetchedAtEpochMs = 7L)),
+        // Non-null catalogPublicId so the round-trip assertion actually guards the durable v8 key.
+        catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", catalogPublicId = "pub-42", brand = "Acme", fetchedAtEpochMs = 7L)),
         teas = listOf(
             // Catalog-linked + DONE so the round-trip assertions also guard the v5 enrichment fields,
             // plus the v7 sample-identity columns (vendor/product/harvestYear/batch/grade/displayNamePref).
@@ -55,6 +56,25 @@ class BackupModelsTest {
 
         assertEquals(1, seed.flavors.size, "duplicate (teaId, dimension) must collapse to one row")
         assertEquals(2, seed.flavors.first().intensity, "the first occurrence wins")
+    }
+
+    @Test
+    fun `toSeedEntities dedups duplicate placement rows on the board-tea unique key`() {
+        // A malformed/merged bundle with two placements of the same tea on one board would otherwise
+        // abort the whole replaceAll on the UNIQUE(boardId, teaId) index.
+        val bundle = BackupBundle(
+            boards = listOf(BackupBoard("b", "B", 0)),
+            teas = listOf(BackupTea(id = "t", type = "GREEN")),
+            placements = listOf(
+                BackupPlacement("p1", "b", "t", null, 0),
+                BackupPlacement("p2", "b", "t", "s", 1),
+            ),
+        )
+
+        val seed = bundle.toSeedEntities(emptyMap())
+
+        assertEquals(1, seed.placements.size, "duplicate (boardId, teaId) must collapse to one row")
+        assertEquals("p1", seed.placements.first().id, "the first occurrence wins")
     }
 
     @Test

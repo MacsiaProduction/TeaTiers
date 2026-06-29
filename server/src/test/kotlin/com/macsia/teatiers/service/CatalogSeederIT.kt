@@ -40,7 +40,7 @@ class CatalogSeederIT : AbstractIntegrationTest() {
     fun `seeded tea carries its localized names and flavors`() {
         seeder.seed()
 
-        val longjing = assertNotNull(teaRepository.findByDedupKey("longjing|longjing|GREEN"))
+        val longjing = assertNotNull(teaRepository.findActiveByDedupKey("longjing|longjing|GREEN"))
         assertEquals("龙井", longjing.names.first { it.locale == "zh-Hans" }.name)
         assertTrue(longjing.names.any { it.locale == "ru" && it.name == "Лунцзин" })
         assertTrue(longjing.flavors.isNotEmpty())
@@ -51,7 +51,7 @@ class CatalogSeederIT : AbstractIntegrationTest() {
     fun `seeded public ids are frozen from the seed and mapped, not random (decision 137-C1)`() {
         seeder.seed()
 
-        val longjing = assertNotNull(teaRepository.findByDedupKey("longjing|longjing|GREEN"))
+        val longjing = assertNotNull(teaRepository.findActiveByDedupKey("longjing|longjing|GREEN"))
         // The frozen UUID committed in catalog-seed.json -- a rebuild reproduces it byte-for-byte.
         assertEquals(UUID.fromString("acba9bbe-3663-4f79-8054-dad1da9f7287"), longjing.publicId)
         // And the numeric->public_id compat map points the new row's id at that same frozen UUID.

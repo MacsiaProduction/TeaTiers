@@ -693,6 +693,34 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `addTea of a catalog-linked tea already on the board dedups via catalog id`() = runTest(UnconfinedTestDispatcher()) {
+        // Catalog identity wins over name (#42): a tea linked to catalogTeaId=77 sits on board b; re-adding
+        // a DIFFERENTLY-named tea carrying the same catalogTeaId resolves to it via the catalog-id branch,
+        // and the UNIQUE(boardId, teaId) guard makes that an idempotent no-op rather than a crash.
+        val linked = Tea(id = "linked", nameRu = "Лунцзин", type = TeaType.GREEN, catalogTeaId = 77L)
+        val board = Board(
+            id = "b",
+            name = "Доска",
+            tiers = listOf(Tier("s", "S", 0)),
+            placements = mapOf("s" to listOf(place("b", linked))),
+            unranked = emptyList(),
+        )
+        val repository = repositoryWithSeed(listOf(board))
+        advanceUntilIdle()
+
+        val added = repository.addTea(
+            "b",
+            Tea(id = "other", nameRu = "Совсем другое имя", type = TeaType.GREEN, catalogTeaId = 77L),
+            tierId = "s",
+        )
+        advanceUntilIdle()
+
+        assertEquals("linked", added?.teaId, "catalog-id match reuses the existing tea")
+        assertFalse(added!!.created)
+        assertEquals(1, repository.boards.value.single().placements.values.flatten().count { it.tea.id == "linked" })
+    }
+
+    @Test
     fun `restorePlacement is a no-op when the tea was re-added before undo`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()

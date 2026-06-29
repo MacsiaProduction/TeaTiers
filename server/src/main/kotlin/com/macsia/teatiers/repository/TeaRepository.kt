@@ -25,9 +25,6 @@ interface TeaRepository : JpaRepository<Tea, Long>, TeaSearchRepository {
     /** Cross-source identity lookup; used by the seed/enrich upsert to avoid duplicate rows. */
     fun findByWikidataQid(wikidataQid: String): Tea?
 
-    /** Normalized dedup-key lookup backing the section 6 enrich-on-miss upsert. */
-    fun findByDedupKey(dedupKey: String): Tea?
-
     /**
      * Active-scoped dedup lookup for the create-new collision pre-check (H2, decision #141 review): a
      * retracted/merged tea must NOT block creating a fresh active identity with the same dedup_key (it would
