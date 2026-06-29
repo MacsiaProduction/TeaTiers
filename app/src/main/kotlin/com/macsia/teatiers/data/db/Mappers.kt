@@ -32,22 +32,23 @@ fun BoardWithChildren.toDomain(): Board {
         name = board.name,
         tiers = sortedTiers.map { it.toDomain() },
         placements = sortedTiers.associate { tier ->
-            tier.id to placementsByTier[tier.id].orEmpty().map { it.toDomain() }
+            tier.id to placementsByTier[tier.id].orEmpty().mapNotNull { it.toDomainOrNull() }
         },
-        unranked = placementsByTier[null].orEmpty().map { it.toDomain() },
+        unranked = placementsByTier[null].orEmpty().mapNotNull { it.toDomainOrNull() },
     )
 }
 
 fun TierEntity.toDomain(): Tier = Tier(id = id, label = label, position = position, colorArgb = colorArgb)
 
 /**
- * Resolves the placement to its single user-tea. Room returns the side as a list because
- * `@Relation` is collection-typed, but placement → tea is 1:1 (FK + UNIQUE on placements):
- * a missing row at this point means the FK cascade lost a race or the seed is malformed.
+ * Resolves the placement to its single user-tea, or null when the tea side is missing. Room returns
+ * the side as a list because `@Relation` is collection-typed, but placement → tea is 1:1 (FK + UNIQUE
+ * on placements). A missing row here is an orphan placement (an FK-cascade race, or a partial/restored
+ * backup); dropping it keeps the read path crash-safe — one bad row must never throw and brick every
+ * board emission, matching the never-throw contract of the sibling mappers (see [TeaWithChildren]).
  */
-fun PlacementWithTea.toDomain(): Placement {
-    val teaWithChildren = tea.firstOrNull()
-        ?: error("Placement ${placement.id} references missing tea ${placement.teaId}")
+fun PlacementWithTea.toDomainOrNull(): Placement? {
+    val teaWithChildren = tea.firstOrNull() ?: return null
     return Placement(placementId = placement.id, tea = teaWithChildren.toDomain())
 }
 

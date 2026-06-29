@@ -49,8 +49,8 @@ class TeaRepositoryIT : AbstractIntegrationTest() {
         entityManager.clear()
 
         assertNotNull(teaRepository.findByWikidataQid("Q474971"))
-        assertNotNull(teaRepository.findByDedupKey("longjing|longjing|GREEN"))
-        assertNull(teaRepository.findByDedupKey("absent|absent|OTHER"))
+        assertNotNull(teaRepository.findActiveByDedupKey("longjing|longjing|GREEN"))
+        assertNull(teaRepository.findActiveByDedupKey("absent|absent|OTHER"))
     }
 
     private fun newLongjing(): Tea {

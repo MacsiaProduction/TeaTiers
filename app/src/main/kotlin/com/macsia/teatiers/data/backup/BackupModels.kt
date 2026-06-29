@@ -230,7 +230,10 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
         tiers = tiers.map { TierEntity(it.id, it.boardId, it.label, it.position, it.colorArgb) },
         catalogRefs = refRows,
         teas = teaRows,
-        placements = placements.map { PlacementEntity(it.id, it.boardId, it.teaId, it.tierId, it.position) },
+        // Dedup on the UNIQUE(boardId, teaId) index (like flavors below): a malformed/merged bundle
+        // with two placements of the same tea on one board would otherwise abort the whole replaceAll.
+        placements = placements.distinctBy { it.boardId to it.teaId }
+            .map { PlacementEntity(it.id, it.boardId, it.teaId, it.tierId, it.position) },
         // Dedup on the (teaId, dimension) composite PK: a malformed/hand-edited bundle carrying two
         // rows for the same axis would otherwise abort the whole replaceAll transaction (finding #15).
         flavors = flavors.distinctBy { it.teaId to it.dimension }
