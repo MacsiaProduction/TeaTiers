@@ -56,6 +56,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,7 @@ import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
 import java.io.File
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val ScreenInset = 16.dp
 
@@ -126,6 +128,9 @@ fun AddTeaScreen(
     var flavorsExpanded by remember { mutableStateOf(false) }
     var sampleExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    // Resolved here (composable scope) so it can be shown from the non-composable submit callback.
+    val photoCopyFailedMessage = stringResource(R.string.error_photo_copy_failed)
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
@@ -165,7 +170,19 @@ fun AddTeaScreen(
                         // Save stays tappable even when the form is invalid so the user gets
                         // the snackbar + focus pump instead of silently disabled UI.
                         onClick = {
-                            viewModel.submit(onSaved)
+                            viewModel.submit { failedPhotoCount ->
+                                if (failedPhotoCount > 0) {
+                                    // Show the photo-copy failure on this still-mounted screen's host,
+                                    // then navigate — popping first would tear out the collector before
+                                    // the message ever rendered, losing it silently.
+                                    snackbarScope.launch {
+                                        snackbarHostState.showSnackbar(photoCopyFailedMessage)
+                                        onSaved()
+                                    }
+                                } else {
+                                    onSaved()
+                                }
+                            }
                             if (viewModel.consumeNameRequiredFocus()) {
                                 nameRuFocusRequester.requestFocus()
                             }

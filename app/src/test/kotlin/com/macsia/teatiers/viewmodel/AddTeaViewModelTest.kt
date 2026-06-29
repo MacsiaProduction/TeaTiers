@@ -605,6 +605,19 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `picking a catalog tea keeps a typed name in a locale the catalog lacks`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameEn = "Dragon Well") } // user typed an English name
+
+        // A ru-only catalog entry must not blank the typed nameEn (data loss); its ru name still wins.
+        viewModel.pickCatalogTea(catalogTea(1, ru = "Лунцзин", type = TeaType.GREEN))
+
+        assertEquals("Dragon Well", viewModel.form.value.nameEn)
+        assertEquals("Лунцзин", viewModel.form.value.nameRu)
+    }
+
+    @Test
     fun `useCatalogDetail prefills the region-preferring origin, not the bare country`() = runTest {
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
