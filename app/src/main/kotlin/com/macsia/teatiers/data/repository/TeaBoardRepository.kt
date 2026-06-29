@@ -266,6 +266,13 @@ class TeaBoardRepository @Inject constructor(
         // same catalog ref is created with its own notes/flavor/photos, instead of resolving to the first.
         val existingTeaId = if (forceNew) null else resolveTeaIdForMatch(tea)
 
+        // The board invariant forbids the same user-tea twice on one board (UNIQUE(boardId, teaId)).
+        // If the resolved tea is already placed here (e.g. re-adding a name-matched tea), adding again
+        // is an idempotent no-op rather than a swallowed constraint-violation crash.
+        if (existingTeaId != null && dao.placementExists(boardId, existingTeaId)) {
+            return AddedTea(teaId = existingTeaId, created = false)
+        }
+
         // Always generate a fresh teaId for new teas: the candidate id from the form is a
         // throwaway UUID, but a sample/test caller may pass a sticky id and we don't want
         // to risk a PK collision — the placement is the user-visible handle anyway.
@@ -316,10 +323,12 @@ class TeaBoardRepository @Inject constructor(
     /**
      * Re-inserts a placement removed by [removePlacement], landing its tea back on the same board,
      * tier, and slot (the stored `position` preserves the original order). Backs the "Undo" action
-     * on the remove snackbar. No-op-safe: a re-insert of the same row id throws only if it somehow
-     * still exists, which the caller surfaces as a generic failure.
+     * on the remove snackbar. The undo's intent is "put this tea back on the board": if the user
+     * already re-added it in the meantime, the (boardId, teaId) row exists and re-inserting would
+     * violate the UNIQUE index — the tea is already back, so the undo is a no-op.
      */
     suspend fun restorePlacement(placement: PlacementEntity) {
+        if (dao.placementExists(placement.boardId, placement.teaId)) return
         dao.insertPlacements(listOf(placement))
     }
 
