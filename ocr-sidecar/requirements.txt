@@ -5,7 +5,7 @@ onnxruntime==1.27.0
 fastapi==0.138.0
 uvicorn[standard]==0.49.0
 python-multipart==0.0.32
-pillow==12.2.0
+pillow==12.3.0
 # headless (no GUI/X11 libs); rapidocr pulls full opencv-python, so the Dockerfile swaps to this.
 opencv-python-headless==4.13.0.92
 numpy==2.5.0
