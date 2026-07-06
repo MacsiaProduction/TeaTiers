@@ -129,6 +129,14 @@ fun AddTeaScreen(
     var sampleExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
+    // Resolved here (composable scope, not via LocalContext.current.getString in the callback below —
+    // that reads stale on a config change, Compose lint LocalContextGetResourceValueCall) so the
+    // non-composable submit callback can pick the right one by resource id.
+    val photoFailureMessages = mapOf(
+        R.string.error_photo_too_large to stringResource(R.string.error_photo_too_large),
+        R.string.error_photo_out_of_space to stringResource(R.string.error_photo_out_of_space),
+        R.string.error_photo_copy_failed to stringResource(R.string.error_photo_copy_failed),
+    )
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
@@ -174,7 +182,7 @@ fun AddTeaScreen(
                                     // this still-mounted screen's host, then navigate — popping first
                                     // would tear out the collector before the message ever rendered,
                                     // losing it silently.
-                                    val message = context.getString(photoFailure.messageRes)
+                                    val message = photoFailureMessages.getValue(photoFailure.messageRes)
                                     snackbarScope.launch {
                                         snackbarHostState.showSnackbar(message)
                                         onSaved()
