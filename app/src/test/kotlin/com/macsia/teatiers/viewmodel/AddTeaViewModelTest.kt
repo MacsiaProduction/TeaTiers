@@ -544,6 +544,26 @@ class AddTeaViewModelTest {
         }
 
     @Test
+    fun `catalog search runs on a single Han character (UX-P1-4)`() =
+        runTest(mainDispatcher) {
+            val tea = catalogTea(1, ru = "Пуэр", pinyin = "pǔ'ěr")
+            coEvery { catalogRepository.search(eq("茶"), any()) } returns
+                CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("茶")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                var settled = awaitItem()
+                if (settled == CatalogSearchUiState.Loading) settled = awaitItem()
+                assertTrue(settled is CatalogSearchUiState.Results)
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify(exactly = 1) { catalogRepository.search(eq("茶"), any()) }
+        }
+
+    @Test
     fun `catalog search surfaces empty results when nothing matches`() =
         runTest(mainDispatcher) {
             coEvery { catalogRepository.search(eq("zzzz"), any()) } returns

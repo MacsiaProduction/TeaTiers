@@ -189,6 +189,15 @@ private fun BrowseList(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        if (state.truncated) {
+            item("truncated-hint") {
+                Text(
+                    text = stringResource(R.string.catalog_search_truncated_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         items(state.teas, key = { it.id }) { tea ->
             BrowseTeaRow(tea = tea, onClick = { onPick(tea) })
         }
