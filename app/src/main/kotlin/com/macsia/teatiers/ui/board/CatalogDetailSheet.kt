@@ -77,6 +77,10 @@ fun CatalogDetailSheet(
                 text = stringResource(R.string.catalog_detail_offline),
                 onRetry = onRetry,
             )
+            CatalogDetailUiState.RateLimited -> DetailMessage(
+                text = stringResource(R.string.catalog_detail_rate_limited),
+                onRetry = onRetry,
+            )
             CatalogDetailUiState.Error -> DetailMessage(
                 text = stringResource(R.string.catalog_detail_error),
                 onRetry = onRetry,

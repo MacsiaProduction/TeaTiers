@@ -18,6 +18,7 @@ import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
 import com.macsia.teatiers.data.db.toSeedEntities
+import com.macsia.teatiers.data.photos.PhotoCopyResult
 import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
@@ -44,6 +45,16 @@ import javax.inject.Singleton
 
 /** Result of [TeaBoardRepository.addTea]: the resolved user-tea id and whether a new row was inserted. */
 data class AddedTea(val teaId: String, val created: Boolean)
+
+/** Outcome of [TeaBoardRepository.addPhoto] (UX-P1-1): carries WHY a photo wasn't added, not just that. */
+sealed class AddPhotoResult {
+    data class Added(val photoId: String) : AddPhotoResult()
+    data object TooLarge : AddPhotoResult()
+    data object OutOfSpace : AddPhotoResult()
+
+    /** The tea is unknown, or the copy failed for another reason (permission, I/O). */
+    data object Failed : AddPhotoResult()
+}
 
 /**
  * A board removed by [TeaBoardRepository.deleteBoard], captured with the rows that cascaded with
@@ -360,27 +371,34 @@ class TeaBoardRepository @Inject constructor(
     /**
      * Adds a new user photo to [teaId]. Copies the bytes via [PhotoStore] (which lands them
      * under the app-private dir, decisions.md #43), then inserts the row at the next position.
-     * Returns the new photo id, or null if the copy failed (no row is written so a botched
-     * pick never half-creates a placement). No-op when the tea is unknown.
+     * Returns [AddPhotoResult.Added] with the new photo id, or the specific failure reason
+     * (UX-P1-1) if the copy failed — no row is written so a botched pick never half-creates a
+     * placement. [AddPhotoResult.Failed] also covers an unknown [teaId].
      */
-    suspend fun addPhoto(teaId: String, source: Uri): String? {
-        if (dao.loadTea(teaId) == null) return null
-        val storedPath = photoStore.copyIn(source) ?: return null
-        val photoId = "photo-${UUID.randomUUID()}"
-        val position = dao.nextPhotoPosition(teaId)
-        dao.addPhoto(
-            PhotoEntity(
-                id = photoId,
-                teaId = teaId,
-                uri = storedPath,
-                position = position,
-                source = PhotoSource.USER.name,
-                license = null,
-                sourceUrl = null,
-                createdAtEpochMs = clock(),
-            ),
-        )
-        return photoId
+    suspend fun addPhoto(teaId: String, source: Uri): AddPhotoResult {
+        if (dao.loadTea(teaId) == null) return AddPhotoResult.Failed
+        return when (val copy = photoStore.copyIn(source)) {
+            is PhotoCopyResult.Success -> {
+                val photoId = "photo-${UUID.randomUUID()}"
+                val position = dao.nextPhotoPosition(teaId)
+                dao.addPhoto(
+                    PhotoEntity(
+                        id = photoId,
+                        teaId = teaId,
+                        uri = copy.path,
+                        position = position,
+                        source = PhotoSource.USER.name,
+                        license = null,
+                        sourceUrl = null,
+                        createdAtEpochMs = clock(),
+                    ),
+                )
+                AddPhotoResult.Added(photoId)
+            }
+            PhotoCopyResult.TooLarge -> AddPhotoResult.TooLarge
+            PhotoCopyResult.OutOfSpace -> AddPhotoResult.OutOfSpace
+            PhotoCopyResult.Failed -> AddPhotoResult.Failed
+        }
     }
 
     /**

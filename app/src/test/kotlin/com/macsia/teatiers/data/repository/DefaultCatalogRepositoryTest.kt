@@ -185,6 +185,14 @@ class DefaultCatalogRepositoryTest {
     }
 
     @Test
+    fun `detail 429 surfaces RateLimited, distinct from a generic server error (UX-P1-6)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429))
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        assertEquals(CatalogDetailResult.RateLimited, repo.detail(1))
+    }
+
+    @Test
     fun `detail network failure surfaces Offline`() = runTest {
         server.shutdown()
         val repo = DefaultCatalogRepository(api, dao, json)

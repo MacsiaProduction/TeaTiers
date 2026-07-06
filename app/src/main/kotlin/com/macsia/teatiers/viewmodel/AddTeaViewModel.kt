@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.photos.ImageReader
+import com.macsia.teatiers.data.repository.AddPhotoResult
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
@@ -229,6 +230,8 @@ class AddTeaViewModel @Inject constructor(
                         eventHost.emit(ShowSnackbar(R.string.catalog_detail_withdrawn))
                     CatalogDetailResult.Offline ->
                         eventHost.emit(ShowSnackbar(R.string.catalog_search_offline))
+                    CatalogDetailResult.RateLimited ->
+                        eventHost.emit(ShowSnackbar(R.string.catalog_detail_rate_limited))
                     CatalogDetailResult.Error ->
                         eventHost.emit(ShowSnackbar(R.string.error_generic))
                 }
@@ -401,6 +404,7 @@ class AddTeaViewModel @Inject constructor(
         is CatalogDetailResult.Loaded -> CatalogDetailUiState.Loaded(detail)
         is CatalogDetailResult.Retracted -> CatalogDetailUiState.Withdrawn
         CatalogDetailResult.Offline -> CatalogDetailUiState.Offline
+        CatalogDetailResult.RateLimited -> CatalogDetailUiState.RateLimited
         CatalogDetailResult.Error -> CatalogDetailUiState.Error
     }
 
@@ -428,7 +432,7 @@ class AddTeaViewModel @Inject constructor(
      * happened (#43 polish lane 2). Repository failures surface a generic snackbar and leave
      * the form intact so the user can retry without re-typing.
      */
-    fun submit(onSaved: (failedPhotoCount: Int) -> Unit) {
+    fun submit(onSaved: (photoFailure: PhotoSaveFailure?) -> Unit) {
         val form = _form.value
         if (!form.isValid) {
             pendingNameFocus = true
@@ -439,6 +443,7 @@ class AddTeaViewModel @Inject constructor(
         val board = boardId.value
         viewModelScope.launch {
             var failedPhotos = 0
+            var firstFailureRes: Int? = null
             val ok = runCatching {
                 if (editing != null) {
                     repository.updateTea(editing, form.toTea())
@@ -446,10 +451,14 @@ class AddTeaViewModel @Inject constructor(
                     val tea = form.toTea()
                     val added = repository.addTea(board, tea, form.tierId, forceNew) ?: return@runCatching false
                     // A failed copy is counted (the save still succeeds — the tea row is already in
-                    // DB); the screen surfaces the total on the destination it pops to, so the message
-                    // is not lost when this screen (and its snackbar host) is torn down on navigation.
+                    // DB); the screen surfaces the total + reason on the destination it pops to, so the
+                    // message is not lost when this screen (and its snackbar host) is torn down on nav.
                     _draftPhotos.value.forEach { draft ->
-                        if (repository.addPhoto(added.teaId, draft.uri) == null) failedPhotos++
+                        val result = repository.addPhoto(added.teaId, draft.uri)
+                        if (result !is AddPhotoResult.Added) {
+                            failedPhotos++
+                            if (firstFailureRes == null) firstFailureRes = result.failureMessageRes()
+                        }
                     }
                     _draftPhotos.value = emptyList()
                     // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT
@@ -467,7 +476,9 @@ class AddTeaViewModel @Inject constructor(
                 eventHost.emit(ShowSnackbar(R.string.error_generic))
                 false
             }
-            if (ok) onSaved(failedPhotos)
+            if (ok) {
+                onSaved(firstFailureRes?.let { PhotoSaveFailure(failedPhotos, it) })
+            }
         }
     }
 
@@ -480,8 +491,10 @@ class AddTeaViewModel @Inject constructor(
         val editing = _editingTeaId.value
         if (editing != null) {
             viewModelScope.launch {
-                val path = runCatching { repository.addPhoto(editing, uri) }.getOrNull()
-                if (path == null) eventHost.emit(ShowSnackbar(R.string.error_photo_copy_failed))
+                val result = runCatching { repository.addPhoto(editing, uri) }.getOrElse { AddPhotoResult.Failed }
+                if (result !is AddPhotoResult.Added) {
+                    eventHost.emit(ShowSnackbar(result.failureMessageRes()))
+                }
             }
         } else {
             _draftPhotos.update { it + DraftPhoto(id = "draft-${UUID.randomUUID()}", uri = uri) }

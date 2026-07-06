@@ -59,6 +59,7 @@ class AppUpdateViewModel @Inject constructor(
                 UpdateAvailability.None -> UpdateUiState.Idle
                 is UpdateAvailability.Optional -> UpdateUiState.Available(result.manifest, forced = false)
                 is UpdateAvailability.Forced -> UpdateUiState.Available(result.manifest, forced = true)
+                UpdateAvailability.CheckFailed -> UpdateUiState.Failed("check", manifest = null)
             }
         }
     }

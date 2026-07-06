@@ -129,8 +129,6 @@ fun AddTeaScreen(
     var sampleExpanded by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
-    // Resolved here (composable scope) so it can be shown from the non-composable submit callback.
-    val photoCopyFailedMessage = stringResource(R.string.error_photo_copy_failed)
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
@@ -170,13 +168,15 @@ fun AddTeaScreen(
                         // Save stays tappable even when the form is invalid so the user gets
                         // the snackbar + focus pump instead of silently disabled UI.
                         onClick = {
-                            viewModel.submit { failedPhotoCount ->
-                                if (failedPhotoCount > 0) {
-                                    // Show the photo-copy failure on this still-mounted screen's host,
-                                    // then navigate — popping first would tear out the collector before
-                                    // the message ever rendered, losing it silently.
+                            viewModel.submit { photoFailure ->
+                                if (photoFailure != null) {
+                                    // Show the photo-copy failure (with its specific reason, UX-P1-1) on
+                                    // this still-mounted screen's host, then navigate — popping first
+                                    // would tear out the collector before the message ever rendered,
+                                    // losing it silently.
+                                    val message = context.getString(photoFailure.messageRes)
                                     snackbarScope.launch {
-                                        snackbarHostState.showSnackbar(photoCopyFailedMessage)
+                                        snackbarHostState.showSnackbar(message)
                                         onSaved()
                                     }
                                 } else {

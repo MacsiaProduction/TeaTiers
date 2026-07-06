@@ -61,7 +61,11 @@ sealed interface CatalogDetailResult {
     /** Network unreachable. */
     data object Offline : CatalogDetailResult
 
-    /** The server answered with an error (4xx/5xx). */
+    /** The per-client request budget is spent (HTTP 429, UX-P1-6) — distinct from a generic error
+     *  so the sheet can say "try again shortly" instead of the same message as a real server fault. */
+    data object RateLimited : CatalogDetailResult
+
+    /** The server answered with an error (4xx/5xx other than 429). */
     data object Error : CatalogDetailResult
 }
 
@@ -202,6 +206,9 @@ class DefaultCatalogRepository @Inject constructor(
                         ?.let { runCatching { json.decodeFromString<TeaLifecycleDto>(it) }.getOrNull() }
                     CatalogDetailResult.Retracted(lifecycle?.supersededByPublicId)
                 }
+                // UX-P1-6: distinct from a generic error so the sheet can say "try again shortly"
+                // instead of the same message as a real server fault.
+                response.code() == 429 -> CatalogDetailResult.RateLimited
                 else -> CatalogDetailResult.Error
             }
         } catch (_: IOException) {
