@@ -30,6 +30,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -191,6 +192,30 @@ class AddTeaViewModelTest {
         // The catalog id rides into the saved tea, and a catalog-linked tea is not re-resolved.
         coVerify(exactly = 1) { repository.addTea(eq("b"), match { it.catalogTeaId == 55L }, any()) }
         verify(exactly = 0) { enrichmentManager.enrich(any(), any(), any()) }
+    }
+
+    @Test
+    fun `submit ignores a second tap while the first save is in flight (UX-P0-1)`() = runTest {
+        // A double-tap on Save must not launch a second insert while the first is in flight — that races
+        // the resolve-or-create dedup and can create a duplicate tea. Hold the first save open on a gate
+        // so the second tap arrives while isSaving is still true.
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.addTea(any(), any(), any()) } coAnswers {
+            gate.await()
+            AddedTea("tea-1", created = true)
+        }
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+
+        viewModel.submit { }
+        assertTrue(viewModel.isSaving.value)
+        viewModel.submit { } // guard: isSaving is true, so this returns without launching
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.addTea(any(), any(), any()) }
+        assertFalse(viewModel.isSaving.value) // reset after completion
     }
 
     @Test
