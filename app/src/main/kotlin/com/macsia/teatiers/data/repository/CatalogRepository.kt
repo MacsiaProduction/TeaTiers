@@ -185,9 +185,9 @@ class DefaultCatalogRepository @Inject constructor(
                 }
                 CatalogSearchResult.Loaded(teas, fromCache = false)
             } catch (_: IOException) {
-                cachedOr(trimmed, limit, CatalogSearchResult.Offline)
+                cachedOr(trimmed, type, limit, CatalogSearchResult.Offline)
             } catch (_: HttpException) {
-                cachedOr(trimmed, limit, CatalogSearchResult.Error)
+                cachedOr(trimmed, type, limit, CatalogSearchResult.Error)
             }
         }
     }
@@ -293,10 +293,11 @@ class DefaultCatalogRepository @Inject constructor(
 
     private suspend fun cachedOr(
         query: String,
+        type: TeaType?,
         limit: Int,
         networkFailure: CatalogSearchResult,
     ): CatalogSearchResult {
-        val cached = catalogDao.search(escapeLike(query.lowercase()), limit).map { it.toDomain() }
+        val cached = catalogDao.search(escapeLike(query.lowercase()), type?.name, limit).map { it.toDomain() }
         return if (cached.isNotEmpty()) {
             CatalogSearchResult.Loaded(cached, fromCache = true)
         } else {

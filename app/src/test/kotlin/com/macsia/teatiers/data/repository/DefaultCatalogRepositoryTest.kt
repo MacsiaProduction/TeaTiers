@@ -75,13 +75,13 @@ class DefaultCatalogRepositoryTest {
 
         assertEquals(CatalogSearchResult.Loaded(emptyList(), fromCache = false), result)
         assertEquals(0, server.requestCount)
-        coVerify(exactly = 0) { dao.search(any(), any()) }
+        coVerify(exactly = 0) { dao.search(any(), any(), any()) }
     }
 
     @Test
     fun `server error with an empty cache surfaces Error`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
-        coEvery { dao.search(any(), any()) } returns emptyList()
+        coEvery { dao.search(any(), any(), any()) } returns emptyList()
         val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("long")
@@ -93,7 +93,7 @@ class DefaultCatalogRepositoryTest {
     fun `server error falls back to cached rows flagged fromCache`() = runTest {
         server.enqueue(MockResponse().setResponseCode(503))
         val cached = sampleTea().toCacheEntity(fetchedAtEpochMs = 1L)
-        coEvery { dao.search("long", any()) } returns listOf(cached)
+        coEvery { dao.search("long", any(), any()) } returns listOf(cached)
         val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("Long")
@@ -105,9 +105,24 @@ class DefaultCatalogRepositoryTest {
     }
 
     @Test
+    fun `an active type filter is forwarded to the offline cache fallback, not silently dropped`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(503))
+        val cached = sampleTea().toCacheEntity(fetchedAtEpochMs = 1L)
+        coEvery { dao.search("long", "GREEN", any()) } returns listOf(cached)
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        val result = repo.search("Long", type = TeaType.GREEN)
+
+        // The stub only matches type="GREEN"; if the filter had been silently dropped (calling with
+        // null instead), this call wouldn't match it and would throw rather than return Loaded.
+        assertTrue(result is CatalogSearchResult.Loaded)
+        coVerify(exactly = 1) { dao.search("long", "GREEN", any()) }
+    }
+
+    @Test
     fun `network failure with an empty cache surfaces Offline`() = runTest {
         server.shutdown()
-        coEvery { dao.search(any(), any()) } returns emptyList()
+        coEvery { dao.search(any(), any(), any()) } returns emptyList()
         val repo = DefaultCatalogRepository(api, dao, json)
 
         val result = repo.search("long")

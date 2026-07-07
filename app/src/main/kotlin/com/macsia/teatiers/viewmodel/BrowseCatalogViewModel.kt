@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -109,15 +110,17 @@ class BrowseCatalogViewModel @Inject constructor(
         viewModelScope.launch {
             (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
         }
-        // collectLatest cancels an in-flight load when the query changes, so a stale result never
-        // overwrites a newer one. A blank/short query shows the cursor-paginated browse; otherwise
-        // the same fuzzy catalog search the add form uses, capped at one page (no load-more).
+        // collectLatest cancels an in-flight load when the query OR the type filter changes, so a
+        // stale result never overwrites a newer one — combining both into one pipeline (rather than
+        // setTypeFilter launching its own independent coroutine) is what makes that cancellation
+        // actually cover a type-filter change too: two separately-launched coroutines wouldn't cancel
+        // each other, so a fast query-then-filter-tap could otherwise race and let the stale one win.
+        // A blank/short query shows the cursor-paginated browse; otherwise the same fuzzy catalog
+        // search the add form uses, capped at one page (no load-more).
         viewModelScope.launch {
-            _query
-                .map { it.trim() }
-                .distinctUntilChanged()
-                .debounce { q -> if (isSearchableQuery(q)) CATALOG_SEARCH_DEBOUNCE_MS else 0L }
-                .collectLatest { q ->
+            combine(_query.map { it.trim() }.distinctUntilChanged(), _typeFilter) { q, type -> q to type }
+                .debounce { (q, _) -> if (isSearchableQuery(q)) CATALOG_SEARCH_DEBOUNCE_MS else 0L }
+                .collectLatest { (q, _) ->
                     if (isSearchableQuery(q)) runSearch(q) else loadFirstPageSuspending()
                 }
         }
@@ -127,12 +130,9 @@ class BrowseCatalogViewModel @Inject constructor(
         _query.value = value
     }
 
-    /** Switches the type filter (UX-F-1) and reruns whatever's currently active with it applied. */
+    /** Switches the type filter (UX-F-1); the combined query+type pipeline above reruns with it applied. */
     fun setTypeFilter(type: TeaType?) {
-        if (_typeFilter.value == type) return
         _typeFilter.value = type
-        val q = _query.value.trim()
-        viewModelScope.launch { if (isSearchableQuery(q)) runSearch(q) else loadFirstPageSuspending() }
     }
 
     /** (Re)loads the first browse page — on open (blank query) and as the empty-list retry. */

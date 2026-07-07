@@ -36,10 +36,13 @@ interface CatalogDao {
      * caller), most-recently-fetched first. Both sides are pre-lowercased so Cyrillic/CJK match too (SQLite
      * `LIKE` only case-folds ASCII). `ESCAPE '\'` (AND-P2-1) makes the caller's `\%`/`\_` match a literal
      * `%`/`_` instead of treating user-typed wildcards as wildcards (a query of `%` matching everything).
+     * [type] (the wire enum name, e.g. "OOLONG") narrows to one category when set; null means every type —
+     * without this, an active type filter would silently vanish for the offline fallback (review).
      */
     @Query(
         "SELECT * FROM catalog_cache WHERE searchText LIKE '%' || :query || '%' ESCAPE '\\' " +
+            "AND (:type IS NULL OR type = :type) " +
             "ORDER BY fetchedAtEpochMs DESC LIMIT :limit",
     )
-    suspend fun search(query: String, limit: Int): List<CatalogCacheEntity>
+    suspend fun search(query: String, type: String?, limit: Int): List<CatalogCacheEntity>
 }

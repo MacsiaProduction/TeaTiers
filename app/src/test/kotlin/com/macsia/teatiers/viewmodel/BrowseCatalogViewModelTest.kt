@@ -13,6 +13,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -294,5 +295,36 @@ class BrowseCatalogViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { catalogRepository.search(eq("улун"), type = eq(TeaType.OOLONG), limit = any()) }
+    }
+
+    @Test
+    fun `a type-filter change cancels a slower in-flight search instead of racing it (review)`() = runTest {
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
+            CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
+        // The unfiltered search is held open on a gate; the type-filtered one resolves immediately.
+        // setTypeFilter must CANCEL the still-pending unfiltered call (routed through the same
+        // collectLatest pipeline as the query) rather than let it race the newer, filtered one and
+        // possibly overwrite it if it happened to resolve later.
+        val slowGate = CompletableDeferred<CatalogSearchResult>()
+        coEvery { catalogRepository.search(eq("чай"), type = isNull(), limit = any()) } coAnswers { slowGate.await() }
+        coEvery { catalogRepository.search(eq("чай"), type = eq(TeaType.OOLONG), limit = any()) } returns
+            CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
+
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        vm.setQuery("чай")
+        advanceUntilIdle() // debounce fires; the unfiltered search starts and suspends on slowGate
+
+        vm.setTypeFilter(TeaType.OOLONG)
+        advanceUntilIdle() // the type-filtered search resolves immediately
+
+        // Completing the stale gate AFTER the filtered search already resolved must not clobber the
+        // state — that would only happen if the earlier call were still alive (not actually cancelled).
+        slowGate.complete(CatalogSearchResult.Loaded(listOf(tea(1, "Old")), fromCache = false))
+        advanceUntilIdle()
+
+        val state = vm.state.value as BrowseCatalogUiState.Loaded
+        assertEquals(listOf(9L), state.teas.map { it.id })
     }
 }
