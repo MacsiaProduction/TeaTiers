@@ -136,6 +136,8 @@ class TeaEnrichmentManager @Inject constructor(
                     dao.updateEnrichmentState(localTeaId, EnrichmentState.QUEUED.name)
                     return
                 }
+                // Rate-limited (UX-P1-6): not a real failure — just retry on the next poll tick.
+                CatalogDetailResult.RateLimited -> Unit
                 CatalogDetailResult.Error -> {
                     dao.updateEnrichmentState(localTeaId, EnrichmentState.FAILED.name)
                     return

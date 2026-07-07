@@ -1,5 +1,7 @@
 package com.macsia.teatiers.viewmodel
 
+import com.macsia.teatiers.R
+import com.macsia.teatiers.data.repository.AddPhotoResult
 import com.macsia.teatiers.domain.model.FlavorDimension
 import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PurchaseLocation
@@ -49,6 +51,20 @@ sealed interface ScanUiState {
     data object Idle : ScanUiState
     data object Recognizing : ScanUiState
     data class Review(val text: String) : ScanUiState
+}
+
+/**
+ * How many add-mode draft photos failed to materialize on save, and the specific message to show
+ * (UX-P1-1) — the first failure's reason when several draft photos fail for different reasons.
+ */
+data class PhotoSaveFailure(val count: Int, val messageRes: Int)
+
+/** Maps a photo-copy failure reason to the specific snackbar message the user should see. */
+fun AddPhotoResult.failureMessageRes(): Int = when (this) {
+    is AddPhotoResult.Added -> error("Added is not a failure")
+    AddPhotoResult.TooLarge -> R.string.error_photo_too_large
+    AddPhotoResult.OutOfSpace -> R.string.error_photo_out_of_space
+    AddPhotoResult.Failed -> R.string.error_photo_copy_failed
 }
 
 /** Editable draft for one purchase location row in the add/edit form. */

@@ -21,6 +21,10 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
+/** Unwraps a successful [TeaBoardRepository.addPhoto] result, failing loudly if it wasn't. */
+private fun AddPhotoResult.requireAdded(): String =
+    (this as? AddPhotoResult.Added)?.photoId ?: error("expected Added, was $this")
+
 /**
  * End-to-end repository coverage for the photos surface (decisions.md #43): add → row + file,
  * remove → renumber + delete file, reorder → contiguous positions, deleteTea → keeps files for Undo.
@@ -63,25 +67,44 @@ class PhotoRepositoryTest {
         val second = repository.addPhoto("green", fakeUri("content://b"))
         advanceUntilIdle()
 
-        assertNotNull(first)
-        assertNotNull(second)
+        assertTrue(first is AddPhotoResult.Added)
+        assertTrue(second is AddPhotoResult.Added)
         val photos = repository.tea("green")?.photos.orEmpty()
         assertEquals(listOf("/fake/1.jpg", "/fake/2.jpg"), photos.map { it.uri })
         assertEquals(listOf(0, 1), photos.map { it.position })
     }
 
     @Test
-    fun `addPhoto returns null and writes nothing when the copy fails`() = runTest(UnconfinedTestDispatcher()) {
+    fun `addPhoto surfaces Failed and writes nothing when the copy fails`() = runTest(UnconfinedTestDispatcher()) {
         val photoStore = FakePhotoStore().apply { failures += "content://broken" }
         val repository = repo(photoStore)
         advanceUntilIdle()
 
-        val id = repository.addPhoto("green", fakeUri("content://broken"))
+        val result = repository.addPhoto("green", fakeUri("content://broken"))
         advanceUntilIdle()
 
-        assertNull(id)
+        assertEquals(AddPhotoResult.Failed, result)
         assertTrue(repository.tea("green")?.photos.orEmpty().isEmpty())
     }
+
+    @Test
+    fun `addPhoto surfaces the specific reason for an oversized or out-of-space photo (UX-P1-1)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val photoStore = FakePhotoStore().apply {
+                tooLarge += "content://huge"
+                outOfSpace += "content://full-disk"
+            }
+            val repository = repo(photoStore)
+            advanceUntilIdle()
+
+            val tooLargeResult = repository.addPhoto("green", fakeUri("content://huge"))
+            val outOfSpaceResult = repository.addPhoto("green", fakeUri("content://full-disk"))
+            advanceUntilIdle()
+
+            assertEquals(AddPhotoResult.TooLarge, tooLargeResult)
+            assertEquals(AddPhotoResult.OutOfSpace, outOfSpaceResult)
+            assertTrue(repository.tea("green")?.photos.orEmpty().isEmpty())
+        }
 
     @Test
     fun `removePhoto deletes the row, renumbers, and removes the file`() = runTest(UnconfinedTestDispatcher()) {
@@ -89,7 +112,7 @@ class PhotoRepositoryTest {
         val repository = repo(photoStore)
         advanceUntilIdle()
 
-        val a = repository.addPhoto("green", fakeUri("content://a"))!!
+        val a = repository.addPhoto("green", fakeUri("content://a")).requireAdded()
         repository.addPhoto("green", fakeUri("content://b"))
         repository.addPhoto("green", fakeUri("content://c"))
         advanceUntilIdle()
@@ -108,9 +131,9 @@ class PhotoRepositoryTest {
         val repository = repo()
         advanceUntilIdle()
 
-        val a = repository.addPhoto("green", fakeUri("content://a"))!!
-        val b = repository.addPhoto("green", fakeUri("content://b"))!!
-        val c = repository.addPhoto("green", fakeUri("content://c"))!!
+        val a = repository.addPhoto("green", fakeUri("content://a")).requireAdded()
+        val b = repository.addPhoto("green", fakeUri("content://b")).requireAdded()
+        val c = repository.addPhoto("green", fakeUri("content://c")).requireAdded()
         advanceUntilIdle()
 
         repository.reorderPhotos("green", listOf(c, a, b))

@@ -44,6 +44,9 @@ sealed interface CatalogDetailUiState {
     /** Network unreachable; the sheet offers a retry. */
     data object Offline : CatalogDetailUiState
 
+    /** The per-client request budget is spent (UX-P1-6); the sheet offers a retry with a distinct message. */
+    data object RateLimited : CatalogDetailUiState
+
     /** Server answered with an error; the sheet offers a retry. */
     data object Error : CatalogDetailUiState
 }

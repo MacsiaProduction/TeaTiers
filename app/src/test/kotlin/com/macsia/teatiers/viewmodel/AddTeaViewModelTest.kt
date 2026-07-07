@@ -2,7 +2,9 @@ package com.macsia.teatiers.viewmodel
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.photos.ImageReader
+import com.macsia.teatiers.data.repository.AddPhotoResult
 import com.macsia.teatiers.data.repository.AddedTea
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
@@ -417,7 +419,7 @@ class AddTeaViewModelTest {
     @Test
     fun `add-mode draft photos are materialized after the tea is saved`() = runTest {
         coEvery { repository.addTea(eq("b"), any(), any()) } returns AddedTea("tea-new", created = true)
-        coEvery { repository.addPhoto(any(), any()) } returns "photo-id"
+        coEvery { repository.addPhoto(any(), any()) } returns AddPhotoResult.Added("photo-id")
 
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
@@ -446,10 +448,45 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `submit surfaces the specific photo failure reason, not a generic message (UX-P1-1)`() = runTest {
+        coEvery { repository.addTea(eq("b"), any(), any()) } returns AddedTea("tea-new", created = true)
+        coEvery { repository.addPhoto(any(), any()) } returns AddPhotoResult.TooLarge
+
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+        viewModel.onAddPhoto(mockk<Uri>().also { every { it.toString() } returns "content://huge" })
+
+        var failure: PhotoSaveFailure? = null
+        viewModel.submit { failure = it }
+        advanceUntilIdle()
+
+        assertEquals(1, failure?.count)
+        assertEquals(R.string.error_photo_too_large, failure?.messageRes)
+    }
+
+    @Test
+    fun `onAddPhoto in edit mode surfaces the specific out-of-space message (UX-P1-1)`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.addPhoto(eq("t1"), any()) } returns AddPhotoResult.OutOfSpace
+
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        viewModel.events.test {
+            viewModel.onAddPhoto(mockk<Uri>().also { every { it.toString() } returns "content://full-disk" })
+            assertEquals(R.string.error_photo_out_of_space, awaitItem().messageRes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `edit-mode addPhoto delegates to the repository immediately`() = runTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
-        coEvery { repository.addPhoto(eq("t1"), any()) } returns "photo-id"
+        coEvery { repository.addPhoto(eq("t1"), any()) } returns AddPhotoResult.Added("photo-id")
 
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
