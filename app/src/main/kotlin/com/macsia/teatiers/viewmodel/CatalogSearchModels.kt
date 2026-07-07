@@ -20,6 +20,9 @@ sealed interface CatalogSearchUiState {
     /** Network unreachable and nothing cached for this query. */
     data object Offline : CatalogSearchUiState
 
+    /** The per-client/edge request budget is spent (UX2-P1-5) — distinct from a generic error. */
+    data object RateLimited : CatalogSearchUiState
+
     /** Server answered with an error. */
     data object Error : CatalogSearchUiState
 }

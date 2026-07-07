@@ -8,6 +8,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 
@@ -58,6 +59,13 @@ class OcrClient(
                     // A 200 missing `text` is a sidecar malfunction → null → 502; not a transient error,
                     // so it is returned, NOT retried.
                     ?.takeIf { it.text != null }
+            } catch (ex: HttpClientErrorException) {
+                // UX2-P1-7: 422 means the sidecar decoded the request fine but rejected the IMAGE ITSELF
+                // (corrupt/unsupported bytes) — the client's fault, not a transport/engine failure.
+                // Retrying the same bytes can't help, and it must not report the same "try later" as a
+                // real outage. Any other 4xx falls through to the generic transient-retry path below.
+                if (ex.statusCode.value() == 422) throw SidecarUnreadableImageException()
+                lastError = ex.message
             } catch (ex: RestClientException) {
                 // Transient transport / 5xx (e.g. a sidecar restart) → retry, then degrade. Mirrors the
                 // sibling outbound clients. No Thread.sleep: the read timeout + the controller's
@@ -76,3 +84,6 @@ class OcrClient(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class OcrSidecarResponse(val text: String?, val corrected: String? = null)
+
+/** See [OcrClient.recognize]'s 422 handling (UX2-P1-7). Caught + translated by [com.macsia.teatiers.service.OcrService]. */
+class SidecarUnreadableImageException : RuntimeException("sidecar could not decode the image")

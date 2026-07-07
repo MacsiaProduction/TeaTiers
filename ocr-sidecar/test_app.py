@@ -52,6 +52,14 @@ def test_within_pixel_budget_passes_small_and_undecodable():
     assert app_module.within_pixel_budget(b"not an image") is True
 
 
+def test_undecodable_image_bytes_returns_422_not_500():
+    # UX2-P1-7: an image the recognizer can't decode is the client's fault, not a sidecar/engine
+    # failure — it must not collapse into the same 500 a real internal error gets (the Spring client
+    # retries + reports 5xx-shaped failures as "try later", which is wrong advice for a bad photo).
+    r = client.post("/ocr", files={"file": ("x.png", b"not an image", "image/png")})
+    assert r.status_code == 422
+
+
 def test_recognize_caps_text_length(monkeypatch):
     monkeypatch.setattr(app_module, "MAX_TEXT_CHARS", 10)
 

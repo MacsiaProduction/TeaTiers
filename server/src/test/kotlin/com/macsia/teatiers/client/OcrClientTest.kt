@@ -4,6 +4,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import okhttp3.mockwebserver.MockResponse
@@ -67,5 +68,16 @@ class OcrClientTest {
         server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("{}"))
 
         assertNull(clientFor().recognize(byteArrayOf(1, 2, 3), "x.jpg"))
+    }
+
+    @Test
+    fun `recognize throws SidecarUnreadableImageException on a 422 without retrying`() {
+        // UX2-P1-7: a 422 means the sidecar decoded the request but rejected the image itself — unlike
+        // a 5xx outage, retrying the same bytes can't help, so this must fail fast (one request only)
+        // and distinctly from the generic null-degrade path.
+        server.enqueue(MockResponse().setResponseCode(422))
+
+        assertFailsWith<SidecarUnreadableImageException> { clientFor().recognize(byteArrayOf(1, 2, 3), "x.jpg") }
+        assertEquals(1, server.requestCount, "a 422 (bad image) must not be retried")
     }
 }

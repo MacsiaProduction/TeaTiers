@@ -390,6 +390,22 @@ class TeaControllerTest {
     }
 
     @Test
+    fun `ocr returns 422 problem json when the sidecar rejects an unreadable image (UX2-P1-7)`() {
+        // Distinct from the 502 outage case above: the sidecar decoded the request fine but rejected
+        // the image bytes themselves — retrying later can't help, so this must not share the "try
+        // later" 502/503 framing.
+        every { ocrRateLimiter.tryAcquire(any()) } returns true
+        every { ocrService.recognize(any(), any()) } throws OcrUnreadableImageException()
+
+        mockMvc.perform(
+            multipart("/api/v1/teas/ocr").file(MockMultipartFile("file", "x.jpg", "image/jpeg", byteArrayOf(1))),
+        )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.title").value("OCR unreadable image"))
+    }
+
+    @Test
     fun `search rejects an over-long query with 400 problem json`() {
         // Spring 6.1+/Boot 4.x built-in method validation enforces the bare param-level @Size(max=100)
         // on q -> HandlerMethodValidationException -> 400 problem+json. NOTE: no class-level @Validated

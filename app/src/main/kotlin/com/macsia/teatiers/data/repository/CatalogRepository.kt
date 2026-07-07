@@ -29,6 +29,10 @@ sealed interface CatalogSearchResult {
     /** Network unreachable and the cache had nothing for this query. */
     data object Offline : CatalogSearchResult
 
+    /** The per-client/edge request budget is spent (HTTP 429/503, UX2-P1-5) and the cache had nothing —
+     *  distinct from a generic error so the UI can say "try again shortly" instead of "something broke". */
+    data object RateLimited : CatalogSearchResult
+
     /** The server answered with an error (and the cache had nothing). */
     data object Error : CatalogSearchResult
 }
@@ -44,6 +48,10 @@ sealed interface CatalogBrowseResult {
 
     /** Network unreachable. */
     data object Offline : CatalogBrowseResult
+
+    /** The per-client/edge request budget is spent (HTTP 429/503, UX2-P1-5) — distinct from a generic
+     *  error so the UI can say "try again shortly" instead of "something broke". */
+    data object RateLimited : CatalogBrowseResult
 
     /** The server answered with an error (4xx/5xx). */
     data object Error : CatalogBrowseResult
@@ -85,6 +93,10 @@ sealed interface ResolveResult {
     /** Network unreachable — the caller queues the tea and retries on reconnect. */
     data object Offline : ResolveResult
 
+    /** The per-client/edge request budget is spent (HTTP 429/503, UX2-P1-5) — transient, not a real
+     *  failure; the caller queues the tea for a later retry instead of marking it permanently failed. */
+    data object RateLimited : ResolveResult
+
     /** The server (or an unexpected payload) errored — the caller marks the tea retryable. */
     data object Error : ResolveResult
 }
@@ -115,6 +127,11 @@ sealed interface OcrResult {
 
     /** The OCR tier is off / the sidecar is down (HTTP 503/502). */
     data object Unavailable : OcrResult
+
+    /** The sidecar rejected the image itself as undecodable (HTTP 422, UX2-P1-7) — a bad/corrupt photo,
+     *  not a transient outage. Distinct from [Unavailable] so the app tells the user to retake the
+     *  photo instead of "try again later" (which won't fix an unreadable image). */
+    data object UnreadableImage : OcrResult
 
     /** The per-client scan budget is spent (HTTP 429). */
     data object RateLimited : OcrResult
@@ -186,8 +203,8 @@ class DefaultCatalogRepository @Inject constructor(
                 CatalogSearchResult.Loaded(teas, fromCache = false)
             } catch (_: IOException) {
                 cachedOr(trimmed, type, limit, CatalogSearchResult.Offline)
-            } catch (_: HttpException) {
-                cachedOr(trimmed, type, limit, CatalogSearchResult.Error)
+            } catch (e: HttpException) {
+                cachedOr(trimmed, type, limit, if (e.isRateLimitedOrOverloaded()) CatalogSearchResult.RateLimited else CatalogSearchResult.Error)
             }
         }
     }
@@ -205,8 +222,8 @@ class DefaultCatalogRepository @Inject constructor(
                 CatalogBrowseResult.Loaded(teas, page.nextCursor)
             } catch (_: IOException) {
                 CatalogBrowseResult.Offline
-            } catch (_: HttpException) {
-                CatalogBrowseResult.Error
+            } catch (e: HttpException) {
+                if (e.isRateLimitedOrOverloaded()) CatalogBrowseResult.RateLimited else CatalogBrowseResult.Error
             }
         }
 
@@ -263,8 +280,8 @@ class DefaultCatalogRepository @Inject constructor(
                 }
             } catch (_: IOException) {
                 ResolveResult.Offline
-            } catch (_: HttpException) {
-                ResolveResult.Error
+            } catch (e: HttpException) {
+                if (e.isRateLimitedOrOverloaded()) ResolveResult.RateLimited else ResolveResult.Error
             }
         }
 
@@ -284,6 +301,7 @@ class DefaultCatalogRepository @Inject constructor(
         } catch (e: HttpException) {
             when (e.code()) {
                 413 -> OcrResult.TooLarge
+                422 -> OcrResult.UnreadableImage // UX2-P1-7: bad photo, not an outage — don't say "try later"
                 429 -> OcrResult.RateLimited
                 502, 503 -> OcrResult.Unavailable
                 else -> OcrResult.Error
@@ -311,4 +329,11 @@ class DefaultCatalogRepository @Inject constructor(
      */
     private fun escapeLike(q: String): String =
         q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    /**
+     * UX2-P1-5: 429 is the server's per-client rate limit; 503 is `EdgeOverloadException`, the global
+     * edge-bucket ceiling on /search and /resolve — both are transient/not-the-user's-fault, unlike any
+     * other 4xx/5xx, so both map to the same distinct "try again shortly" result instead of a generic error.
+     */
+    private fun HttpException.isRateLimitedOrOverloaded(): Boolean = code() == 429 || code() == 503
 }

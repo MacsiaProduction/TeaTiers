@@ -178,9 +178,17 @@ def _maybe_upscale(img: Image.Image) -> Image.Image:
     return img.resize((new_w, new_h), Image.BICUBIC)
 
 
+class UnreadableImageError(Exception):
+    """The uploaded bytes can't be decoded as an image (corrupt file / unsupported format) — a client
+    problem, not a sidecar fault (UX2-P1-7): retrying later won't help, unlike a transport/engine error."""
+
+
 def _recognize(image_bytes: bytes) -> str:
     """Runs on the worker subprocess. Returns the concatenated recognized text (length-capped)."""
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception as exc:
+        raise UnreadableImageError(str(exc)) from None
     img = _maybe_upscale(img)
     arr = np.array(img)
     result = _engine(arr)
@@ -261,6 +269,11 @@ async def ocr(request: Request, file: UploadFile = File(...)) -> JSONResponse:
             log.warning("OCR timed out after %ss (%d bytes); killing + respawning the worker", INFERENCE_DEADLINE_S, len(data))
             _swap_executor(_executor, kill=True)  # SIGKILL the wedged worker; /health -> loading until re-warmed
             raise HTTPException(status_code=504, detail="recognition timed out")
+        except UnreadableImageError:
+            # UX2-P1-7: distinct from a transport/engine failure — this is the image's own fault, not the
+            # sidecar's, so it must NOT collapse into the same 5xx a real outage gets (retrying won't help).
+            log.info("OCR received undecodable image bytes (%d bytes)", len(data))
+            raise HTTPException(status_code=422, detail="unrecognized image format")
         except BrokenProcessPool:
             # A worker died unexpectedly (OOM-kill, native segfault, a failed respawn-init). The pool is
             # permanently broken, so rebuild it for the NEXT request instead of 500-ing forever (N6).

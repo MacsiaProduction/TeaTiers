@@ -186,6 +186,14 @@ class OcrBusyException :
 class OcrFailedException :
     RuntimeException("OCR recognition failed")
 
+/**
+ * The sidecar rejected the image itself as undecodable — `/teas/ocr` returns 422 (UX2-P1-7).
+ * Distinct from [OcrFailedException]: retrying won't help, and the client must not tell the user
+ * to "try again later" for what is actually a bad/corrupt photo.
+ */
+class OcrUnreadableImageException :
+    RuntimeException("OCR could not read the image")
+
 /** The uploaded image exceeds the configured size cap — `/teas/ocr` returns 413. */
 class OcrImageTooLargeException :
     RuntimeException("OCR image too large")

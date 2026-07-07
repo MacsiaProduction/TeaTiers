@@ -36,6 +36,10 @@ sealed interface BrowseCatalogUiState {
     /** First page failed with the network unreachable (list still empty) — offer a retry. */
     data object Offline : BrowseCatalogUiState
 
+    /** First page failed with the per-client/edge budget spent (UX2-P1-5) — offer a retry with a
+     *  distinct "try again shortly" message instead of the same one as a real server fault. */
+    data object RateLimited : BrowseCatalogUiState
+
     /** First page failed with a server error (list still empty) — offer a retry. */
     data object Error : BrowseCatalogUiState
 
@@ -174,6 +178,7 @@ class BrowseCatalogViewModel @Inject constructor(
                         )
                     }
                 CatalogSearchResult.Offline -> BrowseCatalogUiState.Offline
+                CatalogSearchResult.RateLimited -> BrowseCatalogUiState.RateLimited
                 CatalogSearchResult.Error -> BrowseCatalogUiState.Error
             }
         } finally {
@@ -225,6 +230,7 @@ class BrowseCatalogViewModel @Inject constructor(
                 }
             }
             CatalogBrowseResult.Offline -> BrowseCatalogUiState.Offline
+            CatalogBrowseResult.RateLimited -> BrowseCatalogUiState.RateLimited
             CatalogBrowseResult.Error -> BrowseCatalogUiState.Error
         }
     }
@@ -247,7 +253,7 @@ class BrowseCatalogViewModel @Inject constructor(
                     appendFailed = false,
                 )
             }
-            CatalogBrowseResult.Offline, CatalogBrowseResult.Error ->
+            CatalogBrowseResult.Offline, CatalogBrowseResult.RateLimited, CatalogBrowseResult.Error ->
                 current.copy(appending = false, appendFailed = true)
         }
     }

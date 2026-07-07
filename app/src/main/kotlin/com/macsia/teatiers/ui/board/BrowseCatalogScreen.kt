@@ -159,6 +159,8 @@ fun BrowseCatalogScreen(
                     )
                     BrowseCatalogUiState.Offline ->
                         RetryMessage(stringResource(R.string.browse_catalog_offline), viewModel::retry)
+                    BrowseCatalogUiState.RateLimited ->
+                        RetryMessage(stringResource(R.string.catalog_detail_rate_limited), viewModel::retry)
                     BrowseCatalogUiState.Error ->
                         RetryMessage(stringResource(R.string.browse_catalog_error), viewModel::retry)
                     is BrowseCatalogUiState.Loaded ->

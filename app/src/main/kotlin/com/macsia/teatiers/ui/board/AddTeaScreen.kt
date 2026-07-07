@@ -808,6 +808,12 @@ private fun CatalogSearchField(
                     query = query,
                     onAddManually = onAddManually,
                 )
+            CatalogSearchUiState.RateLimited ->
+                CatalogMiss(
+                    message = stringResource(R.string.catalog_detail_rate_limited),
+                    query = query,
+                    onAddManually = onAddManually,
+                )
             CatalogSearchUiState.Error ->
                 CatalogMiss(
                     message = stringResource(R.string.catalog_search_error),

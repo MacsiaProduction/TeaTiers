@@ -284,6 +284,7 @@ class AddTeaViewModel @Inject constructor(
                     }
                 OcrResult.Offline -> failScan(R.string.ocr_offline)
                 OcrResult.TooLarge -> failScan(R.string.ocr_image_too_large)
+                OcrResult.UnreadableImage -> failScan(R.string.ocr_unreadable_image)
                 OcrResult.Unavailable -> failScan(R.string.ocr_unavailable)
                 OcrResult.RateLimited -> failScan(R.string.ocr_rate_limited)
                 OcrResult.Error -> failScan(R.string.ocr_error)
@@ -375,6 +376,7 @@ class AddTeaViewModel @Inject constructor(
             if (teas.isEmpty()) CatalogSearchUiState.Empty
             else CatalogSearchUiState.Results(teas, fromCache)
         CatalogSearchResult.Offline -> CatalogSearchUiState.Offline
+        CatalogSearchResult.RateLimited -> CatalogSearchUiState.RateLimited
         CatalogSearchResult.Error -> CatalogSearchUiState.Error
     }
 
