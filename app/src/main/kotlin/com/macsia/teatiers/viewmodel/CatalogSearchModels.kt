@@ -51,8 +51,20 @@ sealed interface CatalogDetailUiState {
     data object Error : CatalogDetailUiState
 }
 
-/** Shortest query that triggers a catalog search; 1-char queries are too noisy. */
+/** Shortest query that triggers a catalog search; 1-char Latin/Cyrillic/pinyin queries are too noisy. */
 const val MIN_CATALOG_QUERY_LEN = 2
 
 /** Debounce before firing a search, so typing doesn't spam the API (plan §6 "never per keystroke"). */
 const val CATALOG_SEARCH_DEBOUNCE_MS = 300L
+
+/**
+ * Whether [query] is long enough to search (UX-P1-4). A single Han character is already a complete,
+ * meaningful token in Chinese (e.g. `茶`, "tea") — unlike a 1-char Latin/Cyrillic query, which is just
+ * noise — and the server's fuzzy path is specifically built to handle short/CJK queries via substring
+ * match (`TeaSearchRepositoryImpl`). Below [MIN_CATALOG_QUERY_LEN], only a single Han character bypasses
+ * the floor; a mix of a Han character with anything else already clears the floor at length 2.
+ */
+fun isSearchableQuery(query: String): Boolean =
+    query.length >= MIN_CATALOG_QUERY_LEN || (query.length == 1 && query[0].isHanScript())
+
+private fun Char.isHanScript(): Boolean = Character.UnicodeScript.of(this.code) == Character.UnicodeScript.HAN

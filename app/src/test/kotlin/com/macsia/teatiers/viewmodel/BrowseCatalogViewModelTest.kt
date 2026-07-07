@@ -182,6 +182,24 @@ class BrowseCatalogViewModelTest {
         assertEquals(listOf(9L), state.teas.map { it.id })
         assertTrue(state.endReached) // search has no load-more
         assertFalse(state.canLoadMore)
+        assertFalse(state.truncated) // well under the page cap
+    }
+
+    @Test
+    fun `a full page of search results is flagged truncated (UX-F-4)`() = runTest {
+        coEvery { catalogRepository.browse(any(), any()) } returns
+            CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
+        val fullPage = (1..CatalogRepository.DEFAULT_LIMIT).map { tea(it.toLong(), "Чай $it") }
+        coEvery { catalogRepository.search(any(), any()) } returns
+            CatalogSearchResult.Loaded(fullPage, fromCache = false)
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        vm.setQuery("чай")
+        advanceUntilIdle()
+
+        val state = vm.state.value as BrowseCatalogUiState.Loaded
+        assertTrue(state.truncated, "a full page (no cursor) may hide further matches")
     }
 
     @Test

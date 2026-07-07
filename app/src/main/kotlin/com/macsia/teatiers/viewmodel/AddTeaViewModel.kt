@@ -99,7 +99,7 @@ class AddTeaViewModel @Inject constructor(
         .distinctUntilChanged()
         .debounce { query -> if (query.isEmpty()) 0L else CATALOG_SEARCH_DEBOUNCE_MS }
         .flatMapLatest { query ->
-            if (query.length < MIN_CATALOG_QUERY_LEN) {
+            if (!isSearchableQuery(query)) {
                 flowOf<CatalogSearchUiState>(CatalogSearchUiState.Idle)
             } else {
                 flow {
