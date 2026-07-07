@@ -118,6 +118,7 @@ fun AddTeaScreen(
     val catalogQuery by viewModel.catalogQuery.collectAsStateWithLifecycle()
     val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
     val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -174,7 +175,9 @@ fun AddTeaScreen(
                 actions = {
                     TextButton(
                         // Save stays tappable even when the form is invalid so the user gets
-                        // the snackbar + focus pump instead of silently disabled UI.
+                        // the snackbar + focus pump instead of silently disabled UI. It IS disabled
+                        // while a save is in flight so a double-tap can't launch a duplicate (UX-P0-1).
+                        enabled = !isSaving,
                         onClick = {
                             viewModel.submit { photoFailure ->
                                 if (photoFailure != null) {

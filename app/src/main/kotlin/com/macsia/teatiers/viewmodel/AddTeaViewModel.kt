@@ -69,6 +69,11 @@ class AddTeaViewModel @Inject constructor(
     private val _form = MutableStateFlow(AddTeaForm())
     val form: StateFlow<AddTeaForm> = _form.asStateFlow()
 
+    /** True while a [submit] is in flight. Guards against double-submit (UX-P0-1) and lets the screen
+     *  disable the Save button so the user sees the save is running. */
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
     /**
      * The form as last bound (empty in add mode, the loaded tea in edit mode); [isDirty] compares
      * against it so the screen can warn before discarding edits (audit #3). Edit-mode photo changes
@@ -439,45 +444,52 @@ class AddTeaViewModel @Inject constructor(
             eventHost.emit(ShowSnackbar(R.string.add_tea_error_name_required))
             return
         }
+        // Re-entrancy guard (UX-P0-1): a double-tap on Save must not launch a second save while the first
+        // is in flight — that races the resolve-or-create dedup in addTea and can create a duplicate tea.
+        // Set synchronously (before the launch) so a second tap on the same frame sees it.
+        if (_isSaving.value) return
+        _isSaving.value = true
         val editing = _editingTeaId.value
         val board = boardId.value
         viewModelScope.launch {
-            var failedPhotos = 0
-            var firstFailureRes: Int? = null
-            val ok = runCatching {
+            try {
                 if (editing != null) {
-                    repository.updateTea(editing, form.toTea())
-                } else if (board != null) {
-                    val tea = form.toTea()
-                    val added = repository.addTea(board, tea, form.tierId, forceNew) ?: return@runCatching false
-                    // A failed copy is counted (the save still succeeds — the tea row is already in
-                    // DB); the screen surfaces the total + reason on the destination it pops to, so the
-                    // message is not lost when this screen (and its snackbar host) is torn down on nav.
-                    _draftPhotos.value.forEach { draft ->
-                        val result = repository.addPhoto(added.teaId, draft.uri)
-                        if (result !is AddPhotoResult.Added) {
-                            failedPhotos++
-                            if (firstFailureRes == null) firstFailureRes = result.failureMessageRes()
-                        }
-                    }
-                    _draftPhotos.value = emptyList()
-                    // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT
-                    // already catalog-linked (a catalog pick carries its names + id, so a re-resolve is
-                    // redundant). Never an auto-linked existing one. Fire-and-forget on the app scope.
-                    // A pasted vendor blurb (#25) grounds the profile; sent once, never stored in Room.
-                    if (added.created && tea.catalogTeaId == null) {
-                        enrichmentManager.enrich(added.teaId, tea.displayName, form.sourceText.trim().ifBlank { null })
-                    }
-                } else {
-                    return@runCatching false
+                    val saved = runCatching { repository.updateTea(editing, form.toTea()); true }
+                        .getOrElse { eventHost.emit(ShowSnackbar(R.string.error_generic)); false }
+                    if (saved) onSaved(null)
+                    return@launch
                 }
-                true
-            }.getOrElse {
-                eventHost.emit(ShowSnackbar(R.string.error_generic))
-                false
-            }
-            if (ok) {
+                if (board == null) return@launch
+                val tea = form.toTea()
+                // Only the insert is guarded for TOTAL failure (UX-P2-13): once the tea row exists the save
+                // has succeeded, so a later photo-copy or enrichment error must not report the whole save as
+                // failed — that would make the user retry and duplicate the tea.
+                val added = runCatching { repository.addTea(board, tea, form.tierId, forceNew) }
+                    .getOrElse { eventHost.emit(ShowSnackbar(R.string.error_generic)); null }
+                    ?: return@launch
+                var failedPhotos = 0
+                var firstFailureRes: Int? = null
+                // A failed copy is counted (the save still succeeds — the tea row is already in DB); the
+                // screen surfaces the total + reason on the destination it pops to, so the message is not
+                // lost when this screen (and its snackbar host) is torn down on navigation.
+                _draftPhotos.value.forEach { draft ->
+                    val result = repository.addPhoto(added.teaId, draft.uri)
+                    if (result !is AddPhotoResult.Added) {
+                        failedPhotos++
+                        if (firstFailureRes == null) firstFailureRes = result.failureMessageRes()
+                    }
+                }
+                _draftPhotos.value = emptyList()
+                // Optimistic background enrichment (#21): only for a genuinely new tea that is NOT already
+                // catalog-linked (a catalog pick carries its names + id, so a re-resolve is redundant).
+                // Never an auto-linked existing one. Fire-and-forget on the app scope. A pasted vendor blurb
+                // (#25) grounds the profile; sent once, never stored in Room.
+                if (added.created && tea.catalogTeaId == null) {
+                    enrichmentManager.enrich(added.teaId, tea.displayName, form.sourceText.trim().ifBlank { null })
+                }
                 onSaved(firstFailureRes?.let { PhotoSaveFailure(failedPhotos, it) })
+            } finally {
+                _isSaving.value = false
             }
         }
     }
