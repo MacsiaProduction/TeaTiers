@@ -98,6 +98,8 @@
     <string name="backup_undo_restore_confirm_message">Текущие данные заменятся сохранённой копией — той, что была до загрузки файла.</string>
     <!-- Blocking progress while a backup export/import/share runs (can be slow with many photos). -->
     <string name="backup_working">Пожалуйста, подождите…</string>
+    <!-- UX-P2-9: shown after a delay, if the op is still running (no safe way to cancel it mid-write). -->
+    <string name="backup_working_slow_hint">Это может занять некоторое время при большом архиве или медленном соединении.</string>
 
     <string name="settings_about_section">О приложении</string>
     <!-- %1$s — versionName (e.g. 0.1.0). -->
@@ -239,6 +241,9 @@
     <string name="field_origin">Происхождение</string>
     <!-- P1-1 sample identity (#132): which physical sample of the catalog tea this is. -->
     <string name="field_sample_section">Образец</string>
+    <!-- UX-P2-1: state-aware descriptions for the expand/collapse row (the chevron icon itself is decorative). -->
+    <string name="a11y_sample_section_expand">Показать данные образца</string>
+    <string name="a11y_sample_section_collapse">Скрыть данные образца</string>
     <string name="field_vendor">Продавец</string>
     <string name="field_product">Товар</string>
     <string name="field_harvest_year">Год сбора</string>

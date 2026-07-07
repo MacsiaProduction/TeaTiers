@@ -64,6 +64,7 @@ import com.macsia.teatiers.viewmodel.BackupViewModel
 import com.macsia.teatiers.viewmodel.SettingsViewModel
 import com.macsia.teatiers.viewmodel.UpdateUiState
 import com.macsia.teatiers.viewmodel.appLanguageOf
+import kotlinx.coroutines.delay
 
 /**
  * App settings (decisions.md #28): theme mode, optional dynamic color (Android 12+), in-app
@@ -353,14 +354,33 @@ fun SettingsScreen(
     }
 
     if (backupBusy) {
+        // UX-P2-9: there is no safe way to cancel an in-flight archive write (it could leave a
+        // half-written safety snapshot or a truncated export), so a hung SAF write is not made
+        // cancellable — instead, a delayed hint tells the user it's still working rather than
+        // leaving them stuck on a bare spinner with no signal anything is unusual.
+        var showSlowHint by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(8_000L)
+            showSlowHint = true
+        }
         AlertDialog(
             onDismissRequest = {}, // a backup op in flight can't be dismissed
             confirmButton = {},
             text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
-                    Spacer(Modifier.width(16.dp))
-                    Text(stringResource(R.string.backup_working))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.width(24.dp).height(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Text(stringResource(R.string.backup_working))
+                    }
+                    if (showSlowHint) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.backup_working_slow_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             },
         )

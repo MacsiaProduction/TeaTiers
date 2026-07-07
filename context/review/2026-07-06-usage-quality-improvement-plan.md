@@ -50,26 +50,26 @@ DAO method; `.catch` on the boards pipeline exposing an error/retry state.
 ## P2 — polish
 
 Accessibility / layout:
-- UX-P2-1 — Interactive expand/collapse chevron has `contentDescription = null`; TalkBack announces nothing for the only control opening the Sample section. `ui/board/AddTeaScreen.kt:338-341`.
-- UX-P2-2 — Photo reorder has TalkBack custom actions but **no visible non-drag alternative** (move-left/right callbacks only exist inside semantics); dead string `a11y_photo_drag_handle` (strings.xml:200) never referenced. Add visible move buttons (mirror BoardScreen's dropdown pattern) or wire the handle. `ui/board/PhotoStrip.kt:189-252`.
-- UX-P2-3 — Color-preset dots are 44dp, under the 48dp minimum touch target. `ui/board/TierEditorScreen.kt:295-309`.
-- UX-P2-4 — 5 user-generated-text `Text()` calls missing `maxLines`/overflow: notes + purchase row (`TeaDetailScreen.kt:310,391`), board name (`BoardsScreen.kt:227`), blurb (`BoardScreen.kt:356`), tier label in fixed 46dp box (`BoardScreen.kt:427`; also `.take(2)` in `TierEditorScreen.kt:236` truncates by code unit — CJK risk).
-- UX-P2-5 — No `Collator` anywhere: mixed Cyrillic/Latin/CJK lists sort by raw codepoint. `viewmodel/MyTeasModels.kt:50`.
+- UX-P2-1 — **DONE (Batch 4)** — the expand/collapse row now carries a state-aware `contentDescription` ("Показать/Скрыть данные образца"); the icon itself stays decorative. `ui/board/AddTeaScreen.kt`.
+- UX-P2-2 — **DONE (Batch 4)** — added visible move-left/move-right corner buttons on each photo thumbnail (mirroring the existing remove-button style), wiring up the previously-dead `onMoveLeft`/`onMoveRight` callbacks and `a11y_photo_move_left/right` strings for sighted users who can't or won't long-press-drag. `ui/board/PhotoStrip.kt`.
+- UX-P2-3 — **DONE (Batch 4)** — bumped to 48dp (Material's minimum). `ui/board/TierEditorScreen.kt`.
+- UX-P2-4 — **DONE (Batch 4), one deliberate skip** — added `maxLines`/overflow to the purchase-row title, board name, featured-tea blurb, and the fixed-width tier-label box (the sharpest case: a genuinely fixed 46dp box that could clip/overlap). Skipped `tea.notes` on the full detail screen — that's a natural-flow scrollable section where full, untruncated notes are the correct behavior, not a layout-breaking risk; truncating it would be a regression. Left the `.take(2)` CJK code-unit note as informational (tier labels are documented as staying terse; not a correctness bug worth a grapheme-safe rewrite for a 2-char preview).
+- UX-P2-5 — **DONE (Batch 4)** — `filterMyTeas` now sorts via `Collator.getInstance(Locale("ru"))` (SECONDARY strength, ru-first per decisions.md #12) instead of `.lowercase()` + raw compareTo.
 
 Copy / errors:
 - UX-P2-6 — **DONE (Batch 2), scoped down** — checked `viewmodel/AppUpdateViewModel.kt:88`: the raw `verify:sha256 mismatch` string was already never rendered (the update-failed dialog shows one fixed generic message; `reason` is internal-only) — no fix needed there. Did differentiate the backup catch-all: `backup_failed` was one string for export/import/share; replaced with `backup_export_failed`/`backup_import_failed`/`backup_share_failed` per operation (`BackupViewModel.kt`), and removed the now-dead `backup_failed` string.
-- UX-P2-7 — Remove the dormant `AppLanguage.ENGLISH` enum branch (only a one-line `.filter` at `SettingsScreen.kt:183` hides it; no `values-en` exists) until en translations ship (M5).
+- UX-P2-7 — **Reviewed (Batch 4), no change** — the code already documents exactly this tradeoff at the filter site ("The enum keeps ENGLISH so a previously-persisted 'en' still resolves; we just don't present it"). Removing the enum value would make `appLanguageOf()` misdetect a genuinely-set English per-app locale — a real regression — to guard against a hypothetical future accidental `.filter` removal. Not worth that trade for a P2; the existing comment already does the job.
 
 Behavior nits:
-- UX-P2-8 — Sample section force-reopens after user collapsed it (`LaunchedEffect(hasSampleData)` re-fires). `ui/board/AddTeaScreen.kt:128`.
-- UX-P2-9 — Backup busy dialog has no cancel and no "taking a while" fallback — a hung SAF write traps the user. `ui/board/SettingsScreen.kt:355`.
-- UX-P2-10 — Drag-to-rank and color-swatch-opens-picker have no affordance (menu alternative exists but must itself be discovered): one-time coach mark / drag glyph (`BoardScreen.kt:628`), edit icon on swatch (`TierEditorScreen.kt:225`).
-- UX-P2-11 — CatalogDetailSheet: hardcoded 200dp image height; primary "Use this tea" CTA not pinned, buried under scroll on short screens. `ui/board/CatalogDetailSheet.kt:152`.
+- UX-P2-8 — **DONE (Batch 4)** — added a `sampleManuallyToggled` flag: once the user taps the chevron (expand or collapse), the auto-expand-on-data effect is permanently suppressed, so it can no longer silently re-open a section the user just closed. `ui/board/AddTeaScreen.kt`.
+- UX-P2-9 — **DONE (Batch 4)** — no safe cancel exists (an in-flight archive write can't be interrupted without risking a half-written file), so instead a delayed "this can take a while" hint appears after 8s, telling the user the app hasn't hung. `ui/board/SettingsScreen.kt`.
+- UX-P2-10 — **Partially done (Batch 4)** — added a small edit-glyph badge on the tier-color swatch (`TierEditorScreen.kt`) signaling it opens a picker. Skipped the drag-to-rank coach-mark: the existing overflow "move to tier" menu already mitigates discoverability, and a one-time coach-mark system (persisted dismiss state, overlay UI, timing) is a bigger feature than this polish batch's scope.
+- UX-P2-11 — **DONE (Batch 4), scoped down** — image height is now `aspectRatio(16f/9f)` instead of a fixed 200dp, so it scales with the sheet's width. Skipped pinning the CTA: restructuring `ModalBottomSheet`'s content into a scrollable-body + pinned-footer layout risks breaking its drag-to-dismiss/nested-scroll interaction — too risky for a P2 without dedicated device testing.
 - UX-P2-12 — `movePlacement` fire-and-forget per drag, no per-board serialization — rapid drags can order against a stale snapshot (self-healing, transient). `viewmodel/BoardViewModel.kt:73`.
 - UX-P2-13 — **DONE (Batch 1)** — `submit()` no longer wraps insert + photo copy + enrichment in one `runCatching`; only the insert is guarded for total failure, so a post-insert photo/enrichment error no longer reports the whole save as failed (which drove retry→duplicate). `viewmodel/AddTeaViewModel.kt`.
 - UX-P2-14 — Undo snapshots for deleteBoard/deleteTea load full tables; `tea()` linear-scans all placements first. Scope DAO queries by id. `TeaBoardRepository.kt:181-186,240-246,345-353`.
 - UX-P2-15 — Diagnostics opt-in has zero delivery visibility (failures silently dropped); add a "last report failed" local status. `data/diagnostics/DiagnosticsWire.kt:66`.
-- UX-P2-16 — `OnboardingState.consumeReseedPending()` mutates on read — split read from consume. `data/repository/OnboardingState.kt:29-36`.
+- UX-P2-16 — **DONE (Batch 4)** — `OnboardingState.isSeeded()` is now a pure read; the reseed-pending consumption moved to a new, separately-named `consumeReseedPending()` called only at the one call site that decides whether to reseed (`TeaBoardRepository.init`). `data/repository/OnboardingState.kt`.
 
 ## Known deferred — do NOT re-litigate here
 

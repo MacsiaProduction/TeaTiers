@@ -3,6 +3,8 @@ package com.macsia.teatiers.viewmodel
 import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
+import java.text.Collator
+import java.util.Locale
 
 /** One row in the cross-board "my teas" list: the shared user-tea plus how many boards it sits on. */
 data class MyTeaItem(val tea: Tea, val boardCount: Int)
@@ -38,16 +40,21 @@ fun placementCounts(boards: List<Board>): Map<String, Int> {
  * name, origin, or sample identity (vendor / product / harvest year) contains [query] — those are
  * the fields shown on the card, so two samples of the same tea are findable by what distinguishes
  * them (audit). Case-insensitive substring. Then sorts by the resolved display title (ru → en →
- * pinyin → zh) lower-cased so Russian uppercase orders correctly (SQLite's ASCII-only collation
- * cannot). Pure so it is unit-testable without Room or Compose.
+ * pinyin → zh) via a [Collator] (UX-P2-5) so mixed Cyrillic/Latin/CJK names order correctly — SQLite's
+ * ASCII-only collation already ruled out sorting in the DB, and a plain `.lowercase()` compare only
+ * fixes case, still falling back to raw UTF-16 codepoint order across scripts. Pure so it is
+ * unit-testable without Room or Compose.
  */
 fun filterMyTeas(teas: List<Tea>, query: String, type: TeaType?): List<Tea> {
     val needle = query.trim().lowercase()
+    // ru-first (decisions.md #12): a Russian collator still orders Latin/CJK sensibly, just not by a
+    // script-specific rule of its own — recreated per call since Collator is not guaranteed thread-safe.
+    val collator = Collator.getInstance(Locale("ru")).apply { strength = Collator.SECONDARY }
     return teas
         .asSequence()
         .filter { type == null || it.type == type }
         .filter { needle.isEmpty() || it.matchesQuery(needle) }
-        .sortedBy { it.displayName.lowercase() }
+        .sortedWith(compareBy(collator) { it.displayName })
         .toList()
 }
 

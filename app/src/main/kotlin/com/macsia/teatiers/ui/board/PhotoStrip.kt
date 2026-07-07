@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -45,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -249,6 +253,46 @@ private fun PhotoThumbnail(
                     modifier = Modifier.size(16.dp),
                 )
             }
+        }
+        // Visible non-drag reorder alternative (UX-P2-2): the same move the TalkBack custom actions
+        // already offer, now discoverable without sight or a long-press drag gesture.
+        if (index > 0) {
+            ThumbnailCornerButton(
+                icon = Icons.Filled.KeyboardArrowLeft,
+                contentDescription = moveLeftLabel,
+                onClick = onMoveLeft,
+                alignment = Alignment.BottomStart,
+            )
+        }
+        if (index < total - 1) {
+            ThumbnailCornerButton(
+                icon = Icons.Filled.KeyboardArrowRight,
+                contentDescription = moveRightLabel,
+                onClick = onMoveRight,
+                alignment = Alignment.BottomEnd,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.ThumbnailCornerButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    alignment: Alignment,
+) {
+    IconButton(onClick = onClick, modifier = Modifier.align(alignment).size(40.dp)) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    shape = MaterialTheme.shapes.small,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(imageVector = icon, contentDescription = contentDescription, modifier = Modifier.size(16.dp))
         }
     }
 }

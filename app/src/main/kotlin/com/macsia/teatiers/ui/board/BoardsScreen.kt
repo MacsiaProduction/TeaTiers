@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -224,7 +225,12 @@ private fun BoardSummaryCard(
                     .semantics(mergeDescendants = true) { contentDescription = a11yLabel }
                     .padding(20.dp),
             ) {
-                Text(text = summary.name, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = summary.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = countText,

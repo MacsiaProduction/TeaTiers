@@ -359,6 +359,8 @@ private fun FeaturedTea(tea: Tea, onClick: () -> Unit, modifier: Modifier = Modi
                     text = blurb,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             when {
@@ -424,7 +426,14 @@ private fun TierRow(
                 .background(rampColor),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = tierWithPlacements.tier.label, color = onRamp, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = tierWithPlacements.tier.label,
+                color = onRamp,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         Spacer(Modifier.width(12.dp))
         if (tierWithPlacements.placements.isEmpty()) {

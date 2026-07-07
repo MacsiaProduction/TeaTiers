@@ -2,6 +2,7 @@ package com.macsia.teatiers.ui.board
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -164,9 +165,11 @@ private fun CatalogDetailContent(detail: CatalogTeaDetail, onUse: () -> Unit) {
                 // Catalog images are remote (Wikidata/server) — a dead URL or offline shows a
                 // broken-image glyph instead of a blank tinted banner (audit #6).
                 error = { PhotoLoadError(Modifier.fillMaxSize()) },
+                // UX-P2-11: aspect ratio (not a fixed 200dp) so the image scales with the sheet's
+                // width instead of looking stretched on a wide screen or over-tall on a narrow one.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .aspectRatio(16f / 9f)
                     .clip(MaterialTheme.shapes.large)
                     .background(liquor.copy(alpha = 0.12f)),
             )
