@@ -114,16 +114,17 @@ class TeaDetailViewModel @Inject constructor(
 
     /**
      * Copies the catalog reference profile into the user's own ratings (#23 one-tap suggestion),
-     * offered only when the user has no rating yet. Reuses the existing edit path; a failure
-     * surfaces as a snackbar and leaves the tea untouched.
+     * offered only when the user has no rating yet. A failure surfaces as a snackbar and leaves
+     * the tea untouched.
      */
     fun useReferenceAsMyRating() {
         val id = teaId.value ?: return
-        val current = tea.value ?: return
         val reference = referenceFlavors.value
         if (reference.isEmpty()) return
         viewModelScope.launch {
-            runCatching { repository.updateTea(id, current.copy(flavor = reference)) }
+            // UX2-P0-2: writes only the flavor rows, not the whole Tea — round-tripping the full row
+            // through a stale `tea.value` snapshot could silently clobber a concurrent edit elsewhere.
+            runCatching { repository.updateFlavor(id, reference) }
                 .onSuccess { eventHost.emit(ShowSnackbar(R.string.detail_reference_applied)) }
                 .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
         }

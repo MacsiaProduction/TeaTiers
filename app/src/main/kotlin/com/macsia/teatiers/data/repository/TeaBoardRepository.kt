@@ -12,17 +12,20 @@ import com.macsia.teatiers.data.db.PlacementMove
 import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.TeaDao
 import com.macsia.teatiers.data.db.TeaMatchKeyRow
+import com.macsia.teatiers.data.db.TeaMergeFields
 import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
 import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
+import com.macsia.teatiers.data.db.toFlavorEntities
 import com.macsia.teatiers.data.db.toSeedEntities
 import com.macsia.teatiers.data.photos.PhotoCopyResult
 import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
 import com.macsia.teatiers.domain.model.Board
+import com.macsia.teatiers.domain.model.FlavorScore
 import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
@@ -505,8 +508,13 @@ class TeaBoardRepository @Inject constructor(
      * Rewrites the editable fields and child rows (flavors, purchases) of [teaId]. The DAO
      * never touches placements, so editing the form ripples to every board the tea is on
      * without moving any of them. No-op when the tea is unknown.
+     *
+     * [original] is the pristine snapshot the caller's form was seeded from, used to guard against
+     * the UX2-P0-1 lost-update race with a concurrent enrichment patch (see [TeaDao.updateTea]).
+     * Pass it whenever the caller actually has one (an edit-in-progress form); omit it only for a
+     * one-shot overwrite with no prior snapshot to diff against.
      */
-    suspend fun updateTea(teaId: String, tea: Tea) {
+    suspend fun updateTea(teaId: String, tea: Tea, original: Tea? = null) {
         if (tea(teaId) == null) return
         // toEntities also rebuilds a TeaEntity, but the DAO @Transaction only reads the scalar
         // columns we pass explicitly and never writes the entity itself, so we just need
@@ -514,12 +522,8 @@ class TeaBoardRepository @Inject constructor(
         val entities = tea.toEntities(rowId = teaId)
         dao.updateTea(
             teaId = teaId,
-            nameRu = tea.nameRu,
-            nameZh = tea.nameZh,
-            pinyin = tea.pinyin,
-            nameEn = tea.nameEn,
-            type = tea.type.name,
-            origin = tea.origin,
+            edited = tea.toMergeFields(),
+            original = original?.toMergeFields(),
             notes = tea.notes,
             vendor = tea.vendor,
             product = tea.product,
@@ -530,6 +534,18 @@ class TeaBoardRepository @Inject constructor(
             purchases = entities.purchases,
         )
     }
+
+    /**
+     * Rewrites only [teaId]'s flavor rows (UX2-P0-2) — used by "use reference as my rating," which
+     * must not round-trip the whole [Tea] through [updateTea] from a StateFlow snapshot that can go
+     * stale the moment a concurrent edit or enrichment patch lands.
+     */
+    suspend fun updateFlavor(teaId: String, flavor: List<FlavorScore>) {
+        if (tea(teaId) == null) return
+        dao.updateFlavors(teaId, flavor.toFlavorEntities(teaId))
+    }
+
+    private fun Tea.toMergeFields() = TeaMergeFields(nameRu, nameZh, pinyin, nameEn, type.name, origin)
 
     /**
      * Tries to find an existing user-tea matching [candidate] by name (decisions.md #42). Picks

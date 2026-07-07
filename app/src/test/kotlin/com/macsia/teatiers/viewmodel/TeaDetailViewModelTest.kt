@@ -111,11 +111,11 @@ class TeaDetailViewModelTest {
     }
 
     @Test
-    fun `useReferenceAsMyRating copies the reference profile into the user tea`() = runTest {
+    fun `useReferenceAsMyRating copies the reference profile into the user tea via a flavor-only write`() = runTest {
         val reference = listOf(FlavorScore(FlavorDimension.GRASSY, 4), FlavorScore(FlavorDimension.UMAMI, 3))
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = 5)
         coEvery { catalog.detail(5) } returns referenceDetail(*reference.toTypedArray())
-        coEvery { repository.updateTea(any(), any()) } just Runs
+        coEvery { repository.updateFlavor(any(), any()) } just Runs
         val vm = TeaDetailViewModel(repository, catalog)
         vm.bind("t1")
         backgroundScope.launch { vm.referenceFlavors.collect {} }
@@ -124,6 +124,9 @@ class TeaDetailViewModelTest {
         vm.useReferenceAsMyRating()
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { repository.updateTea("t1", match { it.flavor == reference }) }
+        // UX2-P0-2 regression: must go through the narrow flavor-only write, never the whole-row updateTea
+        // (which would round-trip a possibly-stale tea.value snapshot and could clobber a concurrent edit).
+        coVerify(exactly = 1) { repository.updateFlavor("t1", reference) }
+        coVerify(exactly = 0) { repository.updateTea(any(), any(), any()) }
     }
 }

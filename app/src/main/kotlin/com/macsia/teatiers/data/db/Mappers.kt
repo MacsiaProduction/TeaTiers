@@ -144,9 +144,7 @@ fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
         batch = batch,
         grade = grade,
     )
-    val flavorRows = flavor.mapIndexed { index, score ->
-        FlavorEntity(teaId = rowId, dimension = score.dimension.name, intensity = score.intensity, position = index)
-    }
+    val flavorRows = flavor.toFlavorEntities(rowId)
     val purchaseRows = purchaseLocations.mapIndexed { index, location ->
         location.toEntity(teaId = rowId, position = index)
     }
@@ -154,6 +152,10 @@ fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
         photo.toEntity(teaId = rowId, position = index, fallbackCreatedAtMs = nowMs)
     }
     return TeaEntities(teaEntity, flavorRows, purchaseRows, photoRows)
+}
+
+fun List<FlavorScore>.toFlavorEntities(teaId: String): List<FlavorEntity> = mapIndexed { index, score ->
+    FlavorEntity(teaId = teaId, dimension = score.dimension.name, intensity = score.intensity, position = index)
 }
 
 fun PurchaseLocation.toEntity(teaId: String, position: Int): PurchaseLocationEntity = when (this) {
