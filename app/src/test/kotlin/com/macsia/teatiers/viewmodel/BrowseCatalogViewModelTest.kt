@@ -1,6 +1,7 @@
 package com.macsia.teatiers.viewmodel
 
 import com.macsia.teatiers.data.repository.CatalogBrowseResult
+import com.macsia.teatiers.data.repository.CatalogFacetsResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
@@ -9,6 +10,7 @@ import com.macsia.teatiers.domain.model.CatalogName
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.TeaType
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +39,8 @@ class BrowseCatalogViewModelTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         // Default: no boards unless a test overrides it.
         every { boardRepository.boards } returns MutableStateFlow(emptyList())
+        // Default: no facets unless a test overrides it (UX-F-1) — a fetch failure must not block browsing.
+        coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Error
     }
 
     @AfterEach
@@ -55,7 +59,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `loads the first page on init and keeps the cursor for more`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(listOf(tea(1, "А"), tea(2, "Б")), nextCursor = 5L)
 
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
@@ -71,7 +75,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `a null next cursor marks the end`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
 
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
@@ -84,7 +88,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `an empty catalog surfaces Empty`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
 
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
@@ -95,7 +99,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `loadMore appends the next page and advances the cursor`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returnsMany listOf(
+        coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 1L),
             CatalogBrowseResult.Loaded(listOf(tea(2, "Б")), nextCursor = null),
         )
@@ -112,7 +116,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `loadMore is a no-op once the end is reached`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
         advanceUntilIdle()
@@ -127,7 +131,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `an offline first page surfaces Offline and retry reloads`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returnsMany listOf(
+        coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(
             CatalogBrowseResult.Offline,
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null),
         )
@@ -144,7 +148,7 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `a failed load-more is flagged and retryable`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returnsMany listOf(
+        coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 1L),
             CatalogBrowseResult.Error,
             CatalogBrowseResult.Loaded(listOf(tea(2, "Б")), nextCursor = null),
@@ -168,9 +172,9 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `a query switches the list to a single page of search results`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 5L)
-        coEvery { catalogRepository.search(any(), any()) } returns
+        coEvery { catalogRepository.search(any(), any(), any()) } returns
             CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
         advanceUntilIdle()
@@ -187,10 +191,10 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `a full page of search results is flagged truncated (UX-F-4)`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
         val fullPage = (1..CatalogRepository.DEFAULT_LIMIT).map { tea(it.toLong(), "Чай $it") }
-        coEvery { catalogRepository.search(any(), any()) } returns
+        coEvery { catalogRepository.search(any(), any(), any()) } returns
             CatalogSearchResult.Loaded(fullPage, fromCache = false)
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
         advanceUntilIdle()
@@ -204,9 +208,9 @@ class BrowseCatalogViewModelTest {
 
     @Test
     fun `clearing the query returns to the browse list`() = runTest {
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
-        coEvery { catalogRepository.search(any(), any()) } returns
+        coEvery { catalogRepository.search(any(), any(), any()) } returns
             CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
         advanceUntilIdle()
@@ -225,12 +229,70 @@ class BrowseCatalogViewModelTest {
         every { boardRepository.boards } returns MutableStateFlow(
             listOf(Board(id = "b1", name = "Зелёные", tiers = emptyList(), placements = emptyMap(), unranked = emptyList())),
         )
-        coEvery { catalogRepository.browse(any(), any()) } returns
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
             CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
 
         val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
         advanceUntilIdle()
 
         assertEquals(listOf(BoardPick("b1", "Зелёные")), vm.boards.value)
+    }
+
+    @Test
+    fun `availableTypes populates from facets on init (UX-F-1)`() = runTest {
+        coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Loaded(listOf(TeaType.GREEN, TeaType.OOLONG))
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
+            CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
+
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        assertEquals(listOf(TeaType.GREEN, TeaType.OOLONG), vm.availableTypes.value)
+    }
+
+    @Test
+    fun `a failed facets fetch leaves availableTypes empty instead of blocking browse (UX-F-1)`() = runTest {
+        coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Offline
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
+
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        assertTrue(vm.availableTypes.value.isEmpty())
+        assertTrue(vm.state.value is BrowseCatalogUiState.Loaded)
+    }
+
+    @Test
+    fun `setTypeFilter reruns browse with the selected type`() = runTest {
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = null)
+
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+
+        vm.setTypeFilter(TeaType.OOLONG)
+        advanceUntilIdle()
+
+        assertEquals(TeaType.OOLONG, vm.typeFilter.value)
+        coVerify(exactly = 1) { catalogRepository.browse(cursor = isNull(), type = eq(TeaType.OOLONG), limit = any()) }
+    }
+
+    @Test
+    fun `setTypeFilter reruns an active search with the selected type`() = runTest {
+        coEvery { catalogRepository.browse(any(), any(), any()) } returns
+            CatalogBrowseResult.Loaded(emptyList(), nextCursor = null)
+        coEvery { catalogRepository.search(any(), any(), any()) } returns
+            CatalogSearchResult.Loaded(listOf(tea(9, "Улун")), fromCache = false)
+
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+        vm.setQuery("улун")
+        advanceUntilIdle()
+
+        vm.setTypeFilter(TeaType.OOLONG)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { catalogRepository.search(eq("улун"), type = eq(TeaType.OOLONG), limit = any()) }
     }
 }

@@ -3,10 +3,12 @@ package com.macsia.teatiers.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.data.repository.CatalogBrowseResult
+import com.macsia.teatiers.data.repository.CatalogFacetsResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.CatalogSearchResult
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.domain.model.TeaType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -85,6 +87,15 @@ class BrowseCatalogViewModel @Inject constructor(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
+    /** Type filter (UX-F-1); null = every type. */
+    private val _typeFilter = MutableStateFlow<TeaType?>(null)
+    val typeFilter: StateFlow<TeaType?> = _typeFilter.asStateFlow()
+
+    /** Types currently present in the catalog, driving the filter chips. Best-effort: a facets fetch
+     *  failure just means no chips are offered, never a blocker to browsing. */
+    private val _availableTypes = MutableStateFlow<List<TeaType>>(emptyList())
+    val availableTypes: StateFlow<List<TeaType>> = _availableTypes.asStateFlow()
+
     private var nextCursor: Long? = null
     private var loading = false
 
@@ -95,6 +106,9 @@ class BrowseCatalogViewModel @Inject constructor(
     private var loadGeneration = 0
 
     init {
+        viewModelScope.launch {
+            (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
+        }
         // collectLatest cancels an in-flight load when the query changes, so a stale result never
         // overwrites a newer one. A blank/short query shows the cursor-paginated browse; otherwise
         // the same fuzzy catalog search the add form uses, capped at one page (no load-more).
@@ -113,6 +127,14 @@ class BrowseCatalogViewModel @Inject constructor(
         _query.value = value
     }
 
+    /** Switches the type filter (UX-F-1) and reruns whatever's currently active with it applied. */
+    fun setTypeFilter(type: TeaType?) {
+        if (_typeFilter.value == type) return
+        _typeFilter.value = type
+        val q = _query.value.trim()
+        viewModelScope.launch { if (isSearchableQuery(q)) runSearch(q) else loadFirstPageSuspending() }
+    }
+
     /** (Re)loads the first browse page — on open (blank query) and as the empty-list retry. */
     fun loadFirstPage() {
         viewModelScope.launch { loadFirstPageSuspending() }
@@ -123,7 +145,7 @@ class BrowseCatalogViewModel @Inject constructor(
         loading = true
         _state.value = BrowseCatalogUiState.Loading
         try {
-            applyFirst(catalogRepository.browse(cursor = null))
+            applyFirst(catalogRepository.browse(cursor = null, type = _typeFilter.value))
         } finally {
             loading = false
         }
@@ -134,7 +156,7 @@ class BrowseCatalogViewModel @Inject constructor(
         loading = true
         _state.value = BrowseCatalogUiState.Loading
         try {
-            _state.value = when (val result = catalogRepository.search(query)) {
+            _state.value = when (val result = catalogRepository.search(query, type = _typeFilter.value)) {
                 is CatalogSearchResult.Loaded ->
                     if (result.teas.isEmpty()) {
                         BrowseCatalogUiState.Empty
@@ -168,7 +190,7 @@ class BrowseCatalogViewModel @Inject constructor(
         loading = true
         _state.value = current.copy(appending = true)
         viewModelScope.launch {
-            applyMore(catalogRepository.browse(cursor = cursor), gen)
+            applyMore(catalogRepository.browse(cursor = cursor, type = _typeFilter.value), gen)
             loading = false
         }
     }

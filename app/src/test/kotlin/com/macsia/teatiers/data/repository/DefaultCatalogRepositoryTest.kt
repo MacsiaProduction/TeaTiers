@@ -155,6 +155,50 @@ class DefaultCatalogRepositoryTest {
     }
 
     @Test
+    fun `browse forwards a type filter as a query param (UX-F-1)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[],"nextCursor":null}"""))
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        repo.browse(cursor = null, type = TeaType.OOLONG)
+
+        assertTrue(server.takeRequest().path!!.contains("type=OOLONG"))
+    }
+
+    @Test
+    fun `search forwards a type filter as a query param (UX-F-1)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[],"nextCursor":null}"""))
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        repo.search("лунц", type = TeaType.GREEN)
+
+        assertTrue(server.takeRequest().path!!.contains("type=GREEN"))
+    }
+
+    @Test
+    fun `facets parses the catalog's distinct types (UX-F-1)`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("""{"types":["GREEN","OOLONG","GREEN"],"origins":["CN"]}"""),
+        )
+        val repo = DefaultCatalogRepository(api, dao, json)
+
+        val result = repo.facets()
+
+        assertTrue(result is CatalogFacetsResult.Loaded)
+        assertEquals(listOf(TeaType.GREEN, TeaType.OOLONG), (result as CatalogFacetsResult.Loaded).types)
+    }
+
+    @Test
+    fun `facets maps a server error to Error and a network failure to Offline`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500))
+        val repo = DefaultCatalogRepository(api, dao, json)
+        assertEquals(CatalogFacetsResult.Error, repo.facets())
+
+        server.shutdown()
+        assertEquals(CatalogFacetsResult.Offline, repo.facets())
+    }
+
+    @Test
     fun `detail returns a parsed detail on a network hit`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(DETAIL_BODY))
         val repo = DefaultCatalogRepository(api, dao, json)

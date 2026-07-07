@@ -21,21 +21,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +60,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.viewmodel.MyTeaItem
+import com.macsia.teatiers.viewmodel.MyTeasSortOption
 import com.macsia.teatiers.viewmodel.MyTeasViewModel
 
 private val ThumbSize = 44.dp
@@ -71,6 +78,7 @@ fun MyTeasScreen(
     viewModel: MyTeasViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var sortMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -82,6 +90,29 @@ fun MyTeasScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.a11y_back),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { sortMenuExpanded = true }) {
+                        Icon(
+                            // ponytail: material-icons-core has no Sort glyph and pulling in the much
+                            // larger -extended artifact for one icon isn't worth it; List reads close
+                            // enough paired with the "Сортировка" (Sort) a11y label below.
+                            imageVector = Icons.AutoMirrored.Filled.List,
+                            contentDescription = stringResource(R.string.a11y_my_teas_sort),
+                        )
+                    }
+                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                        SortMenuItem(
+                            label = stringResource(R.string.my_teas_sort_name),
+                            selected = state.sort == MyTeasSortOption.NAME,
+                            onClick = { viewModel.setSort(MyTeasSortOption.NAME); sortMenuExpanded = false },
+                        )
+                        SortMenuItem(
+                            label = stringResource(R.string.my_teas_sort_type),
+                            selected = state.sort == MyTeasSortOption.TYPE,
+                            onClick = { viewModel.setSort(MyTeasSortOption.TYPE); sortMenuExpanded = false },
                         )
                     }
                 },
@@ -162,6 +193,16 @@ fun MyTeasScreen(
             }
         }
     }
+}
+
+/** One radio-style row in the sort dropdown (UX-F-2). */
+@Composable
+private fun SortMenuItem(label: String, selected: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { RadioButton(selected = selected, onClick = null) },
+        onClick = onClick,
+    )
 }
 
 @Composable

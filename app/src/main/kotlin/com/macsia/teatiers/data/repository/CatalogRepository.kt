@@ -6,9 +6,11 @@ import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.remote.CatalogApi
 import com.macsia.teatiers.data.remote.dto.ResolveRequestDto
 import com.macsia.teatiers.data.remote.dto.TeaLifecycleDto
+import com.macsia.teatiers.data.remote.teaTypeFromWire
 import com.macsia.teatiers.data.remote.toDomain
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
+import com.macsia.teatiers.domain.model.TeaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -87,6 +89,16 @@ sealed interface ResolveResult {
     data object Error : ResolveResult
 }
 
+/**
+ * Outcome of `GET /teas/facets` (UX-F-1): which tea types currently exist in the catalog, so Browse
+ * can offer type-filter chips without having to page through the whole catalog first to discover them.
+ */
+sealed interface CatalogFacetsResult {
+    data class Loaded(val types: List<TeaType>) : CatalogFacetsResult
+    data object Offline : CatalogFacetsResult
+    data object Error : CatalogFacetsResult
+}
+
 /** Outcome of `POST /teas/ocr` (slice 1b) — recognizing text from a scanned packaging image. */
 sealed interface OcrResult {
     /**
@@ -112,15 +124,20 @@ sealed interface OcrResult {
 }
 
 interface CatalogRepository {
-    /** Network-first search; on failure falls back to the offline cache (plan §4b/§6 step 1). */
-    suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): CatalogSearchResult
+    /** Network-first search; on failure falls back to the offline cache (plan §4b/§6 step 1).
+     *  [type], when set, narrows to one category (UX-F-1) — ignored by the offline cache fallback. */
+    suspend fun search(query: String, type: TeaType? = null, limit: Int = DEFAULT_LIMIT): CatalogSearchResult
 
     /**
      * Browses the whole catalog one page at a time (no query), ordered by id. [cursor] is the
-     * [CatalogBrowseResult.Loaded.nextCursor] from the previous page (null for the first). Hits the
-     * network and caches each page for the offline search fallback; never reads the cache itself.
+     * [CatalogBrowseResult.Loaded.nextCursor] from the previous page (null for the first). [type],
+     * when set, narrows to one category (UX-F-1). Hits the network and caches each page for the
+     * offline search fallback; never reads the cache itself.
      */
-    suspend fun browse(cursor: Long? = null, limit: Int = BROWSE_LIMIT): CatalogBrowseResult
+    suspend fun browse(cursor: Long? = null, type: TeaType? = null, limit: Int = BROWSE_LIMIT): CatalogBrowseResult
+
+    /** Which tea types currently exist in the catalog (UX-F-1), for the Browse type-filter chips. */
+    suspend fun facets(): CatalogFacetsResult
 
     /**
      * Loads one tea's full detail from the network. Detail is not cached (unlike search): it is only
@@ -156,12 +173,12 @@ class DefaultCatalogRepository @Inject constructor(
     private val json: Json,
 ) : CatalogRepository {
 
-    override suspend fun search(query: String, limit: Int): CatalogSearchResult {
+    override suspend fun search(query: String, type: TeaType?, limit: Int): CatalogSearchResult {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return CatalogSearchResult.Loaded(emptyList(), fromCache = false)
         return withContext(Dispatchers.IO) {
             try {
-                val teas = api.search(query = trimmed, limit = limit).items.map { it.toDomain() }
+                val teas = api.search(query = trimmed, type = type?.name, limit = limit).items.map { it.toDomain() }
                 if (teas.isNotEmpty()) {
                     val now = System.currentTimeMillis()
                     catalogDao.upsertAll(teas.map { it.toCacheEntity(now) })
@@ -175,11 +192,11 @@ class DefaultCatalogRepository @Inject constructor(
         }
     }
 
-    override suspend fun browse(cursor: Long?, limit: Int): CatalogBrowseResult =
+    override suspend fun browse(cursor: Long?, type: TeaType?, limit: Int): CatalogBrowseResult =
         withContext(Dispatchers.IO) {
             try {
                 // No `q` => browse mode; the server paginates by id and returns nextCursor.
-                val page = api.search(query = null, cursor = cursor, limit = limit)
+                val page = api.search(query = null, type = type?.name, cursor = cursor, limit = limit)
                 val teas = page.items.map { it.toDomain() }
                 if (teas.isNotEmpty()) {
                     val now = System.currentTimeMillis()
@@ -192,6 +209,17 @@ class DefaultCatalogRepository @Inject constructor(
                 CatalogBrowseResult.Error
             }
         }
+
+    override suspend fun facets(): CatalogFacetsResult = withContext(Dispatchers.IO) {
+        try {
+            val types = api.facets().types.map { teaTypeFromWire(it) }.distinct()
+            CatalogFacetsResult.Loaded(types)
+        } catch (_: IOException) {
+            CatalogFacetsResult.Offline
+        } catch (_: HttpException) {
+            CatalogFacetsResult.Error
+        }
+    }
 
     override suspend fun detail(id: Long): CatalogDetailResult = withContext(Dispatchers.IO) {
         try {
