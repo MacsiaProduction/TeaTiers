@@ -172,6 +172,36 @@ class BackupManagerTest {
     }
 
     @Test
+    fun `import still succeeds but flags undoUnavailable when the safety snapshot fails to write (UX-P1-2)`() =
+        runTest {
+            // Force the safety-snapshot write to fail: pre-create a plain FILE at the "safety" dir path,
+            // so the snapshot's parentFile.mkdirs() can't create a directory there and the subsequent
+            // FileOutputStream throws — without touching the actual restore path at all.
+            File(filesDir, "safety").writeText("not a directory")
+            val dao = mockk<TeaDao>(relaxed = true)
+            coEvery { dao.teaCount() } returns 1
+            coEvery { dao.exportSnapshot() } returns snapshot()
+            val photoStore = FakePhotoStore()
+            val uri = mockk<Uri>()
+            val resolver = mockk<ContentResolver> {
+                every { openAssetFileDescriptor(uri, "r") } returns null
+                every { openInputStream(uri) } returns archiveBytes().inputStream()
+            }
+            val context = mockk<Context> {
+                every { contentResolver } returns resolver
+                every { cacheDir } returns this@BackupManagerTest.cacheDir
+                every { filesDir } returns this@BackupManagerTest.filesDir
+            }
+            val manager = BackupManager(context, dao, photoStore)
+
+            val result = manager.importFrom(uri)
+
+            assertTrue(result is BackupResult.Imported, "the restore itself must still succeed")
+            assertTrue((result as BackupResult.Imported).undoUnavailable, "must flag the missing undo net")
+            assertFalse(manager.hasSafetyBackup(), "no snapshot was actually committed")
+        }
+
+    @Test
     fun `restoreSafetyBackup with no snapshot is InvalidFile`() = runTest {
         val dao = mockk<TeaDao>(relaxed = true)
         val context = mockk<Context> {

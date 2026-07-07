@@ -47,7 +47,13 @@ private const val MAX_ARCHIVE_BYTES = 200L * 1024 * 1024
 /** Outcome of an export/import, mapped to a user message by the ViewModel. */
 sealed interface BackupResult {
     data class Exported(val teaCount: Int) : BackupResult
-    data class Imported(val teaCount: Int) : BackupResult
+
+    /**
+     * [undoUnavailable] is true when the restore succeeded but the pre-restore safety snapshot
+     * failed to write (disk full/IO, UX-P1-2) — the caller must NOT claim the same "Imported" success
+     * as a normal restore, since the user has no "undo my last restore" safety net this time.
+     */
+    data class Imported(val teaCount: Int, val undoUnavailable: Boolean = false) : BackupResult
 
     /** The picked file is not a readable TeaTiers backup (bad zip, or unparseable/blank JSON). */
     data object InvalidFile : BackupResult
@@ -193,7 +199,7 @@ class BackupManager @Inject constructor(
             // is undoable (auto safety-backup). Staged to a temp now; promoted to the live undo only
             // after the swap below succeeds, so a failed/no-op import never leaves a misleading undo or
             // clobbers an earlier one (finding #14B). Skipped when restoring that very snapshot.
-            val staged = protect && stageSafetyBackup()
+            val stageOutcome = if (protect) stageSafetyBackup() else SafetyStageOutcome.Skipped
 
             // Apply. Stream each staged photo into the live store, then swap the DB.
             for (name in declared) {
@@ -205,7 +211,7 @@ class BackupManager @Inject constructor(
             val entities = bundle.toSeedEntities(restoredPaths)
             dao.replaceAll(entities)
             imported = true
-            if (staged) commitSafetyBackup()
+            if (stageOutcome == SafetyStageOutcome.Staged) commitSafetyBackup()
             // A destructive replace-all orphans every photo file the *old* corpus referenced. Sweep
             // them now, keeping exactly the files the freshly-imported rows point at (review
             // 2026-06-18). Best-effort: the DB is already restored, so a sweep failure must not fail
@@ -213,7 +219,10 @@ class BackupManager @Inject constructor(
             val keepPaths = entities.photos.map { it.uri }.filter { it.startsWith("/") }.toSet()
             runCatching { photoStore.reconcile(keepPaths) }
                 .onFailure { Log.w(TAG, "Photo reconcile after import failed", it) }
-            BackupResult.Imported(entities.teas.size)
+            // UX-P1-2: a restore whose safety snapshot failed to write must not report the same success
+            // as one with a working undo — the caller tells the user their "undo my last restore" net
+            // is missing this time, instead of silently pretending it's there.
+            BackupResult.Imported(entities.teas.size, undoUnavailable = stageOutcome == SafetyStageOutcome.Failed)
         } catch (e: Exception) {
             Log.w(TAG, "Import write failed", e)
             BackupResult.Failed
@@ -228,20 +237,27 @@ class BackupManager @Inject constructor(
     }
 
     /**
-     * Snapshots the CURRENT corpus to [safetyTmpFile] right before a destructive restore, returning
-     * true when a snapshot was written. Skipped (returns false) when the DB holds no teas — nothing to
-     * protect, and so a previous, meaningful safety copy is not clobbered by an empty one. The snapshot
-     * is only promoted to the live undo by [commitSafetyBackup] once the restore actually succeeds.
-     * Best-effort: a failure here only forgoes the undo, it must never block the restore the user
-     * explicitly asked for.
+     * Snapshots the CURRENT corpus to [safetyTmpFile] right before a destructive restore. [Skipped]
+     * when the DB holds no teas — nothing to protect, and so a previous, meaningful safety copy is not
+     * clobbered by an empty one; this is NOT a failure and must not warn the user. [Failed] (UX-P1-2)
+     * means the write itself broke (disk full/IO) — the restore still proceeds (this is a best-effort
+     * safety net, never a blocker), but the caller must tell the user their undo net is missing this
+     * time rather than silently proceeding as if [Staged]. The snapshot is only promoted to the live
+     * undo by [commitSafetyBackup] once the restore actually succeeds.
      */
-    private suspend fun stageSafetyBackup(): Boolean = runCatching {
-        if (dao.teaCount() == 0) return false
-        safetyTmpFile.parentFile?.mkdirs()
-        FileOutputStream(safetyTmpFile).use { writeArchive(it) }
-        true
-    }.onFailure { Log.w(TAG, "Pre-import safety backup failed; restore proceeds without an undo", it) }
-        .getOrDefault(false)
+    private suspend fun stageSafetyBackup(): SafetyStageOutcome {
+        if (dao.teaCount() == 0) return SafetyStageOutcome.Skipped
+        return runCatching {
+            safetyTmpFile.parentFile?.mkdirs()
+            FileOutputStream(safetyTmpFile).use { writeArchive(it) }
+            SafetyStageOutcome.Staged
+        }.getOrElse {
+            Log.w(TAG, "Pre-import safety backup failed; restore proceeds without an undo", it)
+            SafetyStageOutcome.Failed
+        }
+    }
+
+    private enum class SafetyStageOutcome { Skipped, Staged, Failed }
 
     /**
      * Promotes the staged snapshot ([stageSafetyBackup]) to the live undo, atomically via rename so a

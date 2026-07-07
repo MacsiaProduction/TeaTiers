@@ -118,6 +118,7 @@ fun AddTeaScreen(
     val catalogQuery by viewModel.catalogQuery.collectAsStateWithLifecycle()
     val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
     val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -133,8 +134,14 @@ fun AddTeaScreen(
     var sampleManuallyToggled by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
-    // Resolved here (composable scope) so it can be shown from the non-composable submit callback.
-    val photoCopyFailedMessage = stringResource(R.string.error_photo_copy_failed)
+    // Resolved here (composable scope, not via LocalContext.current.getString in the callback below —
+    // that reads stale on a config change, Compose lint LocalContextGetResourceValueCall) so the
+    // non-composable submit callback can pick the right one by resource id.
+    val photoFailureMessages = mapOf(
+        R.string.error_photo_too_large to stringResource(R.string.error_photo_too_large),
+        R.string.error_photo_out_of_space to stringResource(R.string.error_photo_out_of_space),
+        R.string.error_photo_copy_failed to stringResource(R.string.error_photo_copy_failed),
+    )
     CollectUiEvents(viewModel.events, snackbarHostState)
     // Focus-on-error: the Save button invokes `submit`, which synchronously arms the
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
@@ -172,15 +179,19 @@ fun AddTeaScreen(
                 actions = {
                     TextButton(
                         // Save stays tappable even when the form is invalid so the user gets
-                        // the snackbar + focus pump instead of silently disabled UI.
+                        // the snackbar + focus pump instead of silently disabled UI. It IS disabled
+                        // while a save is in flight so a double-tap can't launch a duplicate (UX-P0-1).
+                        enabled = !isSaving,
                         onClick = {
-                            viewModel.submit { failedPhotoCount ->
-                                if (failedPhotoCount > 0) {
-                                    // Show the photo-copy failure on this still-mounted screen's host,
-                                    // then navigate — popping first would tear out the collector before
-                                    // the message ever rendered, losing it silently.
+                            viewModel.submit { photoFailure ->
+                                if (photoFailure != null) {
+                                    // Show the photo-copy failure (with its specific reason, UX-P1-1) on
+                                    // this still-mounted screen's host, then navigate — popping first
+                                    // would tear out the collector before the message ever rendered,
+                                    // losing it silently.
+                                    val message = photoFailureMessages.getValue(photoFailure.messageRes)
                                     snackbarScope.launch {
-                                        snackbarHostState.showSnackbar(photoCopyFailedMessage)
+                                        snackbarHostState.showSnackbar(message)
                                         onSaved()
                                     }
                                 } else {

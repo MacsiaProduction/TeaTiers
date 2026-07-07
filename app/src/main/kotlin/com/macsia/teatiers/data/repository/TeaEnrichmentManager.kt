@@ -11,7 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,20 +39,35 @@ class TeaEnrichmentManager @Inject constructor(
     @AppScope private val scope: CoroutineScope,
 ) {
 
-    // Poll cadence/budget while the server enriches a stub. Plain fields (not constructor params)
-    // so Hilt still builds the manager; tests shorten the interval to run the loop without waiting.
+    // Poll cadence/budget while the server enriches a stub (UX-P1-5): the interval doubles each poll,
+    // capped at maxPollIntervalMs, so a genuinely slower job gets a longer total budget (~112s with the
+    // defaults below) instead of being marked FAILED after a fixed short window. Plain fields (not
+    // constructor params) so Hilt still builds the manager; tests shrink these to run the loop without
+    // waiting.
     internal var pollIntervalMs: Long = 1_500L
-    internal var maxPolls: Int = 8
+    internal var maxPollIntervalMs: Long = 15_000L
+    internal var maxPolls: Int = 10
 
     // Teas with enrichment in flight right now. enrich()/retry()/resumePending() can all target the same
     // tea; this drops the redundant concurrent dispatch (and the wasted resolve call / daily-budget token)
     // without blocking a later legitimate retry.
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
 
-    // resumePending() is wired to both the boards-list and per-board screens, so it would otherwise re-sweep
-    // every PENDING/QUEUED tea on every board-open — burning a metered /resolve token each time a tea is
-    // stuck PENDING (AND-P1-7). Gate it to run at most ONCE per process (true app-launch semantics).
-    private val resumed = AtomicBoolean(false)
+    // resumePending() is wired to both the boards-list and per-board screens, so it would otherwise
+    // re-sweep every PENDING/QUEUED tea on every board-open — burning a metered /resolve token each time
+    // a tea is stuck PENDING (AND-P1-7). Throttled to once per [resumeCooldownMs] (UX-P1-5) rather than
+    // once per process ever: the original once-per-process gate over-corrected — a tea stuck QUEUED from
+    // an offline add would never retry again short of a full app restart. The cooldown keeps the
+    // anti-spam guarantee within one board-open burst while letting a LATER board-open (after
+    // connectivity has likely returned) self-heal it, with no new permission/dependency.
+    private val lastResumeAttemptMs = AtomicLong(Long.MIN_VALUE / 2)
+    internal var resumeCooldownMs: Long = 5 * 60_000L
+
+    /** Wall-clock source; tests override it to simulate an elapsed cooldown without a real sleep. */
+    private var clock: () -> Long = System::currentTimeMillis
+    internal fun setClockForTest(clock: () -> Long) {
+        this.clock = clock
+    }
 
     /** Fire-and-forget enrichment of a just-added tea ([name] = its typed primary name). */
     fun enrich(teaId: String, name: String, sourceText: String? = null) {
@@ -73,7 +88,10 @@ class TeaEnrichmentManager @Inject constructor(
      * /resolve token on a tea that's stuck PENDING. A user-driven [retry] is the per-tea escape hatch.
      */
     fun resumePending() {
-        if (!resumed.compareAndSet(false, true)) return
+        val now = clock()
+        val last = lastResumeAttemptMs.get()
+        if (now - last < resumeCooldownMs) return
+        if (!lastResumeAttemptMs.compareAndSet(last, now)) return
         scope.launch {
             dao.teasNeedingEnrichment().forEach { row ->
                 runEnrichment(row.id, row.resolveName() ?: return@forEach, sourceText = null)
@@ -117,8 +135,10 @@ class TeaEnrichmentManager @Inject constructor(
     }
 
     private suspend fun pollUntilSettled(localTeaId: String, catalogTeaId: Long) {
+        var delayMs = pollIntervalMs
         repeat(maxPolls) {
-            delay(pollIntervalMs)
+            delay(delayMs)
+            delayMs = (delayMs * 2).coerceAtMost(maxPollIntervalMs)
             when (val detail = catalog.detail(catalogTeaId)) {
                 is CatalogDetailResult.Loaded -> when (detail.detail.enrichmentState) {
                     EnrichmentState.DONE -> {
@@ -136,6 +156,8 @@ class TeaEnrichmentManager @Inject constructor(
                     dao.updateEnrichmentState(localTeaId, EnrichmentState.QUEUED.name)
                     return
                 }
+                // Rate-limited (UX-P1-6): not a real failure — just retry on the next poll tick.
+                CatalogDetailResult.RateLimited -> Unit
                 CatalogDetailResult.Error -> {
                     dao.updateEnrichmentState(localTeaId, EnrichmentState.FAILED.name)
                     return

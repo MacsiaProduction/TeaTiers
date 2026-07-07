@@ -7,7 +7,7 @@ import javax.inject.Singleton
 
 /** The outcome of an update check (decision #119). */
 sealed interface UpdateAvailability {
-    /** No newer installable release (or the check failed — it's best-effort). */
+    /** No newer installable release — a genuine, successfully-checked "you're up to date". */
     data object None : UpdateAvailability
 
     /** A newer release the user may install at their leisure. */
@@ -15,6 +15,13 @@ sealed interface UpdateAvailability {
 
     /** The installed build is below the server's minimum support (or the release is mandatory). */
     data class Forced(val manifest: AppManifestDto) : UpdateAvailability
+
+    /**
+     * The check itself failed (network error, malformed response, non-2xx) — distinct from [None]
+     * (UX-P1-6/P1-7) so "no update" and "couldn't tell" don't look identical to the user tapping
+     * "check for updates" offline.
+     */
+    data object CheckFailed : UpdateAvailability
 }
 
 /**
@@ -32,10 +39,11 @@ internal fun decideUpdate(installedVersionCode: Int, osSdkInt: Int, m: AppManife
 
 /**
  * Checks the first-party manifest endpoint (`/api/v1/app/latest`) for a newer GitHub-Releases APK.
- * **Best-effort:** a network error, a `204 No Content` (no release configured), or any non-2xx all
- * resolve to [UpdateAvailability.None] — the update check must never crash or block the app. The
- * caller passes the installed version + OS level (so this stays pure/unit-testable):
- * `check(BuildConfig.VERSION_CODE, Build.VERSION.SDK_INT)`.
+ * Never crashes or blocks the app: a network error, malformed response, or non-2xx resolves to
+ * [UpdateAvailability.CheckFailed] (UX-P1-7) rather than the misleading [UpdateAvailability.None] —
+ * only a `204 No Content` (no release configured) or a genuinely up-to-date/ineligible manifest is
+ * [UpdateAvailability.None]. The caller passes the installed version + OS level (so this stays
+ * pure/unit-testable): `check(BuildConfig.VERSION_CODE, Build.VERSION.SDK_INT)`.
  */
 @Singleton
 class AppUpdateChecker @Inject constructor(
@@ -46,9 +54,9 @@ class AppUpdateChecker @Inject constructor(
         val response = try {
             api.latest()
         } catch (_: Exception) {
-            return UpdateAvailability.None
+            return UpdateAvailability.CheckFailed
         }
-        if (!response.isSuccessful) return UpdateAvailability.None
+        if (!response.isSuccessful) return UpdateAvailability.CheckFailed
         val manifest = response.body() ?: return UpdateAvailability.None // 204 No Content => no update
         return decideUpdate(installedVersionCode, osSdkInt, manifest)
     }

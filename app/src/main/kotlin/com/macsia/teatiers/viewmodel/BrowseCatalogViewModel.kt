@@ -42,13 +42,16 @@ sealed interface BrowseCatalogUiState {
     /**
      * At least one page is shown. [endReached] is true once the last page was fetched (no footer).
      * [appending] = a load-more is in flight (footer spinner); [appendFailed] = the last load-more
-     * failed (footer retry). [canLoadMore] gates the scroll-near-end trigger.
+     * failed (footer retry). [canLoadMore] gates the scroll-near-end trigger. [truncated] (UX-F-4) is
+     * true for a typed-search result that hit the server's one-page cap — search has no cursor, so
+     * a full result count means there is no signal of how many more matches exist beyond it.
      */
     data class Loaded(
         val teas: List<CatalogTea>,
         val endReached: Boolean,
         val appending: Boolean,
         val appendFailed: Boolean,
+        val truncated: Boolean = false,
     ) : BrowseCatalogUiState {
         val canLoadMore: Boolean get() = !endReached && !appending && !appendFailed
     }
@@ -99,9 +102,9 @@ class BrowseCatalogViewModel @Inject constructor(
             _query
                 .map { it.trim() }
                 .distinctUntilChanged()
-                .debounce { q -> if (q.length < MIN_CATALOG_QUERY_LEN) 0L else CATALOG_SEARCH_DEBOUNCE_MS }
+                .debounce { q -> if (isSearchableQuery(q)) CATALOG_SEARCH_DEBOUNCE_MS else 0L }
                 .collectLatest { q ->
-                    if (q.length < MIN_CATALOG_QUERY_LEN) loadFirstPageSuspending() else runSearch(q)
+                    if (isSearchableQuery(q)) runSearch(q) else loadFirstPageSuspending()
                 }
         }
     }
@@ -137,12 +140,15 @@ class BrowseCatalogViewModel @Inject constructor(
                         BrowseCatalogUiState.Empty
                     } else {
                         // Search returns a single page; mark endReached so the scroll-near-end
-                        // trigger and the load-more footer stay off in search mode.
+                        // trigger and the load-more footer stay off in search mode. A full page (the
+                        // server's DEFAULT_LIMIT) means there may be more matches beyond this page —
+                        // there is no cursor here to know for sure, so flag it as possibly truncated.
                         BrowseCatalogUiState.Loaded(
                             teas = result.teas,
                             endReached = true,
                             appending = false,
                             appendFailed = false,
+                            truncated = result.teas.size >= CatalogRepository.DEFAULT_LIMIT,
                         )
                     }
                 CatalogSearchResult.Offline -> BrowseCatalogUiState.Offline
@@ -172,7 +178,7 @@ class BrowseCatalogViewModel @Inject constructor(
         val q = _query.value.trim()
         val current = _state.value
         when {
-            q.length >= MIN_CATALOG_QUERY_LEN -> viewModelScope.launch { runSearch(q) }
+            isSearchableQuery(q) -> viewModelScope.launch { runSearch(q) }
             current is BrowseCatalogUiState.Loaded && current.appendFailed -> {
                 _state.value = current.copy(appendFailed = false)
                 loadMore()

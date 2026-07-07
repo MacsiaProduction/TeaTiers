@@ -143,6 +143,20 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
+    fun `Enriching exhausts its poll budget to FAILED when the server never settles`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Enriching(catalogTeaId = 9)
+            coEvery { catalog.detail(9) } returns CatalogDetailResult.Loaded(detail(9, EnrichmentState.PENDING))
+            val (manager, dao) = managerWith(teaRow("t1"))
+
+            manager.enrich("t1", "Чай")
+            advanceUntilIdle()
+
+            assertEquals(EnrichmentState.FAILED.name, dao.loadTeaRow("t1")!!.enrichmentState)
+            coVerify(exactly = 10) { catalog.detail(9) } // maxPolls attempts, never more
+        }
+
+    @Test
     fun `Enriching that the server fails marks the row FAILED`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Enriching(catalogTeaId = 9)
         coEvery { catalog.detail(9) } returns CatalogDetailResult.Loaded(detail(9, EnrichmentState.FAILED))
@@ -264,22 +278,49 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
-    fun `resumePending runs at most once per process so board-open cannot re-burn a resolve token`() =
+    fun `resumePending is throttled within its cooldown window so board-open cannot re-burn a resolve token`() =
         runTest(UnconfinedTestDispatcher()) {
             coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
             val (manager, dao) = managerWith(teaRow("p1", state = EnrichmentState.PENDING))
+            var now = 0L
+            manager.setClockForTest { now }
 
             manager.resumePending() // first call (app-launch): sweeps the PENDING tea
             advanceUntilIdle()
             assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
 
-            // Re-arm a PENDING tea and call resumePending AGAIN (another board-open): the once-per-process
-            // guard (AND-P1-7) must NOT re-dispatch — no second /resolve token is spent.
+            // Re-arm a PENDING tea and call resumePending AGAIN (another board-open) inside the same
+            // cooldown window: must NOT re-dispatch — no second /resolve token is spent (AND-P1-7).
             dao.updateEnrichmentState("p1", EnrichmentState.PENDING.name)
             manager.resumePending()
             advanceUntilIdle()
 
             assertEquals(EnrichmentState.PENDING.name, dao.loadTeaRow("p1")!!.enrichmentState) // untouched
             coVerify(exactly = 1) { catalog.resolve(any(), any(), any()) }
+        }
+
+    @Test
+    fun `resumePending self-heals a tea stuck QUEUED once the cooldown elapses (UX-P1-5)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
+            val (manager, dao) = managerWith(teaRow("p1", state = EnrichmentState.QUEUED))
+            var now = 0L
+            manager.setClockForTest { now }
+
+            // First board-open: fires while (say) the app is still offline — the fake resolve above
+            // actually succeeds here, so simulate the offline case directly by re-arming QUEUED after.
+            manager.resumePending()
+            advanceUntilIdle()
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
+            dao.updateEnrichmentState("p1", EnrichmentState.QUEUED.name) // re-arm as if still stuck
+
+            // A LATER board-open, after the cooldown has elapsed — unlike the old once-per-process gate,
+            // this must retry (connectivity likely returned by now) instead of requiring a full app restart.
+            now += 6 * 60_000L
+            manager.resumePending()
+            advanceUntilIdle()
+
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
+            coVerify(exactly = 2) { catalog.resolve(any(), any(), any()) }
         }
 }

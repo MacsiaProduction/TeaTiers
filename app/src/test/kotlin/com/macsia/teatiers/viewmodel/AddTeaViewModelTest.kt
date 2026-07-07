@@ -2,7 +2,9 @@ package com.macsia.teatiers.viewmodel
 
 import android.net.Uri
 import app.cash.turbine.test
+import com.macsia.teatiers.R
 import com.macsia.teatiers.data.photos.ImageReader
+import com.macsia.teatiers.data.repository.AddPhotoResult
 import com.macsia.teatiers.data.repository.AddedTea
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
@@ -30,6 +32,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -191,6 +194,30 @@ class AddTeaViewModelTest {
         // The catalog id rides into the saved tea, and a catalog-linked tea is not re-resolved.
         coVerify(exactly = 1) { repository.addTea(eq("b"), match { it.catalogTeaId == 55L }, any()) }
         verify(exactly = 0) { enrichmentManager.enrich(any(), any(), any()) }
+    }
+
+    @Test
+    fun `submit ignores a second tap while the first save is in flight (UX-P0-1)`() = runTest {
+        // A double-tap on Save must not launch a second insert while the first is in flight — that races
+        // the resolve-or-create dedup and can create a duplicate tea. Hold the first save open on a gate
+        // so the second tap arrives while isSaving is still true.
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.addTea(any(), any(), any()) } coAnswers {
+            gate.await()
+            AddedTea("tea-1", created = true)
+        }
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+
+        viewModel.submit { }
+        assertTrue(viewModel.isSaving.value)
+        viewModel.submit { } // guard: isSaving is true, so this returns without launching
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.addTea(any(), any(), any()) }
+        assertFalse(viewModel.isSaving.value) // reset after completion
     }
 
     @Test
@@ -392,7 +419,7 @@ class AddTeaViewModelTest {
     @Test
     fun `add-mode draft photos are materialized after the tea is saved`() = runTest {
         coEvery { repository.addTea(eq("b"), any(), any()) } returns AddedTea("tea-new", created = true)
-        coEvery { repository.addPhoto(any(), any()) } returns "photo-id"
+        coEvery { repository.addPhoto(any(), any()) } returns AddPhotoResult.Added("photo-id")
 
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
@@ -421,10 +448,45 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `submit surfaces the specific photo failure reason, not a generic message (UX-P1-1)`() = runTest {
+        coEvery { repository.addTea(eq("b"), any(), any()) } returns AddedTea("tea-new", created = true)
+        coEvery { repository.addPhoto(any(), any()) } returns AddPhotoResult.TooLarge
+
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(nameRu = "Да Хун Пао") }
+        viewModel.onAddPhoto(mockk<Uri>().also { every { it.toString() } returns "content://huge" })
+
+        var failure: PhotoSaveFailure? = null
+        viewModel.submit { failure = it }
+        advanceUntilIdle()
+
+        assertEquals(1, failure?.count)
+        assertEquals(R.string.error_photo_too_large, failure?.messageRes)
+    }
+
+    @Test
+    fun `onAddPhoto in edit mode surfaces the specific out-of-space message (UX-P1-1)`() = runTest {
+        val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
+        coEvery { repository.tea(eq("t1")) } returns tea
+        coEvery { repository.addPhoto(eq("t1"), any()) } returns AddPhotoResult.OutOfSpace
+
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        viewModel.events.test {
+            viewModel.onAddPhoto(mockk<Uri>().also { every { it.toString() } returns "content://full-disk" })
+            assertEquals(R.string.error_photo_out_of_space, awaitItem().messageRes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `edit-mode addPhoto delegates to the repository immediately`() = runTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
-        coEvery { repository.addPhoto(eq("t1"), any()) } returns "photo-id"
+        coEvery { repository.addPhoto(eq("t1"), any()) } returns AddPhotoResult.Added("photo-id")
 
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
@@ -541,6 +603,26 @@ class AddTeaViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
             coVerify(exactly = 0) { catalogRepository.search(any(), any()) }
+        }
+
+    @Test
+    fun `catalog search runs on a single Han character (UX-P1-4)`() =
+        runTest(mainDispatcher) {
+            val tea = catalogTea(1, ru = "Пуэр", pinyin = "pǔ'ěr")
+            coEvery { catalogRepository.search(eq("茶"), any()) } returns
+                CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+            viewModel.catalogSearch.test {
+                assertEquals(CatalogSearchUiState.Idle, awaitItem())
+                viewModel.onCatalogQuery("茶")
+                advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+                var settled = awaitItem()
+                if (settled == CatalogSearchUiState.Loading) settled = awaitItem()
+                assertTrue(settled is CatalogSearchUiState.Results)
+                cancelAndIgnoreRemainingEvents()
+            }
+            coVerify(exactly = 1) { catalogRepository.search(eq("茶"), any()) }
         }
 
     @Test
