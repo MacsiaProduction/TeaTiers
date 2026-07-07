@@ -282,8 +282,10 @@ private fun BrowseTeaRow(tea: CatalogTea, onClick: () -> Unit) {
 }
 
 /**
- * "Add to which board?" — boards are listed as tappable rows. With no boards yet, the dialog
- * explains the user must create one first (the boards home owns creation).
+ * "Add to which board?" — boards are listed as tappable rows. "Create a board" (UX2-P1-2) is
+ * always offered as the confirm action, not just when the list is empty: it routes to the Boards
+ * home (which owns creation) either way, but the tea's placement is lost either way too — the user
+ * re-adds it after creating the board, same as the empty-boards path already did.
  */
 @Composable
 private fun BoardPickerDialog(
@@ -324,12 +326,12 @@ private fun BoardPickerDialog(
                 }
             }
         },
-        // With no boards, the primary action takes the user to where boards are created.
+        // UX2-P1-2: always offer "create a board", not just when the list is empty — a user who
+        // wants to add this tea to a BRAND-NEW board (a plausible flow even with existing boards)
+        // otherwise has to cancel, create one from the Boards home, then come back and re-search.
         confirmButton = {
-            if (!hasBoards) {
-                TextButton(onClick = onGoCreateBoard) {
-                    Text(stringResource(R.string.boards_create_action))
-                }
+            TextButton(onClick = onGoCreateBoard) {
+                Text(stringResource(R.string.boards_create_action))
             }
         },
         dismissButton = {

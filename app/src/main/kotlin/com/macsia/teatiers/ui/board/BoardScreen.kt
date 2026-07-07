@@ -604,7 +604,25 @@ private fun DraggableTeaCard(
     val moveToUnrankedLabel = stringResource(R.string.a11y_move_to_unranked)
     val removeFromBoardLabel = stringResource(R.string.a11y_remove_placement)
     val deleteTeaLabel = stringResource(R.string.a11y_delete_tea)
-    val actions = remember(currentKey, moveTargets, placement.placementId, onMove, menuActions) {
+    val moveLeftLabel = stringResource(R.string.a11y_move_left_in_tier)
+    val moveRightLabel = stringResource(R.string.a11y_move_right_in_tier)
+    // UX2-P1-1: reordering within the SAME tier had no non-drag fallback — the cross-tier "move
+    // to tier X" actions below explicitly exclude the current group. currentTierId is the real
+    // (nullable) tier id backing currentKey (groupKey maps null -> UnrankedKey for the tray).
+    val currentTierId = currentKey.takeIf { it != UnrankedKey }
+    val order = groupOrder(currentKey)
+    val myIndex = order.indexOf(placement.placementId)
+    val actions = remember(
+        currentKey, moveTargets, placement.placementId, onMove, menuActions, myIndex, order.size,
+    ) {
+        val reorderActions = buildList {
+            if (myIndex > 0) {
+                add(CustomAccessibilityAction(moveLeftLabel) { onMove(placement.placementId, currentTierId, myIndex - 1); true })
+            }
+            if (myIndex in 0 until order.size - 1) {
+                add(CustomAccessibilityAction(moveRightLabel) { onMove(placement.placementId, currentTierId, myIndex + 1); true })
+            }
+        }
         val moveActions = moveTargets
             .filter { groupKey(it.tierId) != currentKey }
             .map { target ->
@@ -624,7 +642,7 @@ private fun DraggableTeaCard(
             menuActions.onDeleteEverywhere(placement.tea.id)
             true
         }
-        moveActions + removeAction + deleteAction
+        reorderActions + moveActions + removeAction + deleteAction
     }
 
     Box(
@@ -669,6 +687,27 @@ private fun DraggableTeaCard(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
             ) {
+                // UX2-P1-1: visible within-tier reorder fallback — the cross-tier moves below only
+                // ever target a DIFFERENT group, so ranking two teas already in the same tier had no
+                // non-drag path at all.
+                if (myIndex > 0) {
+                    DropdownMenuItem(
+                        text = { Text(moveLeftLabel) },
+                        onClick = {
+                            menuExpanded = false
+                            onMove(placement.placementId, currentTierId, myIndex - 1)
+                        },
+                    )
+                }
+                if (myIndex in 0 until order.size - 1) {
+                    DropdownMenuItem(
+                        text = { Text(moveRightLabel) },
+                        onClick = {
+                            menuExpanded = false
+                            onMove(placement.placementId, currentTierId, myIndex + 1)
+                        },
+                    )
+                }
                 // Visible move-to-tier fallback so ranking never depends on discovering the
                 // long-press drag (audit #2). Mirrors the TalkBack custom actions above; appends
                 // to the end of the target group (Int.MAX_VALUE; the repository clamps it).
