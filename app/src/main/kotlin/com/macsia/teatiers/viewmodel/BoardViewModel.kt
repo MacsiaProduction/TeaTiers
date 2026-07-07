@@ -32,20 +32,24 @@ class BoardViewModel @Inject constructor(
     val events get() = eventHost.events
 
     private val boardId = MutableStateFlow<String?>(null)
-    private var resumed = false
 
     fun bind(id: String) {
         boardId.value = id
-        // Re-dispatch any tea left PENDING/QUEUED by a prior run (process death / offline) — once
-        // per VM, on the board screen (the app's home), so a tea is never stuck "enriching" (#28).
-        if (!resumed) {
-            resumed = true
-            enrichmentManager.resumePending()
-        }
+        // Re-dispatch any tea left PENDING/QUEUED by a prior run (process death / offline), so a tea
+        // is never stuck "enriching" (#28). UX2-P2-18: no per-VM-instance gate here — the manager's
+        // own cooldown (resumeCooldownMs) is the single throttle across every board-open / screen,
+        // so a per-VM "once" flag on top of it only made the narrower case (same board reopened after
+        // reconnecting, within the VM's lifetime) harder to self-heal.
+        enrichmentManager.resumePending()
     }
 
     /** Retries enrichment of a tea whose background resolve FAILED (per-card overflow action, #28). */
     fun retryEnrichment(teaId: String) {
+        // UX2-P2-15: a rapid double-tap silently no-op'd on the second tap with zero feedback.
+        if (enrichmentManager.isInFlight(teaId)) {
+            eventHost.emit(ShowSnackbar(R.string.enrichment_already_retrying))
+            return
+        }
         enrichmentManager.retry(teaId)
     }
 

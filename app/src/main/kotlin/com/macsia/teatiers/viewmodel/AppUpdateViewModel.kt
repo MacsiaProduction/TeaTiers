@@ -53,6 +53,10 @@ class AppUpdateViewModel @Inject constructor(
 
     /** Polls the manifest endpoint and surfaces an Available/Idle state. Safe to call repeatedly. */
     fun check() {
+        // UX2-P2-20: a rapid re-tap used to launch a second overlapping check with no guard — whichever
+        // network call resolved last won, regardless of tap order. Set synchronously before the launch
+        // so a second tap on the same frame sees it (mirrors AddTeaViewModel's _isSaving pattern).
+        if (_state.value == UpdateUiState.Checking) return
         viewModelScope.launch {
             _state.value = UpdateUiState.Checking
             _state.value = when (val result = checker.check(BuildConfig.VERSION_CODE, Build.VERSION.SDK_INT)) {

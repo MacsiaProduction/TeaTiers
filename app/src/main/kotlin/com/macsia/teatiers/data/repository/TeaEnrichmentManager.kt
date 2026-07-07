@@ -69,6 +69,10 @@ class TeaEnrichmentManager @Inject constructor(
         this.clock = clock
     }
 
+    /** Whether [teaId] has a dispatch in flight right now (UX2-P2-15) — lets a caller distinguish a
+     *  redundant tap (e.g. a double-tap on retry) from one that will actually do something. */
+    fun isInFlight(teaId: String): Boolean = inFlight.contains(teaId)
+
     /** Fire-and-forget enrichment of a just-added tea ([name] = its typed primary name). */
     fun enrich(teaId: String, name: String, sourceText: String? = null) {
         scope.launch { runEnrichment(teaId, name, sourceText) }

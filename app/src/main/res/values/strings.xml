@@ -148,7 +148,6 @@
     <string name="tier_template_blank_hint">Начать с пустой подборки</string>
 
     <string name="a11y_back">Назад</string>
-    <string name="cd_liquor">Цвет настоя</string>
     <string name="a11y_card_menu">Действия с чаем</string>
     <!-- Drag-to-rank accessibility actions. %1$s — метка тира (S, A, B…). -->
     <string name="a11y_move_to_tier">Переместить в тир %1$s</string>
@@ -174,6 +173,8 @@
     <string name="enrichment_status_pending">Уточняем…</string>
     <string name="enrichment_status_queued">Нет сети — уточним при открытии</string>
     <string name="enrichment_status_failed">Не удалось уточнить</string>
+    <!-- UX2-P2-15: shown on a redundant retry tap instead of silently no-op'ing. -->
+    <string name="enrichment_already_retrying">Уже уточняем — подождите немного</string>
     <string name="delete_tea_confirm_title">Удалить чай?</string>
     <!-- %1$s — название чая на русском. Удаление сносит чай со всех подборок и стирает данные. -->
     <string name="delete_tea_confirm_message">Чай «%1$s» исчезнет со всех подборок вместе с заметками и местами покупки. Действие необратимо.</string>
@@ -260,6 +261,8 @@
     <string name="field_vendor">Продавец</string>
     <string name="field_product">Товар</string>
     <string name="field_harvest_year">Год сбора</string>
+    <!-- UX2-P2-19: shown only for an implausible year; the field stays optional and never blocks Save. -->
+    <string name="field_harvest_year_implausible">Похоже на ошибку — проверьте год</string>
     <string name="field_batch">Партия</string>
     <string name="field_grade">Сорт</string>
     <string name="field_flavor">Вкус</string>
@@ -270,6 +273,8 @@
     <string name="field_notes">Заметки</string>
     <string name="field_source_text">Описание с упаковки (необязательно)</string>
     <string name="field_source_text_hint">Вставьте текст с упаковки — он поможет точнее определить вкус и стиль. Отправляется в сервис каталога только для уточнения и не публикуется в общем каталоге дословно.</string>
+    <!-- UX2-P2-14: shown when a scanned/pasted addition pushes the field past its character cap. -->
+    <string name="source_text_truncated">Текст обрезан — превышен лимит символов.</string>
     <!-- OCR scan-the-label flow (slice 3). Opt-in per scan; the photo is sent for recognition and never stored. -->
     <string name="ocr_scan_label">Сканировать упаковку</string>
     <string name="ocr_scan_source_title">Сканировать упаковку</string>
@@ -290,6 +295,10 @@
     <string name="field_purchase_label">Название места</string>
     <string name="field_purchase_text">Описание</string>
     <string name="field_purchase_url">Ссылка</string>
+    <!-- UX2-P2-6: example format shown as a placeholder, not just a bare "Ссылка" label. -->
+    <string name="field_purchase_url_placeholder">https://…</string>
+    <!-- UX2-P2-19: shown only for a non-URL-shaped value; the field stays optional and never blocks Save. -->
+    <string name="field_purchase_url_invalid">Не похоже на ссылку</string>
     <string name="purchase_kind_text">Текст</string>
     <string name="purchase_kind_marketplace">Маркетплейс</string>
 

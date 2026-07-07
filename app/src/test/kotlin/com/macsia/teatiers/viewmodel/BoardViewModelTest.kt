@@ -15,6 +15,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -199,5 +200,40 @@ class BoardViewModelTest {
 
         coVerify(exactly = 0) { repository.addTier(any(), any()) }
         coVerify(exactly = 0) { repository.removeTier(any(), any()) }
+    }
+
+    @Test
+    fun `bind resumes pending enrichment on every call, not just the first (UX2-P2-18)`() = runTest {
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+
+        viewModel.bind("b")
+        viewModel.bind("b")
+
+        // No per-VM-instance gate: the manager's own cooldown is the single throttle now.
+        verify(exactly = 2) { enrichmentManager.resumePending() }
+    }
+
+    @Test
+    fun `retryEnrichment dispatches when the tea is not already in flight`() = runTest {
+        every { enrichmentManager.isInFlight("t1") } returns false
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+
+        viewModel.retryEnrichment("t1")
+
+        verify(exactly = 1) { enrichmentManager.retry("t1") }
+    }
+
+    @Test
+    fun `retryEnrichment gives feedback instead of silently no-op'ing on a double-tap (UX2-P2-15)`() = runTest {
+        every { enrichmentManager.isInFlight("t1") } returns true
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.retryEnrichment("t1")
+        advanceUntilIdle()
+
+        verify(exactly = 0) { enrichmentManager.retry("t1") }
+        assertEquals(R.string.enrichment_already_retrying, events.single().messageRes)
     }
 }

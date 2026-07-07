@@ -73,7 +73,20 @@ data class PurchaseDraft(
     val label: String = "",
     val text: String = "",
     val url: String = "",
-)
+) {
+    /**
+     * UX2-P2-19: a marketplace URL had zero shape validation — any text was accepted just as
+     * readily as a real link. Optional field, so this flags but never blocks Save. stdlib-only
+     * (`java.net.URI`, not `android.util.Patterns`) so it stays testable in plain JUnit5.
+     */
+    val urlError: Boolean
+        get() = kind == PurchaseKind.MARKETPLACE && url.isNotBlank() && !isPlausibleUrl(url.trim())
+
+    private fun isPlausibleUrl(value: String): Boolean = runCatching {
+        val uri = java.net.URI(value)
+        uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
+    }.getOrDefault(false)
+}
 
 /**
  * Server cap on the grounded `sourceText` blurb (mirrors the backend `MAX_SOURCE_TEXT_LENGTH`,
@@ -109,6 +122,19 @@ data class AddTeaForm(
 ) {
     // P1-2 (#132): a sample is valid with ≥1 non-blank name in ANY locale — ru is no longer required.
     val isValid: Boolean get() = listOf(nameRu, nameEn, pinyin, nameZh).any { it.isNotBlank() }
+
+    /**
+     * UX2-P2-19: the field already caps input to 4 digits (no overflow risk), but a well-formed,
+     * implausible year ("0000") was still silently accepted with no feedback. Optional field, so this
+     * flags but never blocks Save — matching the tier-label pattern (visible, not save-blocking).
+     */
+    val harvestYearError: Boolean
+        get() = harvestYear.isNotBlank() &&
+            (harvestYear.toIntOrNull() ?: -1) !in MinPlausibleHarvestYear..(java.time.Year.now().value + 1)
+
+    private companion object {
+        const val MinPlausibleHarvestYear = 1800
+    }
 }
 
 fun PurchaseDraft.toLocation(): PurchaseLocation? {

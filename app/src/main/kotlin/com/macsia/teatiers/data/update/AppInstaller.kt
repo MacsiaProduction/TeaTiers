@@ -1,6 +1,7 @@
 package com.macsia.teatiers.data.update
 
 import android.content.Context
+import android.util.Log
 import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import ru.solrudev.ackpine.installer.PackageInstaller
@@ -10,6 +11,8 @@ import ru.solrudev.ackpine.session.await
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val TAG = "AppInstaller"
 
 /**
  * Installs an already-verified update APK via Ackpine's GMS-free PackageInstaller (decision #119).
@@ -42,8 +45,16 @@ class AppInstaller @Inject constructor(
         }
         return when (val state = session.await()) {
             Session.State.Succeeded -> Outcome.Success
-            is Session.State.Failed -> Outcome.Failed(state.failure.toString())
-            else -> Outcome.Failed("unexpected installer state: $state")
+            is Session.State.Failed -> {
+                // UX2-P2-23: previously dropped — the raw reason never reached logcat, so a
+                // support report of "update failed on my phone" had no diagnostic trail.
+                Log.w(TAG, "install failed: ${state.failure}")
+                Outcome.Failed(state.failure.toString())
+            }
+            else -> {
+                Log.w(TAG, "install: unexpected installer state $state")
+                Outcome.Failed("unexpected installer state: $state")
+            }
         }
     }
 }
