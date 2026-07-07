@@ -352,6 +352,11 @@ class AddTeaViewModel @Inject constructor(
      */
     fun pickCatalogTea(tea: CatalogTea) {
         val previous = _form.value
+        // UX2-P1-8: this VM is reused across navigations, so bind() may re-bind it to a DIFFERENT
+        // entry before the Undo snackbar times out. Capture the entry it belongs to and only restore
+        // `previous` if that entry is still the one bound — otherwise Undo would stomp a different
+        // Add/Edit session with this one's stale snapshot.
+        val entryTokenAtPick = lastEntryToken
         _form.update { form ->
             form.copy(
                 nameRu = tea.nameRu ?: tea.displayName,
@@ -368,7 +373,13 @@ class AddTeaViewModel @Inject constructor(
         _catalogQuery.value = ""
         // The pick overwrites the form (names/type/origin); offer an Undo so it is never a silent,
         // unrecoverable replace of what the user had typed.
-        eventHost.emit(ShowSnackbar(R.string.add_tea_catalog_applied, R.string.action_undo, onAction = { _form.value = previous }))
+        eventHost.emit(
+            ShowSnackbar(
+                R.string.add_tea_catalog_applied,
+                R.string.action_undo,
+                onAction = { if (lastEntryToken == entryTokenAtPick) _form.value = previous },
+            ),
+        )
     }
 
     private fun CatalogSearchResult.toUiState(): CatalogSearchUiState = when (this) {
