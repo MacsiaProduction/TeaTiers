@@ -11,12 +11,15 @@ group = "com.macsia.teatiers"
 version = "0.1.0-SNAPSHOT"
 
 // GHSA-5jmj-h7xm-6q6v: Spring Boot 4.1.0's BOM manages com.fasterxml.jackson.core:jackson-databind
-// 2.21.4, which the OSV gate flags (Medium). No 2.21.5 exists (OSV's named fix is a phantom); 2.22.0
-// is the next release and OSV confirms it clears the advisory. Force it. Remove once Boot's BOM
-// ships >= 2.22.0. (Targets only the classic jackson 2 artifact; Boot's tools.jackson 3.x is unaffected.)
+// 2.21.4. The prior override to 2.22.0 (the latest published minor) was STILL flagged — verified
+// against Maven Central's metadata: the fix landed as a 2.21.x patch (2.21.5) before 2.22.0 was even
+// cut; 2.22.0's own fix release (2.22.1) isn't published yet. Force 2.21.5 — a patch bump within
+// Boot's own pinned 2.21.x line, not a minor jump. Revisit once either 2.22.1 ships or Boot's BOM
+// itself moves to a fixed version. (Targets only the classic jackson 2 artifact; Boot's tools.jackson
+// 3.x is unaffected.)
 dependencyManagement {
     dependencies {
-        dependency("com.fasterxml.jackson.core:jackson-databind:2.22.0")
+        dependency("com.fasterxml.jackson.core:jackson-databind:2.21.5")
     }
 }
 
