@@ -91,6 +91,17 @@ class AppUpdateViewModelTest {
     }
 
     @Test
+    fun `check surfaces Failed when the check itself fails, not Idle (UX-P1-7)`() = runTest {
+        coEvery { checker.check(any(), any()) } returns UpdateAvailability.CheckFailed
+        val viewModel = vm()
+
+        viewModel.check()
+        advanceUntilIdle()
+
+        assertInstanceOf(UpdateUiState.Failed::class.java, viewModel.state.value)
+    }
+
+    @Test
     fun `install verifies then installs and clears state on success`() = runTest {
         val apk = File.createTempFile("update", ".apk").apply { writeText("x") }
         coEvery { checker.check(any(), any()) } returns UpdateAvailability.Optional(manifest)

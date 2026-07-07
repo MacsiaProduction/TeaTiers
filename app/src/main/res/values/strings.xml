@@ -29,6 +29,9 @@
 
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
+    <!-- UX-P1-1: specific reasons a photo copy failed, instead of the generic message above. -->
+    <string name="error_photo_too_large">Фото слишком большое (максимум 8 МБ). Выберите файл меньшего размера.</string>
+    <string name="error_photo_out_of_space">На устройстве не хватает места для фото. Освободите место и попробуйте снова.</string>
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
     <string name="error_cannot_open_link">Не удалось открыть ссылку.</string>
     <string name="add_tea_error_name_required">Укажите хотя бы одно название на любом языке.</string>
@@ -75,11 +78,16 @@
     <string name="backup_share_chooser">Поделиться копией</string>
     <string name="backup_export_done">Резервная копия сохранена</string>
     <string name="backup_import_done">Данные восстановлены</string>
+    <!-- UX-P1-2: the pre-restore safety snapshot failed to write, so "undo last restore" is unavailable this time. -->
+    <string name="backup_import_done_no_undo">Данные восстановлены, но отменить это восстановление не получится: не удалось сохранить резервную копию перед импортом.</string>
     <string name="backup_invalid_file">Файл не похож на резервную копию TeaTiers</string>
     <string name="backup_incompatible_version">Копия создана в более новой версии TeaTiers. Обновите приложение и попробуйте снова.</string>
     <string name="backup_incomplete_archive">Файл повреждён — в архиве не хватает фотографий. Данные не изменены.</string>
     <string name="backup_too_large">Файл резервной копии слишком большой</string>
-    <string name="backup_failed">Не удалось. Попробуйте ещё раз.</string>
+    <!-- UX-P2-6: which operation failed, instead of one undifferentiated message for export/import/share. -->
+    <string name="backup_export_failed">Не удалось сохранить резервную копию. Попробуйте ещё раз.</string>
+    <string name="backup_import_failed">Не удалось восстановить данные из файла. Попробуйте ещё раз.</string>
+    <string name="backup_share_failed">Не удалось подготовить копию для отправки. Попробуйте ещё раз.</string>
     <string name="backup_import_confirm_title">Восстановить из файла?</string>
     <string name="backup_import_confirm_message">Все текущие подборки, чаи, заметки и фото будут заменены данными из файла. Если что-то пойдёт не так, восстановление можно отменить в настройках.</string>
     <string name="backup_import_confirm_action">Заменить</string>
@@ -289,6 +297,8 @@
     <string name="catalog_detail_read_less">Свернуть</string>
     <string name="catalog_detail_offline">Нет соединения. Не удалось загрузить чай.</string>
     <string name="catalog_detail_error">Не удалось загрузить чай. Попробуйте позже.</string>
+    <!-- UX-P1-6: distinct from catalog_detail_error so a 429 doesn't read as a generic server fault. -->
+    <string name="catalog_detail_rate_limited">Слишком много запросов. Подождите немного и попробуйте снова.</string>
     <string name="catalog_detail_withdrawn">Этого чая больше нет в каталоге.</string>
     <string name="action_retry">Повторить</string>
     <!-- %1$s — название источника данных (например, Wikidata). -->

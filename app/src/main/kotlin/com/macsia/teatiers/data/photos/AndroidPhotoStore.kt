@@ -43,7 +43,7 @@ class AndroidPhotoStore @Inject constructor(
         File(context.filesDir, PHOTOS_DIR).also { if (!it.exists()) it.mkdirs() }
     }
 
-    override suspend fun copyIn(source: Uri): String? = withContext(Dispatchers.IO) {
+    override suspend fun copyIn(source: Uri): PhotoCopyResult = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         // Reject an oversized image before reading a byte of it (AND-P1-5). AssetFileDescriptor.length
         // is UNKNOWN_LENGTH (-1) for some providers; treat unknown as "allow" and let the copy proceed.
@@ -52,7 +52,18 @@ class AndroidPhotoStore @Inject constructor(
         }.getOrNull()
         if (declaredSize != null && declaredSize > MAX_PHOTO_BYTES) {
             Log.w(TAG, "Refusing oversized photo ($declaredSize bytes)")
-            return@withContext null
+            return@withContext PhotoCopyResult.TooLarge
+        }
+        // Preflight free-space check (UX-P1-1): a full disk would otherwise surface as a generic
+        // IOException from the write below, which the user can't tell apart from "add photo did
+        // nothing" — check against the declared size (or the cap, if undeclared) before writing a byte.
+        // ponytail: a preflight check, not a filesystem-quota guarantee — a concurrent writer could
+        // still race the free space between this check and the write; that residual failure falls
+        // through to the generic IOException catch below, which is an acceptable rare edge.
+        val required = declaredSize ?: MAX_PHOTO_BYTES
+        if (rootDir.usableSpace < required) {
+            Log.w(TAG, "Insufficient storage for photo copy (need ~$required bytes)")
+            return@withContext PhotoCopyResult.OutOfSpace
         }
         val ext = extensionFor(source)
         val target = File(rootDir, "${UUID.randomUUID()}$ext")
@@ -64,17 +75,17 @@ class AndroidPhotoStore @Inject constructor(
                 }
             } ?: run {
                 Log.w(TAG, "openInputStream returned null for source uri")
-                return@withContext null
+                return@withContext PhotoCopyResult.Failed
             }
-            target.absolutePath
+            PhotoCopyResult.Success(target.absolutePath)
         } catch (e: SecurityException) {
             Log.w(TAG, "Permission denied reading source uri", e)
             target.delete()
-            null
+            PhotoCopyResult.Failed
         } catch (e: IOException) {
             Log.w(TAG, "Failed to copy source uri", e)
             target.delete()
-            null
+            PhotoCopyResult.Failed
         }
     }
 

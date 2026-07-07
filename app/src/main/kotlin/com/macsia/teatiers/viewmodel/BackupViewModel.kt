@@ -53,7 +53,7 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch {
             _busy.value = true
             try {
-                channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes()))
+                channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes(BackupOp.EXPORT)))
             } finally {
                 _busy.value = false
             }
@@ -65,7 +65,7 @@ class BackupViewModel @Inject constructor(
             _busy.value = true
             try {
                 val result = backupManager.importFrom(uri)
-                channel.trySend(BackupEvent.Message(result.messageRes()))
+                channel.trySend(BackupEvent.Message(result.messageRes(BackupOp.IMPORT)))
                 // A completed restore leaves a pre-import safety copy; surface the undo entry.
                 _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
             } finally {
@@ -79,7 +79,7 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch {
             _busy.value = true
             try {
-                channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes()))
+                channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes(BackupOp.IMPORT)))
                 // The snapshot is consumed by a successful undo; refresh so the entry hides and a
                 // second tap can't re-restore a now-stale snapshot over newer data (finding #1).
                 _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
@@ -95,7 +95,7 @@ class BackupViewModel @Inject constructor(
             try {
                 val uri = backupManager.createShareUri()
                 channel.trySend(
-                    if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_failed),
+                    if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_share_failed),
                 )
             } finally {
                 _busy.value = false
@@ -103,14 +103,22 @@ class BackupViewModel @Inject constructor(
         }
     }
 
+    /** Which user-initiated operation produced a [BackupResult], so a bare [BackupResult.Failed] can
+     *  say WHAT failed (UX-P2-6) instead of one undifferentiated message for export/import/share. */
+    private enum class BackupOp { EXPORT, IMPORT }
+
     @StringRes
-    private fun BackupResult.messageRes(): Int = when (this) {
+    private fun BackupResult.messageRes(op: BackupOp): Int = when (this) {
         is BackupResult.Exported -> R.string.backup_export_done
-        is BackupResult.Imported -> R.string.backup_import_done
+        is BackupResult.Imported ->
+            if (undoUnavailable) R.string.backup_import_done_no_undo else R.string.backup_import_done
         BackupResult.InvalidFile -> R.string.backup_invalid_file
         BackupResult.IncompatibleVersion -> R.string.backup_incompatible_version
         BackupResult.IncompleteArchive -> R.string.backup_incomplete_archive
         BackupResult.TooLarge -> R.string.backup_too_large
-        BackupResult.Failed -> R.string.backup_failed
+        BackupResult.Failed -> when (op) {
+            BackupOp.EXPORT -> R.string.backup_export_failed
+            BackupOp.IMPORT -> R.string.backup_import_failed
+        }
     }
 }

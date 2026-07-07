@@ -18,6 +18,7 @@ import com.macsia.teatiers.data.db.TierPosition
 import com.macsia.teatiers.data.db.toDomain
 import com.macsia.teatiers.data.db.toEntities
 import com.macsia.teatiers.data.db.toSeedEntities
+import com.macsia.teatiers.data.photos.PhotoCopyResult
 import com.macsia.teatiers.data.photos.PhotoStore
 import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.di.AppScope
@@ -29,11 +30,14 @@ import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -44,6 +48,16 @@ import javax.inject.Singleton
 
 /** Result of [TeaBoardRepository.addTea]: the resolved user-tea id and whether a new row was inserted. */
 data class AddedTea(val teaId: String, val created: Boolean)
+
+/** Outcome of [TeaBoardRepository.addPhoto] (UX-P1-1): carries WHY a photo wasn't added, not just that. */
+sealed class AddPhotoResult {
+    data class Added(val photoId: String) : AddPhotoResult()
+    data object TooLarge : AddPhotoResult()
+    data object OutOfSpace : AddPhotoResult()
+
+    /** The tea is unknown, or the copy failed for another reason (permission, I/O). */
+    data object Failed : AddPhotoResult()
+}
 
 /**
  * A board removed by [TeaBoardRepository.deleteBoard], captured with the rows that cascaded with
@@ -112,6 +126,13 @@ class TeaBoardRepository @Inject constructor(
         this.clock = clock
     }
 
+    // Serializes the resolve-or-create critical section in [addTea]. The dedup (name/catalog match →
+    // placementExists → insert) spans several suspend DAO calls that can't share one @Transaction (the
+    // Unicode-aware name match runs in Kotlin, not SQLite), so two concurrent adds could both resolve
+    // "no match" and insert duplicate teas. ponytail: one global lock — adds are user-driven and rare, so
+    // there is no throughput cost; a per-board lock is the upgrade path only if that ever changes.
+    private val addTeaLock = Mutex()
+
     private val _boardsLoaded = MutableStateFlow(false)
 
     /**
@@ -124,6 +145,16 @@ class TeaBoardRepository @Inject constructor(
 
     val boards: StateFlow<List<Board>> = dao.observeBoards()
         .map { rows -> rows.map(BoardWithChildren::toDomain) }
+        // A raw Room read error would otherwise propagate to this app-scope collector and, with no
+        // CoroutineExceptionHandler, reach the thread's default handler → app crash; and the StateFlow
+        // would stop updating, freezing every board screen. Catch it: log, then surface an empty board
+        // list so the home screen shows its (recoverable) empty state instead of crashing or hanging on
+        // a spinner. ponytail: no in-flow retry — a restart re-opens the DB and re-collects; add a
+        // reactive error/retry UI state only if these reads ever fail in practice (they don't post-open).
+        .catch { e ->
+            Log.e("TeaBoardRepository", "boards read failed", e)
+            emit(emptyList())
+        }
         .onEach { _boardsLoaded.value = true }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
@@ -259,7 +290,10 @@ class TeaBoardRepository @Inject constructor(
      * off background enrichment for a genuinely new tea (#21), never an auto-linked existing one.
      * Null when [boardId] is unknown (and nothing was written).
      */
-    suspend fun addTea(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean = false): AddedTea? {
+    suspend fun addTea(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean = false): AddedTea? =
+        addTeaLock.withLock { addTeaLocked(boardId, tea, tierId, forceNew) }
+
+    private suspend fun addTeaLocked(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean): AddedTea? {
         val board = board(boardId) ?: return null
         val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
         // forceNew is the P1-1 "add another sample" path (#132): bypass reuse so a second sample of the
@@ -360,27 +394,34 @@ class TeaBoardRepository @Inject constructor(
     /**
      * Adds a new user photo to [teaId]. Copies the bytes via [PhotoStore] (which lands them
      * under the app-private dir, decisions.md #43), then inserts the row at the next position.
-     * Returns the new photo id, or null if the copy failed (no row is written so a botched
-     * pick never half-creates a placement). No-op when the tea is unknown.
+     * Returns [AddPhotoResult.Added] with the new photo id, or the specific failure reason
+     * (UX-P1-1) if the copy failed — no row is written so a botched pick never half-creates a
+     * placement. [AddPhotoResult.Failed] also covers an unknown [teaId].
      */
-    suspend fun addPhoto(teaId: String, source: Uri): String? {
-        if (dao.loadTea(teaId) == null) return null
-        val storedPath = photoStore.copyIn(source) ?: return null
-        val photoId = "photo-${UUID.randomUUID()}"
-        val position = dao.nextPhotoPosition(teaId)
-        dao.addPhoto(
-            PhotoEntity(
-                id = photoId,
-                teaId = teaId,
-                uri = storedPath,
-                position = position,
-                source = PhotoSource.USER.name,
-                license = null,
-                sourceUrl = null,
-                createdAtEpochMs = clock(),
-            ),
-        )
-        return photoId
+    suspend fun addPhoto(teaId: String, source: Uri): AddPhotoResult {
+        if (dao.loadTea(teaId) == null) return AddPhotoResult.Failed
+        return when (val copy = photoStore.copyIn(source)) {
+            is PhotoCopyResult.Success -> {
+                val photoId = "photo-${UUID.randomUUID()}"
+                val position = dao.nextPhotoPosition(teaId)
+                dao.addPhoto(
+                    PhotoEntity(
+                        id = photoId,
+                        teaId = teaId,
+                        uri = copy.path,
+                        position = position,
+                        source = PhotoSource.USER.name,
+                        license = null,
+                        sourceUrl = null,
+                        createdAtEpochMs = clock(),
+                    ),
+                )
+                AddPhotoResult.Added(photoId)
+            }
+            PhotoCopyResult.TooLarge -> AddPhotoResult.TooLarge
+            PhotoCopyResult.OutOfSpace -> AddPhotoResult.OutOfSpace
+            PhotoCopyResult.Failed -> AddPhotoResult.Failed
+        }
     }
 
     /**

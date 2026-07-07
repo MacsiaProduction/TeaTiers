@@ -104,16 +104,23 @@ class AppUpdateCheckerTest {
     }
 
     @Test
-    fun `5xx is None (best-effort)`() = runTest {
+    fun `5xx is CheckFailed, not the misleading None (UX-P1-7)`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
 
-        assertEquals(UpdateAvailability.None, checkerFor().check(1, 30))
+        assertEquals(UpdateAvailability.CheckFailed, checkerFor().check(1, 30))
     }
 
     @Test
-    fun `a malformed manifest body is None, never a crash`() = runTest {
+    fun `a malformed manifest body is CheckFailed, never a crash`() = runTest {
         server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("not json"))
 
-        assertEquals(UpdateAvailability.None, checkerFor().check(1, 30))
+        assertEquals(UpdateAvailability.CheckFailed, checkerFor().check(1, 30))
+    }
+
+    @Test
+    fun `a network failure is CheckFailed, never a crash (UX-P1-7)`() = runTest {
+        server.shutdown()
+
+        assertEquals(UpdateAvailability.CheckFailed, checkerFor().check(1, 30))
     }
 }

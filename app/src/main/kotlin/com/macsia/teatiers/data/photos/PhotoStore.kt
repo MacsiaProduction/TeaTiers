@@ -13,10 +13,11 @@ import java.io.InputStream
 interface PhotoStore {
     /**
      * Copies the picker's [source] into the app-private photo dir under a fresh UUID-based
-     * filename and returns its **absolute file path**. Returns null if the source URI cannot be
-     * opened/copied (caller treats it as a no-op so a botched pick never half-creates a row).
+     * filename. Returns a reason on failure (UX-P1-1) so the caller can tell the user "too large"
+     * or "out of storage" apart from a generic copy failure, instead of the add silently doing
+     * nothing; nothing is written to disk on any failure.
      */
-    suspend fun copyIn(source: Uri): String?
+    suspend fun copyIn(source: Uri): PhotoCopyResult
 
     /**
      * Deletes the file at [path]. Best-effort: a missing file is treated as success so a stale
@@ -43,4 +44,18 @@ interface PhotoStore {
      * app-open sweep must not race-delete it. Such a young orphan is caught by the next sweep.
      */
     suspend fun reconcile(keepPaths: Set<String>): Int
+}
+
+/** Outcome of [PhotoStore.copyIn]. */
+sealed class PhotoCopyResult {
+    data class Success(val path: String) : PhotoCopyResult()
+
+    /** The source image exceeded the store's size cap; nothing was written. */
+    data object TooLarge : PhotoCopyResult()
+
+    /** Not enough free device storage to copy the image; nothing was written. */
+    data object OutOfSpace : PhotoCopyResult()
+
+    /** The source could not be read/copied for another reason (permission, I/O); nothing was written. */
+    data object Failed : PhotoCopyResult()
 }
