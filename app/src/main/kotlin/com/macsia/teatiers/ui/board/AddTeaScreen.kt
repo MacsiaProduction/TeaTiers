@@ -127,6 +127,10 @@ fun AddTeaScreen(
     BackHandler(enabled = true) { attemptBack() }
     var flavorsExpanded by remember { mutableStateOf(false) }
     var sampleExpanded by rememberSaveable { mutableStateOf(false) }
+    // UX-P2-8: once the user manually taps the chevron (expand OR collapse), their choice wins for
+    // the rest of this screen's life — the auto-expand-on-data effect below must not re-fire and
+    // silently re-open a section the user just closed (e.g. clear the fields, then type into one again).
+    var sampleManuallyToggled by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     // Resolved here (composable scope) so it can be shown from the non-composable submit callback.
@@ -324,20 +328,29 @@ fun AddTeaScreen(
                 .any { it.isNotBlank() }
             // Auto-expand once when the section gains data (e.g. an edit prefill), but then let the
             // chevron collapse it. Previously `|| hasSampleData` pinned it open, so the collapse
-            // chevron silently did nothing whenever a field was filled (audit P2).
-            LaunchedEffect(hasSampleData) { if (hasSampleData) sampleExpanded = true }
+            // chevron silently did nothing whenever a field was filled (audit P2). Suppressed entirely
+            // once the user has manually toggled it (UX-P2-8) — their choice must stick even if the
+            // fields empty out and fill in again later.
+            LaunchedEffect(hasSampleData) { if (hasSampleData && !sampleManuallyToggled) sampleExpanded = true }
             val sampleVisible = sampleExpanded
+            val sampleToggleDescription = stringResource(
+                if (sampleVisible) R.string.a11y_sample_section_collapse else R.string.a11y_sample_section_expand,
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { sampleExpanded = !sampleExpanded },
+                    .clickable {
+                        sampleExpanded = !sampleExpanded
+                        sampleManuallyToggled = true
+                    }
+                    .semantics { contentDescription = sampleToggleDescription },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FieldLabel(stringResource(R.string.field_sample_section))
                 Spacer(Modifier.weight(1f))
                 Icon(
                     imageVector = if (sampleVisible) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                    contentDescription = null,
+                    contentDescription = null, // the row's own semantics carries the state-aware description
                 )
             }
             if (sampleVisible) {

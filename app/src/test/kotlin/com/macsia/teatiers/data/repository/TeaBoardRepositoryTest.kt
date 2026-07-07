@@ -81,6 +81,19 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
+    fun `a pending destructive-migration reseed re-seeds even an already-onboarded DB (UX-P2-16)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // seeded=true (normally skips reseeding) but reseedPending=true (the v7-reset signal) must
+            // still force a reseed — consumeReseedPending() is the one call site honoring that flag.
+            val onboarding = FakeOnboardingState(seeded = true, reseedPending = true)
+            val repository = TeaBoardRepository(FakeTeaDao(), FakePhotoStore(), backgroundScope, SampleBoardProvider(), onboarding)
+            advanceUntilIdle()
+
+            assertTrue(repository.boards.value.isNotEmpty(), "a pending reseed must repopulate sample boards")
+            assertFalse(onboarding.reseedPending, "the one-shot flag must be consumed")
+        }
+
+    @Test
     fun `boards exposes the seeded aggregate`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()

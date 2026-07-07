@@ -141,8 +141,10 @@ class TeaBoardRepository @Inject constructor(
             // marker (review §5). Without it, deleting the LAST board (or restoring an empty backup)
             // leaves boardCount()==0 and the next launch would reseed samples over the user's
             // deliberate empty state. The marker is set after the first init either way, so an
-            // existing user (boards already present) is never reseeded.
-            if (!onboarding.isSeeded()) {
+            // existing user (boards already present) is never reseeded. consumeReseedPending() must
+            // run here (UX-P2-16) — it is the one call site that decides whether to reseed, and it
+            // consumes the flag exactly once regardless of what isSeeded() alone would answer.
+            if (onboarding.consumeReseedPending() || !onboarding.isSeeded()) {
                 if (dao.boardCount() == 0) {
                     val entities = seed.boards().toSeedEntities()
                     dao.seed(

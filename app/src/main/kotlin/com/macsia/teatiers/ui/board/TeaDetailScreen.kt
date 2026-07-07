@@ -388,7 +388,12 @@ private fun PurchaseRow(location: PurchaseLocation) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(text = primary, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = primary,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 secondary?.let {
                     Spacer(Modifier.height(2.dp))
                     Text(

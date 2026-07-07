@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
@@ -237,6 +238,17 @@ private fun TierEditRow(
                     color = onRamp,
                     style = MaterialTheme.typography.titleMedium,
                 )
+                // UX-P2-10: a small edit glyph signals the swatch opens a color picker — previously
+                // nothing distinguished it from plain, non-interactive tier-color decoration.
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = null, // the box's own onClickLabel already carries the a11y label
+                    tint = onRamp.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .size(12.dp),
+                )
             }
             OutlinedTextField(
                 value = label,
@@ -294,7 +306,7 @@ private fun TierColorDialog(
                             val selected = currentColor == argb
                             Box(
                                 modifier = Modifier
-                                    .size(44.dp)
+                                    .size(48.dp) // UX-P2-3: Material's 48dp minimum touch target (was 44dp)
                                     .clip(CircleShape)
                                     .background(Color(argb))
                                     .border(
