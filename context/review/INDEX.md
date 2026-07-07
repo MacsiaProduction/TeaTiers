@@ -22,6 +22,7 @@ this index reflects what is still open against `main`.
   - `2026-06-23-current-architecture-oss-reuse-review.md` (full current-state + OSS-reuse pass at `971af4d`; verdict: architecture is right, remaining gaps are implement/deploy/verify; triage below)
   - `2026-06-23-code-level-second-pass-review.md` (code-level pass at `8cda124` after #133–#136 landed; confirms verdict, adds new code findings SRV-P1-3/P1-5/P2-2..6, AND-P1-6/P1-7/P2-3/P2-4, OPS-P1-5/P2-2/P2-3, OCR-P2-3 + reuse list; table below)
   - `2026-07-06-usage-quality-improvement-plan.md` (full usage-quality/UX audit at `7c1705f`; UX-P0/P1/P2 + feature gaps UX-F-1..6, own status table + PR batching — tracked in that file, not duplicated here)
+  - `2026-07-07-usage-quality-improvement-plan-v2.md` (round 2, after round 1's batches landed #191–#195; six parallel read passes over the whole app + server-felt client behavior; two new lost-update P0s on the shared tea row, UX2-P1-1..12, UX2-F-1..4, UX2-P2-1..27 — own status table + PR batching, tracked in that file, not duplicated here)
   - **Superseded reviews** (`2026-06-17`…early `2026-06-21`, dispositioned/rolled into the passes above)
     were archived `2026-06-24` to `archive-2026-06/`; cited there from `decisions.md`/`plan.md`.
 - Status legend: `OPEN` · `WIP` · `PARTIAL` (core landed, contract not fully met) · `REOPEN` (was marked DONE,
