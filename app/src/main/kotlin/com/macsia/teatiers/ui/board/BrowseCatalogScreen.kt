@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -82,6 +84,8 @@ fun BrowseCatalogScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
+    val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle()
+    val availableTypes by viewModel.availableTypes.collectAsStateWithLifecycle()
     var teaToPlace by remember { mutableStateOf<CatalogTea?>(null) }
 
     Scaffold(
@@ -120,6 +124,30 @@ fun BrowseCatalogScreen(
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             )
+            // UX-F-1: type-filter chips, populated from the catalog's own facets — no scrolling
+            // through pages first just to discover which types exist.
+            if (availableTypes.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = typeFilter == null,
+                        onClick = { viewModel.setTypeFilter(null) },
+                        label = { Text(stringResource(R.string.my_teas_filter_all)) },
+                    )
+                    availableTypes.forEach { type ->
+                        FilterChip(
+                            selected = typeFilter == type,
+                            onClick = { viewModel.setTypeFilter(if (typeFilter == type) null else type) },
+                            label = { Text(stringResource(type.labelRes)) },
+                        )
+                    }
+                }
+            }
             Box(Modifier.fillMaxSize()) {
                 when (val s = state) {
                     BrowseCatalogUiState.Loading -> CenteredProgress()

@@ -5,6 +5,7 @@ import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaType
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class MyTeasModelsTest {
@@ -109,6 +110,47 @@ class MyTeasModelsTest {
         val result = filterMyTeas(teas, query = "да хун", type = TeaType.OOLONG).map { it.id }
 
         assertEquals(listOf("b"), result)
+    }
+
+    @Test
+    fun `a one-character typo still matches (UX-F-3)`() {
+        val teas = listOf(tea("1", "Лунцзин"), tea("2", "Пуэр"))
+
+        // "лунцзын" is one substitution away from "лунцзин" — a plain .contains() would find nothing.
+        val result = filterMyTeas(teas, query = "лунцзын", type = null).map { it.id }
+
+        assertEquals(listOf("1"), result)
+    }
+
+    @Test
+    fun `a short query does not fuzzy-match unrelated short words (UX-F-3)`() {
+        val teas = listOf(tea("1", "Чай Пуэр"), tea("2", "Чай Улун"))
+
+        // Below the 3-char fuzzy floor: only an exact substring counts, not a 1-edit-distance guess.
+        val result = filterMyTeas(teas, query = "пу", type = null).map { it.id }
+
+        assertEquals(listOf("1"), result)
+    }
+
+    @Test
+    fun `an unrelated query does not fuzzy-match by coincidence (UX-F-3)`() {
+        val teas = listOf(tea("1", "Лунцзин"))
+
+        assertTrue(filterMyTeas(teas, query = "пуэр", type = null).isEmpty())
+    }
+
+    @Test
+    fun `sort by type groups the collection by category, then by name (UX-F-2)`() {
+        val teas = listOf(
+            tea("g2", "Сенча", type = TeaType.GREEN),
+            tea("o", "Улун", type = TeaType.OOLONG),
+            tea("g1", "Лунцзин", type = TeaType.GREEN),
+        )
+
+        val result = filterMyTeas(teas, query = "", type = null, sort = MyTeasSortOption.TYPE).map { it.id }
+
+        // GREEN sorts before OOLONG (TeaType's declared GB/T category order); within GREEN, alphabetical.
+        assertEquals(listOf("g1", "g2", "o"), result)
     }
 
     @Test

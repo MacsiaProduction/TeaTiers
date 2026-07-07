@@ -49,6 +49,10 @@
     <string name="my_teas_none_found_hint">Измените запрос или сбросьте фильтр.</string>
     <string name="my_teas_filter_all">Все</string>
     <string name="my_teas_no_board">Не в подборках</string>
+    <!-- UX-F-2: sort order for the collection. -->
+    <string name="a11y_my_teas_sort">Сортировка</string>
+    <string name="my_teas_sort_name">По названию</string>
+    <string name="my_teas_sort_type">По типу</string>
     <string name="a11y_my_teas_open">Мои чаи</string>
     <string name="a11y_search_clear">Очистить поиск</string>
 

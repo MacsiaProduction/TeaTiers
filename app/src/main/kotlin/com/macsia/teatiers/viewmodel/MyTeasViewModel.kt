@@ -23,6 +23,7 @@ class MyTeasViewModel @Inject constructor(
 
     private val query = MutableStateFlow("")
     private val typeFilter = MutableStateFlow<TeaType?>(null)
+    private val sort = MutableStateFlow(MyTeasSortOption.NAME)
 
     fun setQuery(value: String) {
         query.value = value
@@ -38,17 +39,24 @@ class MyTeasViewModel @Inject constructor(
         typeFilter.value = null
     }
 
+    /** Switches the ordering (UX-F-2). */
+    fun setSort(option: MyTeasSortOption) {
+        sort.value = option
+    }
+
     val state: StateFlow<MyTeasUiState> = combine(
         repository.allTeas,
         repository.boards,
         query,
         typeFilter,
-    ) { teas, boards, q, type ->
+        sort,
+    ) { teas, boards, q, type, sortOption ->
         val counts = placementCounts(boards)
         MyTeasUiState(
             query = q,
             typeFilter = type,
-            items = filterMyTeas(teas, q, type).map { MyTeaItem(it, counts[it.id] ?: 0) },
+            sort = sortOption,
+            items = filterMyTeas(teas, q, type, sortOption).map { MyTeaItem(it, counts[it.id] ?: 0) },
             availableTypes = TeaType.entries.filter { candidate -> teas.any { it.type == candidate } },
             collectionEmpty = teas.isEmpty(),
         )

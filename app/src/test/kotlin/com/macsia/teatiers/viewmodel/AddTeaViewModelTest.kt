@@ -80,7 +80,7 @@ class AddTeaViewModelTest {
         coEvery { repository.placementCountForTea(any()) } returns 1
         // Default: catalog search returns nothing unless a test overrides it. Only fires when a
         // subscriber collects catalogSearch and the query is long enough.
-        coEvery { catalogRepository.search(any(), any()) } returns
+        coEvery { catalogRepository.search(any(), any(), any()) } returns
             CatalogSearchResult.Loaded(emptyList(), fromCache = false)
         // Default: the image reader yields some bytes; scan tests override the repo's OCR outcome.
         coEvery { imageReader.read(any()) } returns byteArrayOf(1, 2, 3)
@@ -570,7 +570,7 @@ class AddTeaViewModelTest {
     fun `catalog search debounces a short-then-valid query into loading then results`() =
         runTest(mainDispatcher) {
             val tea = catalogTea(1, ru = "Лунцзин", pinyin = "lóngjǐng", origin = "Китай")
-            coEvery { catalogRepository.search(eq("лунц"), any()) } returns
+            coEvery { catalogRepository.search(eq("лунц"), any(), any()) } returns
                 CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
             val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
@@ -602,14 +602,14 @@ class AddTeaViewModelTest {
                 expectNoEvents()
                 cancelAndIgnoreRemainingEvents()
             }
-            coVerify(exactly = 0) { catalogRepository.search(any(), any()) }
+            coVerify(exactly = 0) { catalogRepository.search(any(), any(), any()) }
         }
 
     @Test
     fun `catalog search runs on a single Han character (UX-P1-4)`() =
         runTest(mainDispatcher) {
             val tea = catalogTea(1, ru = "Пуэр", pinyin = "pǔ'ěr")
-            coEvery { catalogRepository.search(eq("茶"), any()) } returns
+            coEvery { catalogRepository.search(eq("茶"), any(), any()) } returns
                 CatalogSearchResult.Loaded(listOf(tea), fromCache = false)
             val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
@@ -622,13 +622,13 @@ class AddTeaViewModelTest {
                 assertTrue(settled is CatalogSearchUiState.Results)
                 cancelAndIgnoreRemainingEvents()
             }
-            coVerify(exactly = 1) { catalogRepository.search(eq("茶"), any()) }
+            coVerify(exactly = 1) { catalogRepository.search(eq("茶"), any(), any()) }
         }
 
     @Test
     fun `catalog search surfaces empty results when nothing matches`() =
         runTest(mainDispatcher) {
-            coEvery { catalogRepository.search(eq("zzzz"), any()) } returns
+            coEvery { catalogRepository.search(eq("zzzz"), any(), any()) } returns
                 CatalogSearchResult.Loaded(emptyList(), fromCache = false)
             val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
@@ -646,7 +646,7 @@ class AddTeaViewModelTest {
     @Test
     fun `catalog search reports offline when the repository falls back with nothing`() =
         runTest(mainDispatcher) {
-            coEvery { catalogRepository.search(eq("чай"), any()) } returns CatalogSearchResult.Offline
+            coEvery { catalogRepository.search(eq("чай"), any(), any()) } returns CatalogSearchResult.Offline
             val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
 
             viewModel.catalogSearch.test {
