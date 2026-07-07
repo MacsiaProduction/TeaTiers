@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- FileProvider roots: exported backups (#26) + transient camera-capture scans for OCR (slice 3).
-     Only these cache subdirs are exposed; nothing else in app storage is reachable. -->
+<!-- FileProvider roots: exported backups (#26) + transient camera-capture scans for OCR (slice 3)
+     + tea-photo camera captures (UX2-F-1). Only these cache subdirs are exposed; nothing else in
+     app storage is reachable. -->
 <paths>
     <cache-path name="backups" path="backups/" />
     <cache-path name="scans" path="scans/" />
+    <cache-path name="photo-captures" path="photo-captures/" />
     <!-- The downloaded, verified update APK handed to PackageInstaller (decision #119). -->
     <cache-path name="updates" path="updates/" />
 </paths>
