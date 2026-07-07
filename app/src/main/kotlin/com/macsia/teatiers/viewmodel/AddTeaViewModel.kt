@@ -454,7 +454,9 @@ class AddTeaViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (editing != null) {
-                    val saved = runCatching { repository.updateTea(editing, form.toTea()); true }
+                    // pristineForm is the as-loaded snapshot (UX2-P0-1): only a field the user actually
+                    // changed should win over whatever a concurrent enrichment patch wrote in the meantime.
+                    val saved = runCatching { repository.updateTea(editing, form.toTea(), pristineForm.toTea()); true }
                         .getOrElse { eventHost.emit(ShowSnackbar(R.string.error_generic)); false }
                     if (saved) onSaved(null)
                     return@launch

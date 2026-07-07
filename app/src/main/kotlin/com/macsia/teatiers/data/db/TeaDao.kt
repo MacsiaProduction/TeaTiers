@@ -21,6 +21,19 @@ data class TierPosition(val tierId: String, val position: Int)
 data class PhotoPosition(val photoId: String, val position: Int)
 
 /**
+ * The scalar columns [TeaDao.updateTea] shares with [TeaDao.applyEnrichmentPatch] (UX2-P0-1) — the
+ * only columns where a plain edit-save and a background enrichment patch can race each other.
+ */
+data class TeaMergeFields(
+    val nameRu: String?,
+    val nameZh: String?,
+    val pinyin: String?,
+    val nameEn: String?,
+    val type: String,
+    val origin: String?,
+)
+
+/**
  * Slim projection of a [TeaSampleEntity] used for the resolve-or-create match (decisions.md #42).
  * The Russian-language match has to be Unicode-case-insensitive, and SQLite's built-in `LOWER` is
  * ASCII-only, so we load the candidate set into Kotlin and match there with [String.lowercase].
@@ -539,16 +552,20 @@ abstract class TeaDao {
      * reorder any number of them — simpler and just as cheap as diffing for the small lists.
      * Placements and photos stay untouched: edits ripple, drag-to-rank and the photo strip
      * own their own writes (decisions.md #43).
+     *
+     * [original] guards against the UX2-P0-1 lost-update race: [edited] and [applyEnrichmentPatch]'s
+     * `candidate*` values share the same six columns ([TeaMergeFields]), so a stale form snapshot
+     * (loaded before a background enrichment patch landed) must not blast the patch back out. When
+     * [original] is non-null, a column only takes [edited]'s value if it actually differs from
+     * [original] — i.e. the user deliberately changed it; an untouched column keeps whatever is
+     * currently in the DB. Callers that pass no [original] (or when the row has since been deleted)
+     * get the old unconditional-overwrite behavior.
      */
     @Transaction
     open suspend fun updateTea(
         teaId: String,
-        nameRu: String?,
-        nameZh: String?,
-        pinyin: String?,
-        nameEn: String?,
-        type: String,
-        origin: String?,
+        edited: TeaMergeFields,
+        original: TeaMergeFields?,
         notes: String?,
         vendor: String?,
         product: String?,
@@ -558,11 +575,38 @@ abstract class TeaDao {
         flavors: List<FlavorEntity>,
         purchases: List<PurchaseLocationEntity>,
     ) {
-        updateTeaFields(teaId, nameRu, nameZh, pinyin, nameEn, type, origin, notes, vendor, product, harvestYear, batch, grade)
+        val current = original?.let { loadTeaRow(teaId) }
+        val merged = if (current == null) {
+            edited
+        } else {
+            TeaMergeFields(
+                nameRu = if (edited.nameRu != original.nameRu) edited.nameRu else current.nameRu,
+                nameZh = if (edited.nameZh != original.nameZh) edited.nameZh else current.nameZh,
+                pinyin = if (edited.pinyin != original.pinyin) edited.pinyin else current.pinyin,
+                nameEn = if (edited.nameEn != original.nameEn) edited.nameEn else current.nameEn,
+                type = if (edited.type != original.type) edited.type else current.type,
+                origin = if (edited.origin != original.origin) edited.origin else current.origin,
+            )
+        }
+        updateTeaFields(
+            teaId, merged.nameRu, merged.nameZh, merged.pinyin, merged.nameEn, merged.type, merged.origin,
+            notes, vendor, product, harvestYear, batch, grade,
+        )
         deleteFlavorsFor(teaId)
         deletePurchasesFor(teaId)
         insertFlavors(flavors)
         insertPurchases(purchases)
+    }
+
+    /**
+     * Narrow flavor-only write (UX2-P0-2): used by "use reference as my rating," which must change
+     * only the flavor rows, not round-trip the whole sample through [updateTea] from a possibly-stale
+     * snapshot (that overwrote name/notes/purchases with whatever a concurrent edit had just changed).
+     */
+    @Transaction
+    open suspend fun updateFlavors(teaId: String, flavors: List<FlavorEntity>) {
+        deleteFlavorsFor(teaId)
+        insertFlavors(flavors)
     }
 
     /**

@@ -346,7 +346,7 @@ class AddTeaViewModelTest {
         val tea = Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN)
         coEvery { repository.tea(eq("t1")) } returns tea
         coEvery { repository.placementCountForTea(eq("t1")) } returns 2
-        coEvery { repository.updateTea(any(), any()) } just Runs
+        coEvery { repository.updateTea(any(), any(), any()) } just Runs
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(teaId = "t1")
         advanceUntilIdle()
@@ -358,9 +358,12 @@ class AddTeaViewModelTest {
 
         assertTrue(saved)
         coVerify(exactly = 1) {
+            // UX2-P0-1 regression: the as-loaded pristine snapshot must be threaded through as `original`
+            // so the DAO can tell a deliberate user edit from a field an enrichment patch filled in later.
             repository.updateTea(
                 eq("t1"),
                 match { it.nameRu == "Новый чай" && it.notes == "обновлено" },
+                match { it.nameRu == "Чай" },
             )
         }
         coVerify(exactly = 0) { repository.addTea(any(), any(), any()) }
