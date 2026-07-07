@@ -17,8 +17,8 @@ Status legend: `OPEN` · `DONE` · `TRACKED` (already in INDEX.md under another 
 
 | ID | Finding | Where | Status |
 |---|---|---|:--:|
-| UX-P0-1 | **Save double-tap creates duplicate teas.** `submit()` has no in-flight guard, and `addTea` does check-then-insert dedup as separate suspend calls, not one transaction — two rapid taps race past the dedup. | `viewmodel/AddTeaViewModel.kt:431`, `data/repository/TeaBoardRepository.kt:262` | OPEN |
-| UX-P0-2 | **One DB read error kills every board screen forever.** `repository.boards` is a Room flow collected on the app scope with no `.catch` and no scope exception handler — a query failure either crashes the app or silently freezes all board-dependent screens with no error or retry. | `data/repository/TeaBoardRepository.kt:125` | OPEN |
+| UX-P0-1 | **Save double-tap creates duplicate teas.** `submit()` has no in-flight guard, and `addTea` does check-then-insert dedup as separate suspend calls, not one transaction — two rapid taps race past the dedup. | `viewmodel/AddTeaViewModel.kt:431`, `data/repository/TeaBoardRepository.kt:262` | **DONE (Batch 1)** — `_isSaving` re-entrancy guard + Save disabled while in flight; repo `addTeaLock` Mutex serializes the resolve→check→insert critical section; guard unit-tested. |
+| UX-P0-2 | **One DB read error kills every board screen forever.** `repository.boards` is a Room flow collected on the app scope with no `.catch` and no scope exception handler — a query failure either crashes the app or silently freezes all board-dependent screens with no error or retry. | `data/repository/TeaBoardRepository.kt:125` | **DONE (Batch 1)** — `.catch` logs + emits empty so a read error can't crash the app-scope collector or freeze the flow. |
 
 Fixes: `isSaving` guard + disable Save while in flight; wrap dedup-check+insert in one `@Transaction`
 DAO method; `.catch` on the boards pipeline exposing an error/retry state.
@@ -66,7 +66,7 @@ Behavior nits:
 - UX-P2-10 — Drag-to-rank and color-swatch-opens-picker have no affordance (menu alternative exists but must itself be discovered): one-time coach mark / drag glyph (`BoardScreen.kt:628`), edit icon on swatch (`TierEditorScreen.kt:225`).
 - UX-P2-11 — CatalogDetailSheet: hardcoded 200dp image height; primary "Use this tea" CTA not pinned, buried under scroll on short screens. `ui/board/CatalogDetailSheet.kt:152`.
 - UX-P2-12 — `movePlacement` fire-and-forget per drag, no per-board serialization — rapid drags can order against a stale snapshot (self-healing, transient). `viewmodel/BoardViewModel.kt:73`.
-- UX-P2-13 — `submit()` wraps insert + photo copy + enrichment in one `runCatching`: a post-insert failure reports as total failure though the tea saved → user retries → duplicate. Narrow to the insert. `viewmodel/AddTeaViewModel.kt:466`.
+- UX-P2-13 — **DONE (Batch 1)** — `submit()` no longer wraps insert + photo copy + enrichment in one `runCatching`; only the insert is guarded for total failure, so a post-insert photo/enrichment error no longer reports the whole save as failed (which drove retry→duplicate). `viewmodel/AddTeaViewModel.kt`.
 - UX-P2-14 — Undo snapshots for deleteBoard/deleteTea load full tables; `tea()` linear-scans all placements first. Scope DAO queries by id. `TeaBoardRepository.kt:181-186,240-246,345-353`.
 - UX-P2-15 — Diagnostics opt-in has zero delivery visibility (failures silently dropped); add a "last report failed" local status. `data/diagnostics/DiagnosticsWire.kt:66`.
 - UX-P2-16 — `OnboardingState.consumeReseedPending()` mutates on read — split read from consume. `data/repository/OnboardingState.kt:29-36`.
