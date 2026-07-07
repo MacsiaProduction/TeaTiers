@@ -149,6 +149,9 @@
     <string name="a11y_move_to_unranked">Переместить в «Без ранга»</string>
     <string name="a11y_remove_placement">Убрать с подборки</string>
     <string name="a11y_delete_tea">Удалить чай совсем</string>
+    <!-- UX2-P1-1: non-drag fallback for reordering two teas already in the same tier/tray. -->
+    <string name="a11y_move_left_in_tier">Переместить левее</string>
+    <string name="a11y_move_right_in_tier">Переместить правее</string>
 
     <!-- Per-card overflow / detail menu (shared-teas, decisions.md #42). -->
     <string name="action_remove_from_board">Убрать с подборки</string>

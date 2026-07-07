@@ -278,11 +278,19 @@ private fun TierEditRow(
                     )
                 }
             }
-            IconButton(onClick = onDeleteClick) {
+            // UX2-P1-12: deleting the LAST tier left the board with zero tier rows (every one of its
+            // teas dumped into the tray, no ranked structure left) and no guard against it — mirror
+            // the move-up/move-down disabled state above (isFirst && isLast means "the only tier").
+            val isOnlyTier = isFirst && isLast
+            IconButton(onClick = onDeleteClick, enabled = !isOnlyTier) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = stringResource(R.string.a11y_tier_delete),
-                    tint = MaterialTheme.colorScheme.error,
+                    tint = if (isOnlyTier) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
             }
         }
