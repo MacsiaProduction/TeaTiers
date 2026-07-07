@@ -79,6 +79,26 @@ class AddTeaModelsTest {
     }
 
     @Test
+    fun `harvestYearError is false when blank and true only for an implausible year (UX2-P2-19)`() {
+        assertFalse(AddTeaForm(harvestYear = "").harvestYearError) // optional, blank is fine
+        assertFalse(AddTeaForm(harvestYear = "2024").harvestYearError)
+        assertFalse(AddTeaForm(harvestYear = "1950").harvestYearError)
+        assertTrue(AddTeaForm(harvestYear = "0000").harvestYearError)
+        assertTrue(AddTeaForm(harvestYear = "1").harvestYearError)
+        assertTrue(AddTeaForm(harvestYear = "9999").harvestYearError)
+    }
+
+    @Test
+    fun `PurchaseDraft urlError only flags a marketplace value that isn't URL-shaped (UX2-P2-19)`() {
+        assertFalse(PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "").urlError) // optional, blank is fine
+        assertFalse(PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "https://shop.example/tea").urlError)
+        assertTrue(PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "asdf").urlError)
+        assertTrue(PurchaseDraft(kind = PurchaseKind.MARKETPLACE, url = "shop.example").urlError) // no scheme
+        // A free-text draft is never flagged even with URL-shaped garbage — the check is marketplace-only.
+        assertFalse(PurchaseDraft(kind = PurchaseKind.TEXT, url = "asdf").urlError)
+    }
+
+    @Test
     fun `isValid requires at least one name in any locale (P1-2)`() {
         assertFalse(AddTeaForm().isValid) // all four blank
         assertFalse(AddTeaForm(nameRu = "   ", nameEn = "  ").isValid)

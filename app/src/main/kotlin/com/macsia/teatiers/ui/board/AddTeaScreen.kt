@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -388,6 +390,11 @@ fun AddTeaScreen(
                         value = form.harvestYear,
                         onValueChange = { v -> viewModel.update { it.copy(harvestYear = v.filter(Char::isDigit).take(4)) } },
                         label = { Text(stringResource(R.string.field_harvest_year)) },
+                        // UX2-P2-19: flags an implausible year (optional field, doesn't block Save).
+                        isError = form.harvestYearError,
+                        supportingText = {
+                            if (form.harvestYearError) Text(stringResource(R.string.field_harvest_year_implausible))
+                        },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -480,7 +487,9 @@ fun AddTeaScreen(
                 value = form.notes,
                 onValueChange = { v -> viewModel.update { it.copy(notes = v) } },
                 label = { Text(stringResource(R.string.field_notes)) },
-                modifier = Modifier.fillMaxWidth().height(112.dp),
+                // UX2-P2-4: heightIn(min=...) (like the other multi-line fields on this screen) instead
+                // of a fixed height, so it can grow with content/font scale instead of clipping.
+                modifier = Modifier.fillMaxWidth().heightIn(min = 112.dp),
             )
 
             // Optional grounding blurb (#25), add mode only: a pasted vendor/packaging description
@@ -513,7 +522,13 @@ fun AddTeaScreen(
                                 text = stringResource(R.string.field_source_text_hint),
                                 modifier = Modifier.weight(1f).padding(end = 8.dp),
                             )
-                            Text(text = "${form.sourceText.length}/$SourceTextMaxLength")
+                            // UX2-P2-14: the field silently stops accepting keystrokes at the cap with
+                            // no visual cue why — color the counter as it nears/hits the limit.
+                            val atLimit = form.sourceText.length >= SourceTextMaxLength
+                            Text(
+                                text = "${form.sourceText.length}/$SourceTextMaxLength",
+                                color = if (atLimit) MaterialTheme.colorScheme.error else Color.Unspecified,
+                            )
                         }
                     },
                     minLines = 3,
@@ -765,6 +780,14 @@ private fun PurchaseDraftCard(
                     value = draft.url,
                     onValueChange = { v -> onUpdate { it.copy(url = v) } },
                     label = { Text(stringResource(R.string.field_purchase_url)) },
+                    // UX2-P2-6: the sharpest case for a systemic gap (zero placeholder= usage anywhere
+                    // in the app) — a bare label doesn't convey the expected URL shape.
+                    placeholder = { Text(stringResource(R.string.field_purchase_url_placeholder)) },
+                    // UX2-P2-19: flags a non-URL-shaped value (optional field, doesn't block Save).
+                    isError = draft.urlError,
+                    supportingText = {
+                        if (draft.urlError) Text(stringResource(R.string.field_purchase_url_invalid))
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
@@ -818,15 +841,28 @@ private fun CatalogSearchField(
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 }
             is CatalogSearchUiState.Results -> {
-                if (state.fromCache) {
-                    CatalogHint(stringResource(R.string.catalog_search_from_cache))
-                }
-                state.teas.forEach { tea ->
-                    CatalogResultRow(
-                        tea = tea,
-                        onPick = { onPick(tea) },
-                        onInfo = { onInfo(tea) },
-                    )
+                // UX2-P2-1: cap + scroll the inline result list (mirrors BrowseCatalogScreen's dialog
+                // list) so a long result set can't push the required name field arbitrarily far down.
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    if (state.fromCache) {
+                        CatalogHint(stringResource(R.string.catalog_search_from_cache))
+                    }
+                    state.teas.forEach { tea ->
+                        CatalogResultRow(
+                            tea = tea,
+                            onPick = { onPick(tea) },
+                            // UX2-P2-7: dismiss the keyboard before opening the detail sheet — it was
+                            // left up, crowding/hiding sheet content on small screens.
+                            onInfo = {
+                                focusManager.clearFocus()
+                                onInfo(tea)
+                            },
+                        )
+                    }
                 }
             }
             CatalogSearchUiState.Empty ->

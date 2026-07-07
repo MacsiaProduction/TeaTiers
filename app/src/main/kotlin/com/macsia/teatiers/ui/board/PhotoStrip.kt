@@ -14,7 +14,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,7 +29,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,6 +65,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaPhoto
+import com.macsia.teatiers.ui.components.PhotoLoadError
 import java.io.File
 
 private val ThumbSize = 96.dp
@@ -409,24 +408,6 @@ fun PhotoImage(uri: String, modifier: Modifier = Modifier, contentDescription: S
         error = { PhotoLoadError(Modifier.fillMaxSize()) },
         modifier = modifier.clip(MaterialTheme.shapes.medium).background(Color.Black.copy(alpha = 0.06f)),
     )
-}
-
-/**
- * Fallback for a photo that can't be loaded (file gone, gallery permission revoked, an offline
- * catalog image). The glyph scales with its container — capped — so it reads on a small thumbnail
- * and a full-screen view alike.
- */
-@Composable
-fun PhotoLoadError(modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        val iconSize = (minOf(maxWidth, maxHeight) * 0.4f).coerceIn(14.dp, 40.dp)
-        Icon(
-            imageVector = Icons.Filled.Warning,
-            contentDescription = stringResource(R.string.a11y_photo_failed),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(iconSize),
-        )
-    }
 }
 
 /**

@@ -80,6 +80,26 @@ class AppUpdateViewModelTest {
     }
 
     @Test
+    fun `check ignores a second call while the first is still in flight (UX2-P2-20)`() = runTest {
+        // A rapid re-tap must not launch a second overlapping check — the guard is state-based
+        // (Checking), so hold the first call open on a gate to observe it.
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        coEvery { checker.check(any(), any()) } coAnswers {
+            gate.await()
+            UpdateAvailability.None
+        }
+        val viewModel = vm()
+
+        viewModel.check()
+        assertEquals(UpdateUiState.Checking, viewModel.state.value)
+        viewModel.check() // guard: state is Checking, so this returns without launching
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { checker.check(any(), any()) }
+    }
+
+    @Test
     fun `check with no update stays idle`() = runTest {
         coEvery { checker.check(any(), any()) } returns UpdateAvailability.None
         val viewModel = vm()

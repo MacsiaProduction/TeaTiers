@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -48,6 +49,7 @@ import com.macsia.teatiers.domain.model.CatalogLocale
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
+import com.macsia.teatiers.ui.components.PhotoLoadError
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.viewmodel.CatalogDetailUiState
@@ -119,7 +121,11 @@ private fun DetailMessage(text: String, onRetry: (() -> Unit)? = null) {
             .fillMaxWidth()
             .heightIn(min = 180.dp)
             .padding(SheetInset)
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            // UX2-P2-2: this Column has no wrapping scroll anywhere above it (unlike
+            // CatalogDetailContent, which scrolls itself) — a long localized error string at large
+            // font scale could otherwise push the retry button off the sheet with no way to reach it.
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -151,7 +157,10 @@ private fun CatalogDetailContent(detail: CatalogTeaDetail, onUse: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = SheetInset)
             .padding(bottom = SheetInset)
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            // UX2-P2-7: defensive — the "Info" tap now clears focus before opening this sheet, but an
+            // open IME (from any future call site) must not crowd out the sheet's own content.
+            .imePadding(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         detail.images.forEach { image ->

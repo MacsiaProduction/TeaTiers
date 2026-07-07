@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,7 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
@@ -49,10 +53,31 @@ private fun PhotoBadge(uri: String) {
             .clip(MaterialTheme.shapes.small)
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        AsyncImage(
+        SubcomposeAsyncImage(
             model = request,
             contentDescription = null,
+            // UX2-P2-22: a missing/revoked photo file used to render a silent blank square here,
+            // unlike PhotoStrip's identical PhotoImage, which already shows this same glyph.
+            error = { PhotoLoadError(Modifier.fillMaxSize()) },
             modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+/**
+ * Fallback for a photo that can't be loaded (file gone, gallery permission revoked, an offline
+ * catalog image). The glyph scales with its container — capped — so it reads on a small badge and
+ * a full-screen view alike. Shared by [PhotoBadge] here and `PhotoImage` in `ui/board/PhotoStrip.kt`.
+ */
+@Composable
+fun PhotoLoadError(modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val iconSize = (minOf(maxWidth, maxHeight) * 0.4f).coerceIn(14.dp, 40.dp)
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = stringResource(R.string.a11y_photo_failed),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(iconSize),
         )
     }
 }

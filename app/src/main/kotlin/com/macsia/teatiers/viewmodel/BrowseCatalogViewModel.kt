@@ -111,9 +111,7 @@ class BrowseCatalogViewModel @Inject constructor(
     private var loadGeneration = 0
 
     init {
-        viewModelScope.launch {
-            (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
-        }
+        fetchFacetsIfNeeded()
         // collectLatest cancels an in-flight load when the query OR the type filter changes, so a
         // stale result never overwrites a newer one — combining both into one pipeline (rather than
         // setTypeFilter launching its own independent coroutine) is what makes that cancellation
@@ -127,6 +125,19 @@ class BrowseCatalogViewModel @Inject constructor(
                 .collectLatest { (q, _) ->
                     if (isSearchableQuery(q)) runSearch(q) else loadFirstPageSuspending()
                 }
+        }
+    }
+
+    /**
+     * (Re)fetches the type-filter chips (UX-F-1) if they're still empty (UX2-P2-17). A cold-offline
+     * start otherwise hid them for the whole session with no retry — called again after every
+     * successful page load, not just once in init, so a later reconnect can self-heal it for free
+     * instead of needing a dedicated retry affordance.
+     */
+    private fun fetchFacetsIfNeeded() {
+        if (_availableTypes.value.isNotEmpty()) return
+        viewModelScope.launch {
+            (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
         }
     }
 
@@ -161,7 +172,8 @@ class BrowseCatalogViewModel @Inject constructor(
         _state.value = BrowseCatalogUiState.Loading
         try {
             _state.value = when (val result = catalogRepository.search(query, type = _typeFilter.value)) {
-                is CatalogSearchResult.Loaded ->
+                is CatalogSearchResult.Loaded -> {
+                    fetchFacetsIfNeeded()
                     if (result.teas.isEmpty()) {
                         BrowseCatalogUiState.Empty
                     } else {
@@ -177,6 +189,7 @@ class BrowseCatalogViewModel @Inject constructor(
                             truncated = result.teas.size >= CatalogRepository.DEFAULT_LIMIT,
                         )
                     }
+                }
                 CatalogSearchResult.Offline -> BrowseCatalogUiState.Offline
                 CatalogSearchResult.RateLimited -> BrowseCatalogUiState.RateLimited
                 CatalogSearchResult.Error -> BrowseCatalogUiState.Error
@@ -218,6 +231,7 @@ class BrowseCatalogViewModel @Inject constructor(
         _state.value = when (result) {
             is CatalogBrowseResult.Loaded -> {
                 nextCursor = result.nextCursor
+                fetchFacetsIfNeeded()
                 if (result.teas.isEmpty()) {
                     BrowseCatalogUiState.Empty
                 } else {
