@@ -703,6 +703,34 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `pickCatalogTea's Undo does not stomp a different entry the VM was later re-bound to (UX2-P1-8)`() =
+        runTest {
+            // The VM is reused across navigations (bind() re-fires with a new entryToken for a fresh
+            // entry). If the user picks a catalog tea, navigates away before the Undo snackbar times
+            // out, and a DIFFERENT Add entry gets bound in the meantime, a still-alive Undo tap must
+            // not restore the first entry's stale form over the second entry's fresh one.
+            val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+            viewModel.bind(boardId = "b", entryToken = "tok-1")
+            viewModel.update { it.copy(nameRu = "Исходное") }
+
+            var onAction: (() -> Unit)? = null
+            viewModel.events.test {
+                viewModel.pickCatalogTea(catalogTea(1, ru = "Лунцзин", type = TeaType.GREEN))
+                onAction = awaitItem().onAction
+                cancelAndIgnoreRemainingEvents()
+            }
+
+            // A different Add entry is bound before the user taps Undo on the first snackbar.
+            viewModel.bind(boardId = "b", entryToken = "tok-2")
+            viewModel.update { it.copy(nameRu = "Второй ввод") }
+
+            onAction?.invoke()
+
+            // The stale "tok-1" snapshot (nameRu = "Исходное") must NOT have overwritten tok-2's form.
+            assertEquals("Второй ввод", viewModel.form.value.nameRu)
+        }
+
+    @Test
     fun `useCatalogDetail prefills the region-preferring origin, not the bare country`() = runTest {
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")

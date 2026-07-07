@@ -30,6 +30,16 @@ class SampleBoardProvider @Inject constructor() {
 
     fun boards(): List<Board> = listOf(favorites(), oolongs(), tasting())
 
+    companion object {
+        /**
+         * The seeded boards' stable ids (UX2-P1-10) — a new user has no way to tell a sample tea from
+         * their own once the one-time intro card is dismissed. Structural, not a DB flag: these ids
+         * never collide with a user-created board (Room ids are UUIDs), so "is this a sample" needs no
+         * schema change, just checking membership here.
+         */
+        val SAMPLE_BOARD_IDS: Set<String> = setOf("favorites", "oolongs", "tasting")
+    }
+
     /**
      * Tier ids are namespaced by [boardId] because [com.macsia.teatiers.data.db.TierEntity.id]
      * is a global primary key — without the prefix every seed board would collide on `"s"`.

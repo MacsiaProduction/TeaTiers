@@ -9,6 +9,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -69,6 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -572,24 +574,55 @@ fun AddTeaScreen(
     }
 
     if (showScanChooser) {
+        // UX2-P1-11: camera vs gallery are two EQUAL, non-hierarchical choices — they used to overload
+        // confirm/dismiss (camera = confirm, gallery = dismiss), which breaks the confirm-is-commit /
+        // dismiss-is-cancel convention every other dialog in this file follows, and left no labeled way
+        // to back out (only an unlabeled tap-outside). Both choices now live in the body as equal rows;
+        // dismissButton is a real Cancel.
         AlertDialog(
             onDismissRequest = { showScanChooser = false },
             title = { Text(stringResource(R.string.ocr_scan_source_title)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showScanChooser = false
-                    val uri = scanCaptureUri(context)
-                    pendingCameraUri = uri
-                    cameraLauncher.launch(uri)
-                }) { Text(stringResource(R.string.ocr_scan_source_camera)) }
+            text = {
+                Column {
+                    TextButton(
+                        onClick = {
+                            showScanChooser = false
+                            val uri = scanCaptureUri(context)
+                            pendingCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ocr_scan_source_camera),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            showScanChooser = false
+                            galleryLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ocr_scan_source_gallery),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                }
             },
+            confirmButton = {},
             dismissButton = {
-                TextButton(onClick = {
-                    showScanChooser = false
-                    galleryLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                    )
-                }) { Text(stringResource(R.string.ocr_scan_source_gallery)) }
+                TextButton(onClick = { showScanChooser = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

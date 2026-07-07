@@ -6,6 +6,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.DeletedBoard
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
+import com.macsia.teatiers.data.sample.SampleBoardProvider
 import com.macsia.teatiers.data.settings.SettingsRepository
 import com.macsia.teatiers.domain.model.TierTemplate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -73,6 +74,44 @@ class BoardsViewModel @Inject constructor(
 
     fun dismissIntro() {
         viewModelScope.launch { runCatching { settings.setIntroDismissed() } }
+    }
+
+    /**
+     * True while any seeded sample board still exists (UX2-P1-10) — independent of [showIntro], so
+     * the "clear sample data" action stays reachable even after the one-time intro card is dismissed.
+     */
+    val hasSampleBoards: StateFlow<Boolean> = boards
+        .map { list -> list.any { it.id in SampleBoardProvider.SAMPLE_BOARD_IDS } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = boards.value.any { it.id in SampleBoardProvider.SAMPLE_BOARD_IDS },
+        )
+
+    /**
+     * Removes every remaining seeded sample board in one tap (UX2-P1-10), instead of the user having
+     * to find and delete each one individually. Each board's own Undo snapshot is kept so the single
+     * Undo action can restore all of them together; a board already deleted by the user is silently
+     * skipped (`deleteBoard` returns null for an unknown id).
+     */
+    fun clearSampleData() {
+        viewModelScope.launch {
+            val deleted = SampleBoardProvider.SAMPLE_BOARD_IDS.mapNotNull { id ->
+                runCatching { repository.deleteBoard(id) }.getOrElse {
+                    eventHost.emit(ShowSnackbar(R.string.error_generic))
+                    return@launch
+                }
+            }
+            if (deleted.isNotEmpty()) {
+                eventHost.emit(
+                    ShowSnackbar(
+                        messageRes = R.string.snackbar_sample_data_cleared,
+                        actionLabelRes = R.string.action_undo,
+                        onAction = { deleted.forEach(::restoreBoard) },
+                    ),
+                )
+            }
+        }
     }
 
     /**

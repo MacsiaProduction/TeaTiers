@@ -80,7 +80,9 @@ fun BoardsScreen(
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val showIntro by viewModel.showIntro.collectAsStateWithLifecycle()
+    val hasSampleBoards by viewModel.hasSampleBoards.collectAsStateWithLifecycle()
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var showClearSampleConfirm by rememberSaveable { mutableStateOf(false) }
     var boardToDelete by remember { mutableStateOf<BoardSummary?>(null) }
     var boardToRename by remember { mutableStateOf<BoardSummary?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -146,6 +148,15 @@ fun BoardsScreen(
                         IntroCard(onDismiss = viewModel::dismissIntro)
                     }
                 }
+                // UX2-P1-10: independent of showIntro, so this stays reachable after the one-time
+                // card above is dismissed — otherwise a new user has no way back to clear samples.
+                if (hasSampleBoards) {
+                    item(key = "clear-samples") {
+                        TextButton(onClick = { showClearSampleConfirm = true }) {
+                            Text(stringResource(R.string.boards_clear_sample_data))
+                        }
+                    }
+                }
                 items(boards, key = { it.id }) { summary ->
                     BoardSummaryCard(
                         summary = summary,
@@ -195,6 +206,25 @@ fun BoardsScreen(
                 boardToRename = null
             },
             onDismiss = { boardToRename = null },
+        )
+    }
+
+    if (showClearSampleConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearSampleConfirm = false },
+            title = { Text(stringResource(R.string.boards_clear_sample_data_confirm_title)) },
+            text = { Text(stringResource(R.string.boards_clear_sample_data_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearSampleData()
+                    showClearSampleConfirm = false
+                }) { Text(stringResource(R.string.boards_clear_sample_data_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearSampleConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 }

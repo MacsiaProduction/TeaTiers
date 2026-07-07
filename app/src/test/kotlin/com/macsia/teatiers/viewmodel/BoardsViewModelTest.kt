@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -168,4 +169,55 @@ class BoardsViewModelTest {
 
         coVerify(exactly = 1) { settings.setIntroDismissed() }
     }
+
+    @Test
+    fun `hasSampleBoards is true while a seeded sample board still exists (UX2-P1-10)`() = runTest {
+        every { repository.boards } returns
+            MutableStateFlow(listOf(board("favorites"), board("board-user1")))
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        backgroundScope.launch { viewModel.hasSampleBoards.collect {} }
+        advanceUntilIdle()
+
+        assertTrue(viewModel.hasSampleBoards.value)
+    }
+
+    @Test
+    fun `hasSampleBoards is false once every sample board is gone`() = runTest {
+        every { repository.boards } returns MutableStateFlow(listOf(board("board-user1")))
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        backgroundScope.launch { viewModel.hasSampleBoards.collect {} }
+        advanceUntilIdle()
+
+        assertFalse(viewModel.hasSampleBoards.value)
+    }
+
+    @Test
+    fun `clearSampleData deletes every remaining sample board and offers one combined undo`() = runTest {
+        val deletedFavorites = DeletedBoard(BoardEntity("favorites", "Любимые чаи", 0), emptyList(), emptyList())
+        val deletedOolongs = DeletedBoard(BoardEntity("oolongs", "Уишаньские улуны", 1), emptyList(), emptyList())
+        coEvery { repository.deleteBoard("favorites") } returns deletedFavorites
+        coEvery { repository.deleteBoard("oolongs") } returns deletedOolongs
+        coEvery { repository.deleteBoard("tasting") } returns null // already deleted by the user
+        coEvery { repository.restoreBoard(any()) } just Runs
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.clearSampleData()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.deleteBoard("favorites") }
+        coVerify(exactly = 1) { repository.deleteBoard("oolongs") }
+        coVerify(exactly = 1) { repository.deleteBoard("tasting") }
+        val event = events.single()
+        assertEquals(R.string.snackbar_sample_data_cleared, event.messageRes)
+
+        event.onAction!!.invoke() // user taps "Вернуть" once for all of them
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.restoreBoard(deletedFavorites) }
+        coVerify(exactly = 1) { repository.restoreBoard(deletedOolongs) }
+    }
+
+    private fun board(id: String) =
+        Board(id = id, name = id, tiers = emptyList(), placements = emptyMap(), unranked = emptyList())
 }

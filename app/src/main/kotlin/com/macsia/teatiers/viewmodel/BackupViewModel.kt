@@ -49,54 +49,44 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch { _safetyBackupAvailable.value = backupManager.hasSafetyBackup() }
     }
 
-    fun exportTo(uri: Uri) {
-        viewModelScope.launch {
-            _busy.value = true
-            try {
-                channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes(BackupOp.EXPORT)))
-            } finally {
-                _busy.value = false
-            }
-        }
+    fun exportTo(uri: Uri) = guardedBusy {
+        channel.trySend(BackupEvent.Message(backupManager.exportTo(uri).messageRes(BackupOp.EXPORT)))
     }
 
-    fun importFrom(uri: Uri) {
-        viewModelScope.launch {
-            _busy.value = true
-            try {
-                val result = backupManager.importFrom(uri)
-                channel.trySend(BackupEvent.Message(result.messageRes(BackupOp.IMPORT)))
-                // A completed restore leaves a pre-import safety copy; surface the undo entry.
-                _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
-            } finally {
-                _busy.value = false
-            }
-        }
+    fun importFrom(uri: Uri) = guardedBusy {
+        val result = backupManager.importFrom(uri)
+        channel.trySend(BackupEvent.Message(result.messageRes(BackupOp.IMPORT)))
+        // A completed restore leaves a pre-import safety copy; surface the undo entry.
+        _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
     }
 
     /** Undoes the last restore by reinstating the pre-import safety snapshot (auto safety-backup). */
-    fun restoreSafetyBackup() {
-        viewModelScope.launch {
-            _busy.value = true
-            try {
-                channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes(BackupOp.IMPORT)))
-                // The snapshot is consumed by a successful undo; refresh so the entry hides and a
-                // second tap can't re-restore a now-stale snapshot over newer data (finding #1).
-                _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
-            } finally {
-                _busy.value = false
-            }
-        }
+    fun restoreSafetyBackup() = guardedBusy {
+        channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes(BackupOp.IMPORT)))
+        // The snapshot is consumed by a successful undo; refresh so the entry hides and a
+        // second tap can't re-restore a now-stale snapshot over newer data (finding #1).
+        _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
     }
 
-    fun share() {
+    fun share() = guardedBusy {
+        val uri = backupManager.createShareUri()
+        channel.trySend(
+            if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_share_failed),
+        )
+    }
+
+    /**
+     * Re-entrancy guard (UX2-P1-3, mirrors AddTeaViewModel's `_isSaving` pattern): every op here is
+     * either destructive (import/restore replace the whole DB) or slow enough that a recomposition
+     * race or fast double-tap could interleave two calls before the blocking dialog even renders.
+     * Set synchronously (before the launch) so a second call on the same frame sees it.
+     */
+    private fun guardedBusy(block: suspend () -> Unit) {
+        if (_busy.value) return
+        _busy.value = true
         viewModelScope.launch {
-            _busy.value = true
             try {
-                val uri = backupManager.createShareUri()
-                channel.trySend(
-                    if (uri != null) BackupEvent.Share(uri) else BackupEvent.Message(R.string.backup_share_failed),
-                )
+                block()
             } finally {
                 _busy.value = false
             }

@@ -16,6 +16,12 @@
     <string name="boards_intro_title">Как это работает</string>
     <string name="boards_intro_body">TeaTiers — это тир-листы для чая: раскладывайте образцы по рядам от лучших (S) к худшим (F). Перетащите карточку между рядами или нажмите «…» на ней, чтобы переместить. Подборки ниже — примеры: их можно менять, переименовывать и удалять.</string>
     <string name="boards_intro_dismiss">Понятно</string>
+    <!-- UX2-P1-10: one-tap way to clear the seeded sample boards, reachable even after the intro card above is dismissed. -->
+    <string name="boards_clear_sample_data">Очистить примеры подборок</string>
+    <string name="boards_clear_sample_data_confirm_title">Удалить примеры подборок?</string>
+    <string name="boards_clear_sample_data_confirm_message">Оставшиеся демонстрационные подборки будут удалены. Чаи останутся в вашей коллекции — удаляются только сами подборки.</string>
+    <string name="boards_clear_sample_data_confirm_action">Удалить</string>
+    <string name="snackbar_sample_data_cleared">Примеры подборок удалены</string>
 
     <!-- Empty board (polish): shown when a board has no placements at all. -->
     <string name="board_empty_title">В этой подборке пока нет чаёв</string>
