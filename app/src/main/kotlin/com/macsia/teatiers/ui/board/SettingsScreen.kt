@@ -464,22 +464,31 @@ private fun UpdateDialogs(
             },
         )
 
-        is UpdateUiState.Failed -> AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.update_failed_title)) },
-            text = { Text(stringResource(R.string.update_failed_message)) },
-            confirmButton = {
-                val url = state.manifest?.apkUrl
-                if (!url.isNullOrBlank()) {
-                    TextButton(onClick = { onOpenUrl(url) }) {
-                        Text(stringResource(R.string.update_download_github))
+        // UX2-P1-9: a mere "check for updates" failure (reason == "check", no manifest — the only live
+        // path today, since installUpdate() is dormant per the file doc comment above) already gets its
+        // own purpose-built inline row + retry (see the "check failed" Row above this composable's call
+        // site) — this modal's copy ("Failed to update... download manually") is written for a real
+        // download/verify/install failure and would be actively wrong here, and doubling up on the same
+        // failure with a second, blocking, worse-worded dialog is redundant. Only show it once there is
+        // an actual manifest to fall back to (i.e. installUpdate() itself failed).
+        is UpdateUiState.Failed -> if (state.manifest != null) {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text(stringResource(R.string.update_failed_title)) },
+                text = { Text(stringResource(R.string.update_failed_message)) },
+                confirmButton = {
+                    val url = state.manifest.apkUrl
+                    if (url.isNotBlank()) {
+                        TextButton(onClick = { onOpenUrl(url) }) {
+                            Text(stringResource(R.string.update_download_github))
+                        }
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+                },
+            )
+        }
 
         UpdateUiState.Idle, UpdateUiState.Checking -> Unit // no dialog
     }

@@ -274,6 +274,7 @@
     <string name="ocr_error">Не удалось распознать текст. Попробуйте ещё раз.</string>
     <string name="ocr_offline">Нет сети — распознавание недоступно. Попробуйте позже.</string>
     <string name="ocr_image_too_large">Изображение слишком большое. Выберите фото меньшего размера.</string>
+    <string name="ocr_unreadable_image">Не удалось обработать изображение. Попробуйте другое фото.</string>
     <string name="ocr_unavailable">Распознавание временно недоступно. Попробуйте позже.</string>
     <string name="ocr_rate_limited">Слишком много запросов. Подождите немного и попробуйте снова.</string>
     <string name="field_purchase">Место покупки</string>

@@ -3,8 +3,10 @@ package com.macsia.teatiers.service
 import com.macsia.teatiers.client.OcrClient
 import com.macsia.teatiers.client.OcrProperties
 import com.macsia.teatiers.client.OcrSidecarResponse
+import com.macsia.teatiers.client.SidecarUnreadableImageException
 import com.macsia.teatiers.controller.OcrFailedException
 import com.macsia.teatiers.controller.OcrUnavailableException
+import com.macsia.teatiers.controller.OcrUnreadableImageException
 import io.mockk.every
 import io.mockk.mockk
 import kotlin.test.Test
@@ -33,6 +35,13 @@ class OcrServiceTest {
         every { client.isEnabled } returns true
         every { client.recognize(any(), any()) } returns null
         assertFailsWith<OcrFailedException> { service().recognize(byteArrayOf(1), "x.jpg") }
+    }
+
+    @Test
+    fun `recognize maps SidecarUnreadableImageException to OcrUnreadableImageException (422, UX2-P1-7)`() {
+        every { client.isEnabled } returns true
+        every { client.recognize(any(), any()) } throws SidecarUnreadableImageException()
+        assertFailsWith<OcrUnreadableImageException> { service().recognize(byteArrayOf(1), "x.jpg") }
     }
 
     @Test

@@ -51,6 +51,12 @@ class CatalogExceptionHandler {
             title = "OCR failed"
         }
 
+    @ExceptionHandler(OcrUnreadableImageException::class)
+    fun handleOcrUnreadableImage(ex: OcrUnreadableImageException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.message ?: "OCR could not read the image").apply {
+            title = "OCR unreadable image"
+        }
+
     @ExceptionHandler(OcrImageTooLargeException::class)
     fun handleOcrTooLarge(ex: OcrImageTooLargeException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, ex.message ?: "Image too large").apply {

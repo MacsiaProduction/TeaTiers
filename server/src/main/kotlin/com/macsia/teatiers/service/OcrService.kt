@@ -2,8 +2,10 @@ package com.macsia.teatiers.service
 
 import com.macsia.teatiers.client.OcrClient
 import com.macsia.teatiers.client.OcrProperties
+import com.macsia.teatiers.client.SidecarUnreadableImageException
 import com.macsia.teatiers.controller.OcrFailedException
 import com.macsia.teatiers.controller.OcrUnavailableException
+import com.macsia.teatiers.controller.OcrUnreadableImageException
 import com.macsia.teatiers.dto.OcrResponseDto
 import org.springframework.stereotype.Service
 
@@ -21,7 +23,11 @@ class OcrService(
     /** Recognizes [image] and returns cleaned, length-capped raw + dict-corrected text. */
     fun recognize(image: ByteArray, filename: String): OcrResponseDto {
         if (!client.isEnabled) throw OcrUnavailableException()
-        val response = client.recognize(image, filename) ?: throw OcrFailedException()
+        val response = try {
+            client.recognize(image, filename) ?: throw OcrFailedException()
+        } catch (_: SidecarUnreadableImageException) {
+            throw OcrUnreadableImageException()
+        }
         val text = OcrSanitizer.clean(response.text ?: "", props.maxTextLength)
         // Sidecar's dictionary-gated correction (decision #125); fall back to raw if a pre-#104
         // sidecar didn't send it. Sanitized the same way (length cap + control-char strip).

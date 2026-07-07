@@ -36,6 +36,12 @@ object NetworkModule {
         explicitNulls = false
     }
 
+    // UX2-P1-6: the server's OCR sidecar call allows up to 2 attempts * (3s connect + 20s read) ~= 46s
+    // worst case (OcrProperties/OcrClient) before it degrades. The app's default 15s read timeout is
+    // shorter than that, so a live-but-slow sidecar looked like "you're offline" (wrong — the network
+    // is fine, the OCR call was just still running). Give only the OCR call the longer budget.
+    private const val OCR_READ_TIMEOUT_SECONDS = 60L
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -50,6 +56,14 @@ object NetworkModule {
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .addInterceptor(logging)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.url.encodedPath.endsWith("/teas/ocr")) {
+                    chain.withReadTimeout(OCR_READ_TIMEOUT_SECONDS.toInt(), TimeUnit.SECONDS).proceed(request)
+                } else {
+                    chain.proceed(request)
+                }
+            }
             .build()
     }
 
