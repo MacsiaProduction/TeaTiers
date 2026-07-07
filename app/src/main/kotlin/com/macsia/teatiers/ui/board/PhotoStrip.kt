@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,12 +59,15 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaPhoto
+import java.io.File
 
 private val ThumbSize = 96.dp
 
@@ -73,9 +77,10 @@ private val ThumbSize = 96.dp
  * - Long-press a thumbnail to start dragging; release once it has moved past the neighbouring
  *   thumb to swap their order (mirrors the tier-list drag pattern, decisions.md #38). Reorder
  *   math runs locally; the parent commits the new order via [onReorder] on drop.
- * - The "+" tile launches the system photo picker (`PickVisualMedia`) — no manifest permission
- *   needed because the picker fronts the user-grant for whichever single picture they choose.
- *   On API <33, androidx falls back to `OPEN_DOCUMENT`, also permission-free.
+ * - The "+" tile launches the system photo picker (`PickMultipleVisualMedia`, UX2-F-2) — no manifest
+ *   permission needed because the picker fronts the user-grant for whichever pictures they choose.
+ *   On API <33, androidx falls back to `OPEN_DOCUMENT`, also permission-free. [onPick] still takes
+ *   one [Uri] at a time (unchanged call sites) — a multi-selection just fans out one call per photo.
  * - Tapping the "x" badge prompts a confirm before [onRemove] — destructive even though we can
  *   re-pick, because the photo file goes with the row.
  */
@@ -88,8 +93,18 @@ fun PhotoStripField(
     modifier: Modifier = Modifier,
 ) {
     val pickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-    ) { uri: Uri? -> uri?.let(onPick) }
+        contract = ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris: List<Uri> -> uris.forEach(onPick) }
+
+    // UX2-F-1: photographing the tea directly (tin, leaves, packaging) had no entry point — only
+    // the gallery picker above. Mirrors the OCR scan flow's camera launcher (AddTeaScreen.kt), but
+    // the captured file is kept (not discarded): onPick copies it into the tea's own photo storage.
+    val context = LocalContext.current
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture(),
+    ) { success -> if (success) pendingCameraUri?.let(onPick) }
+    var showSourceChooser by remember { mutableStateOf(false) }
 
     var pendingRemove by remember { mutableStateOf<TeaPhoto?>(null) }
     val ids = photos.map(TeaPhoto::id)
@@ -136,14 +151,63 @@ fun PhotoStripField(
                     )
                 }
                 AddPhotoTile(
-                    onClick = {
-                        pickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                        )
-                    },
+                    onClick = { showSourceChooser = true },
                 )
             }
         }
+    }
+
+    if (showSourceChooser) {
+        // Camera vs gallery are two equal, non-hierarchical choices (UX2-P1-11's convention): both
+        // live as rows in the body, and dismissButton is a real Cancel — not overloaded confirm/dismiss.
+        AlertDialog(
+            onDismissRequest = { showSourceChooser = false },
+            title = { Text(stringResource(R.string.photos_add)) },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = {
+                            showSourceChooser = false
+                            val uri = photoCaptureUri(context)
+                            pendingCameraUri = uri
+                            cameraLauncher.launch(uri)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ocr_scan_source_camera),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            showSourceChooser = false
+                            pickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ocr_scan_source_gallery),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSourceChooser = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 
     pendingRemove?.let { photo ->
@@ -164,6 +228,21 @@ fun PhotoStripField(
             },
         )
     }
+}
+
+/**
+ * A fresh FileProvider URI for the camera to write a captured photo into (UX2-F-1). Its own cache
+ * subdir (distinct from AddTeaScreen's OCR "scans" dir) since, unlike an OCR scan, this file is kept
+ * — [onPick] copies it into permanent photo storage right away, so the stale-file cleanup below only
+ * ever catches a capture the user backed out of before it was picked up.
+ */
+private fun photoCaptureUri(context: android.content.Context): Uri {
+    val dir = File(context.cacheDir, "photo-captures").apply {
+        mkdirs()
+        listFiles()?.forEach { it.delete() }
+    }
+    val file = File(dir, "photo-${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 
 @Composable
