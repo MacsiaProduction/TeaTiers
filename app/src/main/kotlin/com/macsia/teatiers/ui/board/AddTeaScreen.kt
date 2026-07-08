@@ -9,7 +9,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -72,14 +71,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.TeaType
+import com.macsia.teatiers.ui.components.SourceChooserDialog
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.viewmodel.AddTeaViewModel
 import com.macsia.teatiers.viewmodel.CatalogSearchUiState
@@ -91,7 +89,6 @@ import com.macsia.teatiers.viewmodel.QuickRateDimensions
 import com.macsia.teatiers.viewmodel.ScanUiState
 import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
-import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -592,52 +589,19 @@ fun AddTeaScreen(
         // UX2-P1-11: camera vs gallery are two EQUAL, non-hierarchical choices — they used to overload
         // confirm/dismiss (camera = confirm, gallery = dismiss), which breaks the confirm-is-commit /
         // dismiss-is-cancel convention every other dialog in this file follows, and left no labeled way
-        // to back out (only an unlabeled tap-outside). Both choices now live in the body as equal rows;
-        // dismissButton is a real Cancel.
-        AlertDialog(
+        // to back out (only an unlabeled tap-outside).
+        SourceChooserDialog(
+            title = stringResource(R.string.ocr_scan_source_title),
             onDismissRequest = { showScanChooser = false },
-            title = { Text(stringResource(R.string.ocr_scan_source_title)) },
-            text = {
-                Column {
-                    TextButton(
-                        onClick = {
-                            showScanChooser = false
-                            val uri = scanCaptureUri(context)
-                            pendingCameraUri = uri
-                            cameraLauncher.launch(uri)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ocr_scan_source_camera),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Start,
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            showScanChooser = false
-                            galleryLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ocr_scan_source_gallery),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Start,
-                        )
-                    }
-                }
+            onCamera = {
+                showScanChooser = false
+                val uri = captureUri(context, subDir = "scans", filePrefix = "scan")
+                pendingCameraUri = uri
+                cameraLauncher.launch(uri)
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showScanChooser = false }) { Text(stringResource(R.string.action_cancel)) }
+            onGallery = {
+                showScanChooser = false
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
         )
     }
@@ -682,19 +646,6 @@ fun AddTeaScreen(
         onUse = viewModel::useCatalogDetail,
         onRetry = viewModel::retryCatalogDetail,
     )
-}
-
-/**
- * A FileProvider URI for a transient camera-capture target under `cacheDir/scans/` (exposed in
- * `file_paths.xml`). Old scans are cleared first so full-res captures don't accumulate in the cache.
- */
-private fun scanCaptureUri(context: android.content.Context): Uri {
-    val dir = File(context.cacheDir, "scans").apply {
-        mkdirs()
-        listFiles()?.forEach { it.delete() }
-    }
-    val file = File(dir, "scan-${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 
 @Composable
