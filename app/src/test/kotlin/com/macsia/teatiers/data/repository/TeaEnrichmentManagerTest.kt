@@ -182,6 +182,22 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
+    fun `RateLimited queues the tea distinctly from Offline (post-merge review)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.RateLimited
+            val (manager, dao) = managerWith(teaRow("t1", name = "Мой чай"))
+
+            manager.enrich("t1", "Мой чай")
+            advanceUntilIdle()
+
+            val row = dao.loadTeaRow("t1")!!
+            assertEquals("Мой чай", row.nameRu)
+            // Distinct from QUEUED (Offline) so the card doesn't falsely claim "no network" for a
+            // server-side rate/edge budget — but still picked up by resumePending like QUEUED is.
+            assertEquals(EnrichmentState.RATE_LIMITED.name, row.enrichmentState)
+        }
+
+    @Test
     fun `Unresolved clears the spinner to DONE and keeps the typed tea`() = runTest(UnconfinedTestDispatcher()) {
         coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Unresolved
         val (manager, dao) = managerWith(teaRow("t1", name = "Свой чай"))
@@ -260,22 +276,25 @@ class TeaEnrichmentManagerTest {
     }
 
     @Test
-    fun `resumePending re-dispatches PENDING and QUEUED teas only`() = runTest(UnconfinedTestDispatcher()) {
-        coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
-        val (manager, dao) = managerWith(
-            teaRow("pending", state = EnrichmentState.PENDING),
-            teaRow("queued", state = EnrichmentState.QUEUED),
-            teaRow("done", state = EnrichmentState.DONE),
-        )
+    fun `resumePending re-dispatches PENDING, QUEUED, and RATE_LIMITED teas only`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
+            val (manager, dao) = managerWith(
+                teaRow("pending", state = EnrichmentState.PENDING),
+                teaRow("queued", state = EnrichmentState.QUEUED),
+                teaRow("rate-limited", state = EnrichmentState.RATE_LIMITED),
+                teaRow("done", state = EnrichmentState.DONE),
+            )
 
-        manager.resumePending()
-        advanceUntilIdle()
+            manager.resumePending()
+            advanceUntilIdle()
 
-        assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("pending")!!.enrichmentState)
-        assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("queued")!!.enrichmentState)
-        // The already-DONE tea was not re-resolved (no catalog link was written to it).
-        assertEquals(null, dao.loadTeaRow("done")!!.catalogTeaId)
-    }
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("pending")!!.enrichmentState)
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("queued")!!.enrichmentState)
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("rate-limited")!!.enrichmentState)
+            // The already-DONE tea was not re-resolved (no catalog link was written to it).
+            assertEquals(null, dao.loadTeaRow("done")!!.catalogTeaId)
+        }
 
     @Test
     fun `resumePending is throttled within its cooldown window so board-open cannot re-burn a resolve token`() =

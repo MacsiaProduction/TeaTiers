@@ -128,9 +128,11 @@ class TeaEnrichmentManager @Inject constructor(
                 // Tried, nothing to add — leave the typed tea as-is and clear the spinner.
                 ResolveResult.Unresolved -> dao.updateEnrichmentState(teaId, EnrichmentState.DONE.name)
                 ResolveResult.Offline -> dao.updateEnrichmentState(teaId, EnrichmentState.QUEUED.name)
-                // UX2-P1-5: a spent rate/edge budget is transient, not a real failure — queue it the
-                // same as Offline so resumePending retries it later instead of stranding it FAILED.
-                ResolveResult.RateLimited -> dao.updateEnrichmentState(teaId, EnrichmentState.QUEUED.name)
+                // UX2-P1-5 queued this the same as Offline so resumePending would retry it — correct,
+                // but the card then said "no network" for what was actually a spent rate/edge budget,
+                // reintroducing the exact wrong-cause-messaging bug that batch fixed elsewhere. A
+                // distinct state keeps the same retry path with an honest label (post-merge review).
+                ResolveResult.RateLimited -> dao.updateEnrichmentState(teaId, EnrichmentState.RATE_LIMITED.name)
                 ResolveResult.Error -> dao.updateEnrichmentState(teaId, EnrichmentState.FAILED.name)
             }
         } catch (_: Exception) {
