@@ -91,16 +91,14 @@ class BoardsViewModel @Inject constructor(
     /**
      * Removes every remaining seeded sample board in one tap (UX2-P1-10), instead of the user having
      * to find and delete each one individually. Each board's own Undo snapshot is kept so the single
-     * Undo action can restore all of them together; a board already deleted by the user is silently
-     * skipped (`deleteBoard` returns null for an unknown id).
+     * Undo action can restore all of them together; a board already deleted by the user, or one whose
+     * delete call throws, is silently skipped rather than aborting the rest — a mid-loop failure must
+     * not strand an already-deleted board with no Undo offered for it.
      */
     fun clearSampleData() {
         viewModelScope.launch {
             val deleted = SampleBoardProvider.SAMPLE_BOARD_IDS.mapNotNull { id ->
-                runCatching { repository.deleteBoard(id) }.getOrElse {
-                    eventHost.emit(ShowSnackbar(R.string.error_generic))
-                    return@launch
-                }
+                runCatching { repository.deleteBoard(id) }.getOrNull()
             }
             if (deleted.isNotEmpty()) {
                 eventHost.emit(
@@ -110,6 +108,8 @@ class BoardsViewModel @Inject constructor(
                         onAction = { deleted.forEach(::restoreBoard) },
                     ),
                 )
+            } else {
+                eventHost.emit(ShowSnackbar(R.string.error_generic))
             }
         }
     }

@@ -218,6 +218,46 @@ class BoardsViewModelTest {
         coVerify(exactly = 1) { repository.restoreBoard(deletedOolongs) }
     }
 
+    @Test
+    fun `clearSampleData still offers undo for boards deleted before a later one throws`() = runTest {
+        val deletedFavorites = DeletedBoard(BoardEntity("favorites", "Любимые чаи", 0), emptyList(), emptyList())
+        coEvery { repository.deleteBoard("favorites") } returns deletedFavorites
+        coEvery { repository.deleteBoard("oolongs") } throws RuntimeException("db error")
+        coEvery { repository.deleteBoard("tasting") } returns null // already deleted by the user
+        coEvery { repository.restoreBoard(any()) } just Runs
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.clearSampleData()
+        advanceUntilIdle()
+
+        // every id is still attempted despite the mid-loop throw
+        coVerify(exactly = 1) { repository.deleteBoard("favorites") }
+        coVerify(exactly = 1) { repository.deleteBoard("oolongs") }
+        coVerify(exactly = 1) { repository.deleteBoard("tasting") }
+        val event = events.single()
+        assertEquals(R.string.snackbar_sample_data_cleared, event.messageRes) // not the generic error
+
+        event.onAction!!.invoke()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.restoreBoard(deletedFavorites) } // not silently lost
+    }
+
+    @Test
+    fun `clearSampleData surfaces the generic error when every delete fails`() = runTest {
+        coEvery { repository.deleteBoard(any()) } throws RuntimeException("db error")
+        val viewModel = BoardsViewModel(repository, settings, enrichmentManager)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.clearSampleData()
+        advanceUntilIdle()
+
+        val event = events.single()
+        assertEquals(R.string.error_generic, event.messageRes)
+    }
+
     private fun board(id: String) =
         Board(id = id, name = id, tiers = emptyList(), placements = emptyMap(), unranked = emptyList())
 }
