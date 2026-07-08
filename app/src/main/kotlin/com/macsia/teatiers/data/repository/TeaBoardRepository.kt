@@ -408,13 +408,14 @@ class TeaBoardRepository @Inject constructor(
         return when (val copy = photoStore.copyIn(source)) {
             is PhotoCopyResult.Success -> {
                 val photoId = "photo-${UUID.randomUUID()}"
-                val position = dao.nextPhotoPosition(teaId)
                 dao.addPhoto(
                     PhotoEntity(
                         id = photoId,
                         teaId = teaId,
                         uri = copy.path,
-                        position = position,
+                        // position is recomputed inside dao.addPhoto's own @Transaction, atomically
+                        // with the insert — see its doc for why a separate read here raced.
+                        position = 0,
                         source = PhotoSource.USER.name,
                         license = null,
                         sourceUrl = null,

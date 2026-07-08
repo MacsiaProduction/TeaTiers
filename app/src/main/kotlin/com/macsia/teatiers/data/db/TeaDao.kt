@@ -612,10 +612,13 @@ abstract class TeaDao {
     /**
      * Inserts one photo row at the next available position. The repository copies the bytes
      * to disk first so the URI is already a stable absolute path by the time we write the row.
+     * [photo]'s own `position` is ignored and recomputed here, inside the same @Transaction as
+     * the insert — reading it in the repository first (a separate suspend call) raced two
+     * concurrent adds for the same tea onto the same position (e.g. a multi-photo gallery pick).
      */
     @Transaction
     open suspend fun addPhoto(photo: PhotoEntity) {
-        insertPhotos(listOf(photo))
+        insertPhotos(listOf(photo.copy(position = nextPhotoPosition(photo.teaId))))
     }
 
     /**
