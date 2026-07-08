@@ -340,7 +340,7 @@ class FakeTeaDao : TeaDao() {
     }
 
     override suspend fun teasNeedingEnrichment(): List<TeaSampleEntity> =
-        teas.filter { it.enrichmentState == "PENDING" || it.enrichmentState == "QUEUED" }
+        teas.filter { it.enrichmentState in setOf("PENDING", "QUEUED", "RATE_LIMITED") }
 
     override suspend fun deleteFlavorsFor(teaId: String) {
         if (flavors.removeAll { it.teaId == teaId }) refresh()

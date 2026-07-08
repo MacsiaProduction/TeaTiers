@@ -278,8 +278,8 @@ abstract class TeaDao {
         state: String,
     )
 
-    /** Teas left mid-enrichment by a prior run (process death / offline) — re-dispatched on launch. */
-    @Query("SELECT * FROM tea_samples WHERE enrichmentState IN ('PENDING', 'QUEUED')")
+    /** Teas left mid-enrichment by a prior run (process death / offline / rate-limited) — re-dispatched on launch. */
+    @Query("SELECT * FROM tea_samples WHERE enrichmentState IN ('PENDING', 'QUEUED', 'RATE_LIMITED')")
     abstract suspend fun teasNeedingEnrichment(): List<TeaSampleEntity>
 
     /**

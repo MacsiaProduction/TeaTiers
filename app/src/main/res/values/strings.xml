@@ -172,6 +172,7 @@
     <!-- Optimistic catalog-enrichment status shown on the tea card (decisions.md #21/#28). -->
     <string name="enrichment_status_pending">Уточняем…</string>
     <string name="enrichment_status_queued">Нет сети — уточним при открытии</string>
+    <string name="enrichment_status_rate_limited">Сервер перегружен — уточним при открытии</string>
     <string name="enrichment_status_failed">Не удалось уточнить</string>
     <!-- UX2-P2-15: shown on a redundant retry tap instead of silently no-op'ing. -->
     <string name="enrichment_already_retrying">Уже уточняем — подождите немного</string>

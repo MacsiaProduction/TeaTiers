@@ -161,6 +161,7 @@ private fun EnrichmentStatus(state: EnrichmentState) {
     val label = when (state) {
         EnrichmentState.PENDING -> stringResource(R.string.enrichment_status_pending)
         EnrichmentState.QUEUED -> stringResource(R.string.enrichment_status_queued)
+        EnrichmentState.RATE_LIMITED -> stringResource(R.string.enrichment_status_rate_limited)
         EnrichmentState.FAILED -> stringResource(R.string.enrichment_status_failed)
         EnrichmentState.NONE, EnrichmentState.DONE -> return
     }
