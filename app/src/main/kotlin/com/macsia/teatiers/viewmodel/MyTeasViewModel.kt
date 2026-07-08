@@ -61,17 +61,24 @@ class MyTeasViewModel @Inject constructor(
     ) { teas, boards, q, type, sortOption ->
         val counts = placementCounts(boards)
         FilteredTeas(
+            typeFilter = type,
+            sort = sortOption,
             items = filterMyTeas(teas, q, type, sortOption).map { MyTeaItem(it, counts[it.id] ?: 0) },
             availableTypes = TeaType.entries.filter { candidate -> teas.any { it.type == candidate } },
             collectionEmpty = teas.isEmpty(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FilteredTeas())
 
-    val state: StateFlow<MyTeasUiState> = combine(query, typeFilter, sort, filtered) { q, type, sortOption, f ->
+    // `typeFilter`/`sort` come from `filtered` itself, not the raw MutableStateFlows a second time:
+    // two independent combine()s both reading the same upstream flows have no ordering guarantee
+    // between them, so `state` could otherwise emit a transient frame where the chip/sort already
+    // looks selected but `items` still reflects the previous selection (post-merge review). Reading
+    // them off `filtered`'s own already-consistent snapshot ties them to the same emission as `items`.
+    val state: StateFlow<MyTeasUiState> = combine(query, filtered) { q, f ->
         MyTeasUiState(
             query = q,
-            typeFilter = type,
-            sort = sortOption,
+            typeFilter = f.typeFilter,
+            sort = f.sort,
             items = f.items,
             availableTypes = f.availableTypes,
             collectionEmpty = f.collectionEmpty,
@@ -79,6 +86,8 @@ class MyTeasViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyTeasUiState())
 
     private data class FilteredTeas(
+        val typeFilter: TeaType? = null,
+        val sort: MyTeasSortOption = MyTeasSortOption.NAME,
         val items: List<MyTeaItem> = emptyList(),
         val availableTypes: List<TeaType> = emptyList(),
         val collectionEmpty: Boolean = true,

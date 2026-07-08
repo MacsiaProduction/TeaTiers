@@ -36,6 +36,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -933,6 +934,19 @@ class AddTeaViewModelTest {
         viewModel.applyScannedText("  Распознанный текст  ")
 
         assertEquals("С упаковки\nРаспознанный текст", viewModel.form.value.sourceText)
+    }
+
+    @Test
+    fun `applyScannedText truncates over the cap and emits the truncated snackbar exactly once`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        val events = mutableListOf<ShowSnackbar>()
+        backgroundScope.launch { viewModel.events.collect { events += it } }
+
+        viewModel.applyScannedText("a".repeat(SourceTextMaxLength + 500))
+        advanceUntilIdle()
+
+        assertEquals(SourceTextMaxLength, viewModel.form.value.sourceText.length)
+        assertEquals(1, events.size)
     }
 
     @Test
