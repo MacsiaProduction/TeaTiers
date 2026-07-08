@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,7 +56,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import coil3.compose.SubcomposeAsyncImage
@@ -66,6 +64,7 @@ import coil3.request.crossfade
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.ui.components.PhotoLoadError
+import com.macsia.teatiers.ui.components.SourceChooserDialog
 import java.io.File
 
 private val ThumbSize = 96.dp
@@ -159,52 +158,18 @@ fun PhotoStripField(
     if (showSourceChooser) {
         // Camera vs gallery are two equal, non-hierarchical choices (UX2-P1-11's convention): both
         // live as rows in the body, and dismissButton is a real Cancel — not overloaded confirm/dismiss.
-        AlertDialog(
+        SourceChooserDialog(
+            title = stringResource(R.string.photos_add),
             onDismissRequest = { showSourceChooser = false },
-            title = { Text(stringResource(R.string.photos_add)) },
-            text = {
-                Column {
-                    TextButton(
-                        onClick = {
-                            showSourceChooser = false
-                            val uri = photoCaptureUri(context)
-                            pendingCameraUri = uri
-                            cameraLauncher.launch(uri)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ocr_scan_source_camera),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Start,
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            showSourceChooser = false
-                            pickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.ocr_scan_source_gallery),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Start,
-                        )
-                    }
-                }
+            onCamera = {
+                showSourceChooser = false
+                val uri = captureUri(context, subDir = "photo-captures", filePrefix = "photo")
+                pendingCameraUri = uri
+                cameraLauncher.launch(uri)
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showSourceChooser = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
+            onGallery = {
+                showSourceChooser = false
+                pickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
         )
     }
@@ -230,17 +195,18 @@ fun PhotoStripField(
 }
 
 /**
- * A fresh FileProvider URI for the camera to write a captured photo into (UX2-F-1). Its own cache
- * subdir (distinct from AddTeaScreen's OCR "scans" dir) since, unlike an OCR scan, this file is kept
- * — [onPick] copies it into permanent photo storage right away, so the stale-file cleanup below only
- * ever catches a capture the user backed out of before it was picked up.
+ * A fresh FileProvider URI for the camera to write into, under `cacheDir/[subDir]/` (exposed in
+ * `file_paths.xml`). Old files in that subdir are cleared first so captures don't accumulate.
+ * Shared by [PhotoStripField]'s own photo capture (UX2-F-1, `subDir = "photo-captures"`, kept —
+ * [onPick] copies it into permanent storage right away) and AddTeaScreen's OCR scan capture
+ * (`subDir = "scans"`, discarded after recognition — the two never share a directory).
  */
-private fun photoCaptureUri(context: android.content.Context): Uri {
-    val dir = File(context.cacheDir, "photo-captures").apply {
+internal fun captureUri(context: android.content.Context, subDir: String, filePrefix: String): Uri {
+    val dir = File(context.cacheDir, subDir).apply {
         mkdirs()
         listFiles()?.forEach { it.delete() }
     }
-    val file = File(dir, "photo-${System.currentTimeMillis()}.jpg")
+    val file = File(dir, "$filePrefix-${System.currentTimeMillis()}.jpg")
     return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 

@@ -131,6 +131,19 @@ class DefaultCatalogRepositoryTest {
     }
 
     @Test
+    fun `search 429 or 503 with an empty cache surfaces RateLimited, distinct from Error (post-merge review)`() =
+        runTest {
+            coEvery { dao.search(any(), any(), any()) } returns emptyList()
+
+            server.enqueue(MockResponse().setResponseCode(429))
+            val repo = DefaultCatalogRepository(api, dao, json)
+            assertEquals(CatalogSearchResult.RateLimited, repo.search("long"))
+
+            server.enqueue(MockResponse().setResponseCode(503))
+            assertEquals(CatalogSearchResult.RateLimited, repo.search("long"))
+        }
+
+    @Test
     fun `browse parses a page and carries the next cursor`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(BROWSE_BODY))
         val repo = DefaultCatalogRepository(api, dao, json)
@@ -168,6 +181,17 @@ class DefaultCatalogRepositoryTest {
         server.shutdown()
         assertEquals(CatalogBrowseResult.Offline, repo.browse())
     }
+
+    @Test
+    fun `browse 429 or 503 maps to RateLimited, distinct from a generic server error (post-merge review)`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(429))
+            val repo = DefaultCatalogRepository(api, dao, json)
+            assertEquals(CatalogBrowseResult.RateLimited, repo.browse())
+
+            server.enqueue(MockResponse().setResponseCode(503))
+            assertEquals(CatalogBrowseResult.RateLimited, repo.browse())
+        }
 
     @Test
     fun `browse forwards a type filter as a query param (UX-F-1)`() = runTest {
@@ -313,6 +337,17 @@ class DefaultCatalogRepositoryTest {
         server.shutdown()
         assertEquals(ResolveResult.Offline, repo.resolve("Чай"))
     }
+
+    @Test
+    fun `resolve 429 or 503 maps to RateLimited, distinct from a generic server error (post-merge review)`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(429))
+            val repo = DefaultCatalogRepository(api, dao, json)
+            assertEquals(ResolveResult.RateLimited, repo.resolve("Чай"))
+
+            server.enqueue(MockResponse().setResponseCode(503))
+            assertEquals(ResolveResult.RateLimited, repo.resolve("Чай"))
+        }
 
     @Test
     fun `resolve short-circuits a blank name without touching the network`() = runTest {

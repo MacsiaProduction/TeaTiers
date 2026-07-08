@@ -460,10 +460,17 @@ private fun TierRow(
                     ),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // Computed once per tier recomposition, not once per card — `groupOrder(key)` did the
+                // same firstOrNull-scan-plus-map redundantly for every card in this tier (post-merge
+                // review). The placements here already ARE that tier's order.
+                val order = remember(tierWithPlacements.placements) {
+                    tierWithPlacements.placements.map { it.placementId }
+                }
                 tierWithPlacements.placements.forEach { placement ->
                     DraggableTeaCard(
                         placement = placement,
                         currentKey = key,
+                        order = order,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
@@ -560,10 +567,12 @@ private fun UnrankedSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
+                val order = remember(placements) { placements.map { it.placementId } }
                 placements.forEach { placement ->
                     DraggableTeaCard(
                         placement = placement,
                         currentKey = UnrankedKey,
+                        order = order,
                         dragState = dragState,
                         moveTargets = moveTargets,
                         groupOrder = groupOrder,
@@ -588,6 +597,7 @@ private fun UnrankedSection(
 private fun DraggableTeaCard(
     placement: Placement,
     currentKey: String,
+    order: List<String>,
     dragState: BoardDragState,
     moveTargets: List<MoveTarget>,
     groupOrder: (String) -> List<String>,
@@ -610,7 +620,6 @@ private fun DraggableTeaCard(
     // to tier X" actions below explicitly exclude the current group. currentTierId is the real
     // (nullable) tier id backing currentKey (groupKey maps null -> UnrankedKey for the tray).
     val currentTierId = currentKey.takeIf { it != UnrankedKey }
-    val order = groupOrder(currentKey)
     val myIndex = order.indexOf(placement.placementId)
     val actions = remember(
         currentKey, moveTargets, placement.placementId, onMove, menuActions, myIndex, order.size,
