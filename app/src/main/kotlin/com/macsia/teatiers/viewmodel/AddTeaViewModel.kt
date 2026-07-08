@@ -304,14 +304,20 @@ class AddTeaViewModel @Inject constructor(
     fun applyScannedText(text: String) {
         val cleaned = text.trim()
         if (cleaned.isNotEmpty()) {
+            // `truncated` is read once after update{} converges, not per CAS attempt — the emit itself
+            // stays outside the lambda (update{}'s transform may run more than once on contention, and
+            // emit() enqueuing to a channel is an observable side effect that must fire exactly once,
+            // unlike pickCatalogTea's own snackbar in this same file; post-merge review).
+            var truncated = false
             _form.update { form ->
                 val merged = if (form.sourceText.isBlank()) cleaned else "${form.sourceText.trimEnd()}\n$cleaned"
-                // UX2-P2-14: the merge used to truncate silently — tell the user their scanned text
-                // was cut off instead of leaving them to notice the field just looks incomplete.
-                if (merged.length > SourceTextMaxLength) {
-                    eventHost.emit(ShowSnackbar(R.string.source_text_truncated))
-                }
+                truncated = merged.length > SourceTextMaxLength
                 form.copy(sourceText = merged.take(SourceTextMaxLength))
+            }
+            // UX2-P2-14: the merge used to truncate silently — tell the user their scanned text was
+            // cut off instead of leaving them to notice the field just looks incomplete.
+            if (truncated) {
+                eventHost.emit(ShowSnackbar(R.string.source_text_truncated))
             }
         }
         _scan.value = ScanUiState.Idle

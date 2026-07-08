@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -72,6 +73,27 @@ class MyTeasViewModelTest {
         advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 50)
         advanceUntilIdle()
 
+        assertEquals(listOf("t1"), viewModel.state.value.items.map { it.tea.id })
+    }
+
+    @Test
+    fun `state never emits a typeFilter and items pair from different selections (post-merge review)`() = runTest {
+        every { repository.allTeas } returns MutableStateFlow(
+            listOf(tea("t1", "Лунцзин"), Tea(id = "t2", nameRu = "Да Хун Пао", type = TeaType.OOLONG)),
+        )
+        val viewModel = MyTeasViewModel(repository)
+        val emissions = mutableListOf<MyTeasUiState>()
+        viewModel.state.onEach { emissions += it }.launchIn(backgroundScope)
+        advanceUntilIdle()
+
+        viewModel.toggleType(TeaType.GREEN)
+        advanceUntilIdle()
+
+        // Every emission where the filter is GREEN must only ever list GREEN teas — `typeFilter` and
+        // `items` come from the same `filtered` snapshot now, so they can't straddle two selections.
+        emissions.filter { it.typeFilter == TeaType.GREEN }.forEach { snapshot ->
+            assertTrue(snapshot.items.all { it.tea.type == TeaType.GREEN }, "stale items paired with new typeFilter: $snapshot")
+        }
         assertEquals(listOf("t1"), viewModel.state.value.items.map { it.tea.id })
     }
 }
