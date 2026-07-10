@@ -231,6 +231,32 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `a stale edit-load from a superseded bind does not overwrite the current form (final review)`() = runTest {
+        val gate1 = CompletableDeferred<Unit>()
+        var calls = 0
+        // First bind's load (for t1) is slow/gated; a second bind to the SAME id resolves fast.
+        coEvery { repository.tea("t1") } coAnswers {
+            calls++
+            if (calls == 1) gate1.await()
+            Tea(id = "t1", nameRu = "Старое имя", type = TeaType.GREEN)
+        }
+        coEvery { repository.placementCountForTea("t1") } returns 1
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.bind(teaId = "t1", entryToken = "e1") // load#1 starts, gated
+        viewModel.bind(teaId = "t1", entryToken = "e2") // supersedes; load#2 resolves immediately
+        advanceUntilIdle()
+        // load#2 applied the loaded name; the user then edits it.
+        viewModel.update { it.copy(nameRu = "Моё редактирование") }
+
+        gate1.complete(Unit) // the STALE load#1 (same teaId, old token) now resumes
+        advanceUntilIdle()
+
+        // The token guard drops the stale load, so the user's edit survives (teaId alone wouldn't catch it).
+        assertEquals("Моё редактирование", viewModel.form.value.nameRu)
+    }
+
+    @Test
     fun `formLoading clears even when the edit-mode load throws, never stranding a spinner`() = runTest {
         coEvery { repository.tea("t1") } throws RuntimeException("db read failed")
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)

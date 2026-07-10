@@ -103,6 +103,11 @@ class BrowseCatalogViewModel @Inject constructor(
 
     private var nextCursor: Long? = null
     private var loading = false
+    // Guards against overlapping facets() calls: fetchFacetsIfNeeded is now invoked from every page
+    // load (init + first page + each load-more), so a slow or persistently-failing facets fetch would
+    // otherwise launch one redundant network call per page (final review). The isNotEmpty() guard alone
+    // doesn't cover the window before the first call resolves.
+    private var facetsInFlight = false
 
     // Bumped whenever a load that redefines the list (first page / search / load-more) starts. A
     // load-more runs in its own coroutine the query collectLatest can't cancel, so it captures the
@@ -135,9 +140,14 @@ class BrowseCatalogViewModel @Inject constructor(
      * instead of needing a dedicated retry affordance.
      */
     private fun fetchFacetsIfNeeded() {
-        if (_availableTypes.value.isNotEmpty()) return
+        if (_availableTypes.value.isNotEmpty() || facetsInFlight) return
+        facetsInFlight = true
         viewModelScope.launch {
-            (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
+            try {
+                (catalogRepository.facets() as? CatalogFacetsResult.Loaded)?.let { _availableTypes.value = it.types }
+            } finally {
+                facetsInFlight = false
+            }
         }
     }
 

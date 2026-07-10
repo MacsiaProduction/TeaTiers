@@ -19,7 +19,7 @@
     <!-- UX2-P1-10: one-tap way to clear the seeded sample boards, reachable even after the intro card above is dismissed. -->
     <string name="boards_clear_sample_data">Очистить примеры подборок</string>
     <string name="boards_clear_sample_data_confirm_title">Удалить примеры подборок?</string>
-    <string name="boards_clear_sample_data_confirm_message">Оставшиеся демонстрационные подборки будут удалены. Сами чаи останутся в разделе «Мои чаи», но пропадут с этих подборок — если вы добавляли свой чай только в такую подборку, его нужно будет заново добавить на доску из «Моих чаёв».</string>
+    <string name="boards_clear_sample_data_confirm_message">Оставшиеся демонстрационные подборки будут удалены. Сами чаи останутся в разделе «Мои чаи», но пропадут с этих подборок — если вы добавляли свой чай только в такую подборку, его нужно будет заново добавить в подборку из «Моих чаёв».</string>
     <string name="boards_clear_sample_data_confirm_action">Удалить</string>
     <string name="snackbar_sample_data_cleared">Примеры подборок удалены</string>
 

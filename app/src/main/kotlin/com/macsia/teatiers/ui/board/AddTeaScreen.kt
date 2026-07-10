@@ -204,8 +204,12 @@ fun AddTeaScreen(
                     TextButton(
                         // Save stays tappable even when the form is invalid so the user gets
                         // the snackbar + focus pump instead of silently disabled UI. It IS disabled
-                        // while a save is in flight so a double-tap can't launch a duplicate (UX-P0-1).
-                        enabled = !isSaving,
+                        // while a save is in flight so a double-tap can't launch a duplicate (UX-P0-1),
+                        // and while the edit-mode form is still loading — otherwise a tap would submit
+                        // the blank interim form and then requestFocus() on the not-yet-composed nameRu
+                        // field (hidden behind the formLoading spinner), throwing on an unattached
+                        // FocusRequester and crashing the screen (final-review P0).
+                        enabled = !isSaving && !formLoading,
                         onClick = {
                             viewModel.submit { photoFailure ->
                                 if (photoFailure != null) {

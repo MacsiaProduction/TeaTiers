@@ -252,6 +252,27 @@ class BrowseCatalogViewModelTest {
     }
 
     @Test
+    fun `fetchFacetsIfNeeded does not launch overlapping facets calls across init and load-more (final review)`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { catalogRepository.facets() } coAnswers { gate.await(); CatalogFacetsResult.Loaded(listOf(TeaType.GREEN)) }
+        coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 1L),
+            CatalogBrowseResult.Loaded(listOf(tea(2, "Б")), nextCursor = null),
+        )
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle() // init + first-page each call fetchFacetsIfNeeded while the first call is still gated
+
+        vm.loadMore() // applyMore calls it again — still in flight, must not re-launch
+        advanceUntilIdle()
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        // One facets() despite init + first page + load-more all calling fetchFacetsIfNeeded.
+        coVerify(exactly = 1) { catalogRepository.facets() }
+    }
+
+    @Test
     fun `availableTypes self-heals on a load-more after a cold-offline start (UX3-P2-14)`() = runTest {
         coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Offline
         coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(

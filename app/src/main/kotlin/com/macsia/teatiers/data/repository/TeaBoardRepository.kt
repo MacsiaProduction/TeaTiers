@@ -190,8 +190,32 @@ class TeaBoardRepository @Inject constructor(
      * the "my teas" screen collects it while open. Unlike [boards] this has no synchronous
      * reader, so it is not eagerly shared.
      */
+    // Consecutive allTeas read failures, reset on a healthy emission — same rationale as
+    // [boardsReadFailures]: the built-in retryWhen `attempt` never resets after a recovered failure, so
+    // within one continuous collection three separate recovered hiccups would still exhaust the budget
+    // and freeze the list at empty. Only My Teas collects this, one collector at a time, so a plain var
+    // is safe (a fresh collection also resets it via the onEach below).
+    private var allTeasReadFailures = 0
+
     val allTeas: Flow<List<Tea>> = dao.observeAllTeas()
         .map { rows -> rows.map { it.toDomain() } }
+        // A transient Room error here would otherwise reach the My Teas collector with no
+        // CoroutineExceptionHandler (→ crash) and strand its loading spinner (final review); harden it
+        // exactly like [boards].
+        .onEach { allTeasReadFailures = 0 }
+        .retryWhen { cause, _ ->
+            if (allTeasReadFailures++ < BOARDS_READ_MAX_RETRIES) {
+                Log.w("TeaBoardRepository", "allTeas read failed ($allTeasReadFailures in a row), retrying", cause)
+                delay(BOARDS_READ_RETRY_DELAY_MS)
+                true
+            } else {
+                false
+            }
+        }
+        .catch { e ->
+            Log.e("TeaBoardRepository", "allTeas read failed permanently", e)
+            emit(emptyList())
+        }
 
     init {
         scope.launch {
