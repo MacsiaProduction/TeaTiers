@@ -214,6 +214,22 @@ class BackupManagerTest {
     }
 
     @Test
+    fun `import of a truncated or corrupt archive is InvalidFile, not a generic failure (UX3-P2-18)`() = runTest {
+        // A real backup whose transfer/download was interrupted — cutting it mid-stream truncates a
+        // DEFLATE entry, which throws EOFException (not ZipException) inside extractTo. That must read
+        // as "not a (complete) backup", not the generic "restore failed" that invites a pointless retry.
+        val full = archiveBytes()
+        val truncated = full.copyOf(full.size / 2)
+        val dao = mockk<TeaDao>(relaxed = true)
+        val (manager, uri) = managerReading(truncated, dao, FakePhotoStore())
+
+        val result = manager.importFrom(uri)
+
+        assertTrue(result is BackupResult.InvalidFile, "expected InvalidFile, got $result")
+        coVerify(exactly = 0) { dao.replaceAll(any()) }
+    }
+
+    @Test
     fun `import of a zip without the backup json is InvalidFile and writes nothing`() = runTest {
         // A zip with only a photo entry (no backup.json) parses to a blank bundle -> InvalidFile,
         // without hitting any android.util.Log branch.

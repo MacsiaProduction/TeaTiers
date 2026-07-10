@@ -257,6 +257,9 @@ class BrowseCatalogViewModel @Inject constructor(
         _state.value = when (result) {
             is CatalogBrowseResult.Loaded -> {
                 nextCursor = result.nextCursor
+                // UX3-P2-14: also self-heal the facet chips on a load-more, not just the first page — a
+                // cold-offline start that later reconnects and only paginates otherwise never restores them.
+                fetchFacetsIfNeeded()
                 // Defensive de-dup in case a page boundary overlaps; catalog ids are unique.
                 val seen = current.teas.mapTo(HashSet()) { it.id }
                 val merged = current.teas + result.teas.filterNot { it.id in seen }

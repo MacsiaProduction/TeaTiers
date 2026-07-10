@@ -69,6 +69,10 @@ import java.io.File
 
 private val ThumbSize = 96.dp
 
+/** Max photos per multi-select (UX3-P2-11). Matches the UiEvent channel capacity so even an all-fail
+ *  batch in edit mode can't drop a per-photo failure snackbar. */
+private const val MAX_PHOTO_PICK = 8
+
 /**
  * Editable photo strip on the add/edit screen (decisions.md #43).
  *
@@ -90,8 +94,10 @@ fun PhotoStripField(
     onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // UX3-P2-11: cap the multi-select so a mass-add can't outrun the one-snackbar-per-failure event
+    // channel (and keeps a tea's photo set sane). The system picker enforces the same ceiling itself.
     val pickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(),
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = MAX_PHOTO_PICK),
     ) { uris: List<Uri> -> uris.forEach(onPick) }
 
     // UX2-F-1: photographing the tea directly (tin, leaves, packaging) had no entry point — only

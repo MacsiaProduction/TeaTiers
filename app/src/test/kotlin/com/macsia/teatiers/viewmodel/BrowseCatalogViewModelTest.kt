@@ -252,6 +252,25 @@ class BrowseCatalogViewModelTest {
     }
 
     @Test
+    fun `availableTypes self-heals on a load-more after a cold-offline start (UX3-P2-14)`() = runTest {
+        coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Offline
+        coEvery { catalogRepository.browse(any(), any(), any()) } returnsMany listOf(
+            CatalogBrowseResult.Loaded(listOf(tea(1, "А")), nextCursor = 1L),
+            CatalogBrowseResult.Loaded(listOf(tea(2, "Б")), nextCursor = null),
+        )
+        val vm = BrowseCatalogViewModel(catalogRepository, boardRepository)
+        advanceUntilIdle()
+        assertTrue(vm.availableTypes.value.isEmpty()) // cold-offline start: facets failed, chips hidden
+
+        // Reconnect: facets now succeed, and a load-more must re-fetch them (not just page 1).
+        coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Loaded(listOf(TeaType.GREEN, TeaType.OOLONG))
+        vm.loadMore()
+        advanceUntilIdle()
+
+        assertEquals(listOf(TeaType.GREEN, TeaType.OOLONG), vm.availableTypes.value)
+    }
+
+    @Test
     fun `a failed facets fetch leaves availableTypes empty instead of blocking browse (UX-F-1)`() = runTest {
         coEvery { catalogRepository.facets() } returns CatalogFacetsResult.Offline
         coEvery { catalogRepository.browse(any(), any(), any()) } returns
