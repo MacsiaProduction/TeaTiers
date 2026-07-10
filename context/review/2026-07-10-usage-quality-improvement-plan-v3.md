@@ -98,7 +98,7 @@ Server-felt residuals:
 - UX3-P2-22 — Update check never fires automatically; `Forced`/`minSupportedVersionCode` is unreachable without a manual Settings visit. **Deliberately deferred by the skeptic pass:** wiring a startup check before REL-P0-2's Ed25519 manifest lands would let an unpinned manifest gate app usage; Obtainium/GitHub is the sanctioned channel today. Sequencing note: wire it WITH REL-P0-2, not before. `data/update/AppUpdateChecker.kt:33-37`. TRACKED (fold into REL-P0-2) 
 
 A11y / copy (beyond UX3-P1-7):
-- UX3-P2-23 — Zero `ImeAction.Next` anywhere: the ~14-field add form makes keyboard users dismiss and re-target per field. Add Next-chaining to sequential single-line fields. `ui/board/AddTeaScreen.kt`. OPEN
+- UX3-P2-23 — Zero `ImeAction.Next` anywhere: the ~14-field add form makes keyboard users dismiss and re-target per field. Add Next-chaining to sequential single-line fields. **DONE (#214)**. Orig hint:lds. `ui/board/AddTeaScreen.kt`. **DONE (#214)**
 - UX3-P2-24 — Zero live regions: async outcomes (enrichment status flips, busy overlays) are never announced unless focus happens to sit on them. Start with `EnrichmentStatus`. `ui/components/TeaCard.kt:159-191`. **DONE (#211)** — opt-in live region on the detail screen.
 - UX3-P2-25 — Settings switches use `selectable(role = Role.Switch)` — role/state mismatch makes TalkBack say "выбрано" instead of "включено". Swap to `toggleable`. `ui/board/SettingsScreen.kt:593`. **DONE (#211)**
 - UX3-P2-26 — Missing `Role.Button` on list-item cards (TeaCard, BoardSummaryCard, MyTeaRow, CatalogResultRow, PurchaseRow) — pattern applied correctly elsewhere in the same files; one sweep. **DONE (#211)** — 5 cards.
