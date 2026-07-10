@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -94,6 +95,24 @@ class AppUpdateViewModelTest {
         assertEquals(UpdateUiState.Checking, viewModel.state.value)
         viewModel.check() // guard: state is Checking, so this returns without launching
         gate.complete(Unit)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { checker.check(any(), any()) }
+    }
+
+    @Test
+    fun `check sets Checking synchronously so a second tap is dropped before the launch runs (UX3-P2-13)`() = runTest {
+        // StandardTestDispatcher (not the setUp's Unconfined): the launch does NOT run eagerly, so this
+        // proves the guard is set SYNCHRONOUSLY in check() (before the launch), not inside the launch
+        // body. A revert to an in-launch placement would leave state Idle right after check() and let a
+        // second tap start a 2nd overlapping check — which the Unconfined tests can't catch.
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        coEvery { checker.check(any(), any()) } returns UpdateAvailability.None
+        val viewModel = vm()
+
+        viewModel.check()
+        assertEquals(UpdateUiState.Checking, viewModel.state.value) // set synchronously, before any dispatch
+        viewModel.check() // second tap: sees Checking synchronously and is dropped
         advanceUntilIdle()
 
         coVerify(exactly = 1) { checker.check(any(), any()) }

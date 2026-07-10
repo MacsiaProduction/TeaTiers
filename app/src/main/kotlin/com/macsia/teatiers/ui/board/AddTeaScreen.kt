@@ -113,8 +113,11 @@ fun AddTeaScreen(
     forceNew: Boolean = false,
     viewModel: AddTeaViewModel = hiltViewModel(),
 ) {
-    // Stable per-entry token: survives rotation/process-death via rememberSaveable, so a re-fired
-    // bind() on recreation preserves the in-progress form instead of wiping it (review N5).
+    // Stable per-entry token (rememberSaveable). A re-fired bind() with the SAME token — a rotation, so
+    // the ViewModel itself survived — preserves the in-progress form. After true process death the token
+    // value is restored but the ViewModel is fresh (its lastEntryToken is null), so an in-progress ADD is
+    // reset (edit mode reloads from teaId). Draft survival across process death is still open — UX-P1-3;
+    // see AddTeaViewModel.bind's own note (this comment previously over-claimed "survives process-death").
     val entryToken = rememberSaveable { java.util.UUID.randomUUID().toString() }
     LaunchedEffect(boardId, teaId, catalogTeaId, forceNew, entryToken) {
         viewModel.bind(boardId = boardId, teaId = teaId, catalogTeaId = catalogTeaId, forceNew = forceNew, entryToken = entryToken)
