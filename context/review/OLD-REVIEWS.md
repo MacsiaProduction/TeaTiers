@@ -436,7 +436,7 @@ long P2 tail.
 
 | ID | Finding | Status |
 |---|---|:--:|
-| UX2-P0-1 | Editing a tea unconditionally overwrites every scalar column, racing a concurrent enrichment patch (or vice versa) | **DONE** (Batch 1) — `updateTea` takes an `original` snapshot; only writes a column when it actually changed vs. `original` |
+| UX2-P0-1 | Editing a tea unconditionally overwrites every scalar column, racing a concurrent enrichment patch (or vice versa) | **DONE** (Batch 1) — `updateTea` takes an `original` snapshot; the diff-vs-`original` merge covers the six `TeaMergeFields` columns enrichment can touch (nameRu/nameZh/pinyin/nameEn/type/origin), so only a genuinely-changed one wins; notes/vendor/product/harvestYear/batch/grade write through unconditionally (safe — enrichment never writes them). Blank-out of a merged field verified by `TeaDaoUpdateTeaMergeTest` (UX3-P2-12). |
 | UX2-P0-2 | "Use reference as my rating" round-trips the *entire* tea through the same unguarded whole-row path from a stale StateFlow snapshot | **DONE** (Batch 1) — new flavor-only `updateFlavor`/`updateFlavors` DAO path |
 
 ### P1 — silent failures & major friction
