@@ -486,8 +486,8 @@ abstract class TeaDao {
     /**
      * Atomic add: when [tea] is non-null we insert a brand-new sample + its flavor and purchase
      * rows (stubbing the catalog ref first when linked, so the FK holds — finding #14); when null
-     * the placement attaches to an existing sample (auto-link by name, decisions.md #42), so we
-     * deliberately leave the existing sample's fields untouched.
+     * the placement attaches to an existing sample (catalog-id reuse only, decision #132 — a custom
+     * add never resolves to null), so we deliberately leave the existing sample's fields untouched.
      */
     @Transaction
     open suspend fun addTea(

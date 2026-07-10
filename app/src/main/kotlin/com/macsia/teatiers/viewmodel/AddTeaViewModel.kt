@@ -143,6 +143,32 @@ class AddTeaViewModel @Inject constructor(
     val editingTeaId: StateFlow<String?> = _editingTeaId.asStateFlow()
 
     /**
+     * True when the current add-mode form would create a NEW sample whose name already exists in the
+     * collection — decision #132's non-blocking dedup suggestion. The form still saves an independent
+     * sample (custom adds never auto-merge, UX3-P0-1); this only surfaces a hint so an accidental
+     * re-type is visible. False in edit mode, for "add another sample" (forceNew), and while blank.
+     */
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    val duplicateNameHint: StateFlow<Boolean> =
+        combine(_form, _editingTeaId) { form, editing -> form to editing }
+            // Only identity fields decide the hint — collapse edits to notes/flavor/purchases so
+            // typing an unrelated field doesn't re-run the lookup during the debounce window.
+            .distinctUntilChanged { old, new ->
+                old.second == new.second &&
+                    old.first.nameRu == new.first.nameRu &&
+                    old.first.nameEn == new.first.nameEn &&
+                    old.first.pinyin == new.first.pinyin &&
+                    old.first.nameZh == new.first.nameZh &&
+                    old.first.catalogTeaId == new.first.catalogTeaId
+            }
+            .debounce(CATALOG_SEARCH_DEBOUNCE_MS)
+            .mapLatest { (form, editing) ->
+                editing == null && !forceNew && form.isValid && repository.wouldDuplicateName(form.toTea())
+            }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
      * How many boards the edited user-tea currently sits on; drives the
      * "Изменения видны во всех подборках" caption (shown when > 1, decisions.md #42). Zero in
      * add mode and while the load is in flight.

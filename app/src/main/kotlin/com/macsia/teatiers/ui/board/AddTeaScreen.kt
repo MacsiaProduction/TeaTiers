@@ -120,6 +120,7 @@ fun AddTeaScreen(
     val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
     val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val duplicateNameHint by viewModel.duplicateNameHint.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -313,6 +314,16 @@ fun AddTeaScreen(
                     MaterialTheme.colorScheme.error
                 },
             )
+            // Non-blocking dedup suggestion (#132 / UX3-P0-1): saving still creates an independent
+            // sample, but a same-named tea already in the collection is surfaced so an accidental
+            // re-type is visible rather than a silent duplicate.
+            if (duplicateNameHint) {
+                Text(
+                    text = stringResource(R.string.add_tea_duplicate_name_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             FieldLabel(stringResource(R.string.field_type))
             ChipRow {
