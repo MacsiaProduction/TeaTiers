@@ -135,6 +135,31 @@ class TeaDaoUpdateTeaMergeTest {
     }
 
     @Test
+    fun `updateTea with original clears a shared column the user deliberately blanked (UX3-P2-12)`() = runBlocking {
+        seedTea(nameEn = "Old name")
+        val original = TeaMergeFields(nameRu = "Чай", nameZh = null, pinyin = null, nameEn = "Old name", type = "GREEN", origin = null)
+
+        // The user erased the English name they had loaded — clearing to blank must WIN (edited differs
+        // from original), not be swallowed as a no-op by the diff-vs-original merge.
+        val edited = original.copy(nameEn = null)
+        dao.updateTea(
+            teaId = "t1",
+            edited = edited,
+            original = original,
+            notes = null,
+            vendor = null,
+            product = null,
+            harvestYear = null,
+            batch = null,
+            grade = null,
+            flavors = emptyList(),
+            purchases = emptyList(),
+        )
+
+        assertEquals(null, dao.loadTeaRow("t1")!!.nameEn)
+    }
+
+    @Test
     fun `updateTea with no original falls back to an unconditional overwrite`() = runBlocking {
         seedTea(nameEn = "Old")
 
