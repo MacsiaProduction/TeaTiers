@@ -6,6 +6,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.CatalogImage
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorScore
@@ -40,6 +41,7 @@ sealed interface TeaDetailUiState {
 class TeaDetailViewModel @Inject constructor(
     private val repository: TeaBoardRepository,
     private val catalog: CatalogRepository,
+    private val enrichmentManager: TeaEnrichmentManager,
 ) : ViewModel() {
 
     private val eventHost = UiEventHost()
@@ -111,6 +113,21 @@ class TeaDetailViewModel @Inject constructor(
     val referenceImages: StateFlow<List<CatalogImage>> = referenceDetail
         .map { it?.images.orEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Retries background enrichment of the shown tea from the detail screen (UX3-P1-4) — the board
+     * card's retry lived only in its overflow, so a tea opened from My Teas or reached directly had no
+     * way to re-drive a FAILED/QUEUED/RATE_LIMITED resolve. Mirrors [BoardViewModel.retryEnrichment]:
+     * a redundant tap while one is already in flight gives feedback instead of silently no-oping.
+     */
+    fun retryEnrichment() {
+        val id = teaId.value ?: return
+        if (enrichmentManager.isInFlight(id)) {
+            eventHost.emit(ShowSnackbar(R.string.enrichment_already_retrying))
+            return
+        }
+        enrichmentManager.retry(id)
+    }
 
     /**
      * Copies the catalog reference profile into the user's own ratings (#23 one-tap suggestion),

@@ -87,15 +87,22 @@ class TeaEnrichmentManager @Inject constructor(
     }
 
     /**
-     * Re-dispatch teas left PENDING/QUEUED by a prior run (process death / offline). Safe to call from
-     * several screens — it runs at most once per process (AND-P1-7), so opening a board can't re-burn a
-     * /resolve token on a tea that's stuck PENDING. A user-driven [retry] is the per-tea escape hatch.
+     * Re-dispatch teas left PENDING/QUEUED/RATE_LIMITED by a prior run (process death / offline). Safe
+     * to call from several screens — it self-throttles to once per [resumeCooldownMs] (AND-P1-7) so
+     * opening a board can't re-burn a /resolve token on a stuck tea. A user-driven [retry] is the
+     * per-tea escape hatch. [force] bypasses the cooldown for a one-off caller that KNOWS the pending
+     * set just changed wholesale — a fresh app launch (UX3-P2-16) or a backup restore (UX3-P2-17) — so
+     * imported/restored queued teas resume promptly instead of waiting out a cooldown primed elsewhere.
      */
-    fun resumePending() {
+    fun resumePending(force: Boolean = false) {
         val now = clock()
-        val last = lastResumeAttemptMs.get()
-        if (now - last < resumeCooldownMs) return
-        if (!lastResumeAttemptMs.compareAndSet(last, now)) return
+        if (force) {
+            lastResumeAttemptMs.set(now)
+        } else {
+            val last = lastResumeAttemptMs.get()
+            if (now - last < resumeCooldownMs) return
+            if (!lastResumeAttemptMs.compareAndSet(last, now)) return
+        }
         scope.launch {
             dao.teasNeedingEnrichment().forEach { row ->
                 runEnrichment(row.id, row.resolveName() ?: return@forEach, sourceText = null)

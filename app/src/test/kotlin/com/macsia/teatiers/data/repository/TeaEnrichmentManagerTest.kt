@@ -319,6 +319,36 @@ class TeaEnrichmentManagerTest {
         }
 
     @Test
+    fun `resumePending force bypasses the cooldown for a fresh launch or restore (UX3-P2-16-17)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))
+            val (manager, dao) = managerWith(teaRow("p1", state = EnrichmentState.PENDING))
+            var now = 0L
+            manager.setClockForTest { now }
+
+            manager.resumePending() // a board-open primes the cooldown
+            advanceUntilIdle()
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
+
+            // Re-arm and call with force=true INSIDE the cooldown window: a launch/restore knows the
+            // pending set changed wholesale, so it must re-dispatch anyway (not wait out the cooldown).
+            dao.updateEnrichmentState("p1", EnrichmentState.PENDING.name)
+            manager.resumePending(force = true)
+            advanceUntilIdle()
+
+            assertEquals(EnrichmentState.DONE.name, dao.loadTeaRow("p1")!!.enrichmentState)
+            coVerify(exactly = 2) { catalog.resolve(any(), any(), any()) }
+
+            // force must still RE-STAMP the cooldown, so a plain resume right after is throttled again
+            // (force is a one-off bypass, not a permanent disable).
+            dao.updateEnrichmentState("p1", EnrichmentState.PENDING.name)
+            manager.resumePending()
+            advanceUntilIdle()
+            assertEquals(EnrichmentState.PENDING.name, dao.loadTeaRow("p1")!!.enrichmentState) // untouched
+            coVerify(exactly = 2) { catalog.resolve(any(), any(), any()) }
+        }
+
+    @Test
     fun `resumePending self-heals a tea stuck QUEUED once the cooldown elapses (UX-P1-5)`() =
         runTest(UnconfinedTestDispatcher()) {
             coEvery { catalog.resolve(any(), any(), any()) } returns ResolveResult.Matched(detail(id = 5))

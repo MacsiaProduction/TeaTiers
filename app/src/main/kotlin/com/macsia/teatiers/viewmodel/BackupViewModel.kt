@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.macsia.teatiers.R
 import com.macsia.teatiers.data.backup.BackupManager
 import com.macsia.teatiers.data.backup.BackupResult
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,7 @@ sealed interface BackupEvent {
 @HiltViewModel
 class BackupViewModel @Inject constructor(
     private val backupManager: BackupManager,
+    private val enrichmentManager: TeaEnrichmentManager,
 ) : ViewModel() {
 
     private val channel = Channel<BackupEvent>(capacity = 4)
@@ -58,14 +60,26 @@ class BackupViewModel @Inject constructor(
         channel.trySend(BackupEvent.Message(result.messageRes(BackupOp.IMPORT)))
         // A completed restore leaves a pre-import safety copy; surface the undo entry.
         _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
+        resumeEnrichmentAfter(result)
     }
 
     /** Undoes the last restore by reinstating the pre-import safety snapshot (auto safety-backup). */
     fun restoreSafetyBackup() = guardedBusy {
-        channel.trySend(BackupEvent.Message(backupManager.restoreSafetyBackup().messageRes(BackupOp.IMPORT)))
+        val result = backupManager.restoreSafetyBackup()
+        channel.trySend(BackupEvent.Message(result.messageRes(BackupOp.IMPORT)))
         // The snapshot is consumed by a successful undo; refresh so the entry hides and a
         // second tap can't re-restore a now-stale snapshot over newer data (finding #1).
         _safetyBackupAvailable.value = backupManager.hasSafetyBackup()
+        resumeEnrichmentAfter(result)
+    }
+
+    /**
+     * A restore swaps in an entirely different tea set (UX3-P2-17); its PENDING/QUEUED teas otherwise
+     * wouldn't re-dispatch until the next board-open outlasts the resume cooldown. Kick them off now,
+     * forcing past a cooldown a prior board-open may have primed. No-op on a failed/rejected import.
+     */
+    private fun resumeEnrichmentAfter(result: BackupResult) {
+        if (result is BackupResult.Imported) enrichmentManager.resumePending(force = true)
     }
 
     fun share() = guardedBusy {

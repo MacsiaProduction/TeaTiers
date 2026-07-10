@@ -42,6 +42,11 @@ object NetworkModule {
     // is fine, the OCR call was just still running). Give only the OCR call the longer budget.
     private const val OCR_READ_TIMEOUT_SECONDS = 60L
 
+    // UX3-P1-3: /resolve synchronously calls Wikidata (up to 2 attempts * (3s connect + 8s read) ~= 22s)
+    // before it can answer. The default 15s read timeout is shorter, so a live-but-slow resolve timed out
+    // client-side and was mapped to "no network" (wrong — same class of bug as OCR above). Give it 30s.
+    private const val RESOLVE_READ_TIMEOUT_SECONDS = 30L
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
@@ -58,8 +63,14 @@ object NetworkModule {
             .addInterceptor(logging)
             .addInterceptor { chain ->
                 val request = chain.request()
-                if (request.url.encodedPath.endsWith("/teas/ocr")) {
-                    chain.withReadTimeout(OCR_READ_TIMEOUT_SECONDS.toInt(), TimeUnit.SECONDS).proceed(request)
+                val path = request.url.encodedPath
+                val readTimeoutSeconds = when {
+                    path.endsWith("/teas/ocr") -> OCR_READ_TIMEOUT_SECONDS
+                    path.endsWith("/teas/resolve") -> RESOLVE_READ_TIMEOUT_SECONDS
+                    else -> null
+                }
+                if (readTimeoutSeconds != null) {
+                    chain.withReadTimeout(readTimeoutSeconds.toInt(), TimeUnit.SECONDS).proceed(request)
                 } else {
                     chain.proceed(request)
                 }
