@@ -340,6 +340,32 @@ class TeaBoardRepository @Inject constructor(
     }
 
     /**
+     * Places an EXISTING user-tea onto [boardId]'s unranked tray (UX3-P1-1) — the explicit
+     * "add to board" path for a tea with no placement (removed from every board, or stranded by a
+     * deleted board). Unlike [addTea] this never resolves-or-creates: it reuses [teaId] exactly, so
+     * it can never duplicate the tea. Idempotent if the tea already sits on the board. Returns whether
+     * the tea is now on the board — false only for an unknown board or tea. Locked like [addTea] so the
+     * exists-check and insert can't race a concurrent add into a UNIQUE(boardId, teaId) violation.
+     */
+    suspend fun placeExistingTeaOnBoard(boardId: String, teaId: String): Boolean = addTeaLock.withLock {
+        if (board(boardId) == null) return@withLock false
+        if (dao.loadTeaRow(teaId) == null) return@withLock false
+        if (dao.placementExists(boardId, teaId)) return@withLock true
+        dao.insertPlacements(
+            listOf(
+                PlacementEntity(
+                    id = "placement-${UUID.randomUUID()}",
+                    boardId = boardId,
+                    teaId = teaId,
+                    tierId = null,
+                    position = dao.nextPlacementPosition(boardId),
+                ),
+            ),
+        )
+        true
+    }
+
+    /**
      * Drag-to-rank: moves [placementId] within [boardId] to [targetTierId] (null = the unranked
      * tray) at [targetIndex], the slot among the *other* placements in the target group. An
      * unknown tier falls back to the tray. No-op when the board or placement is unknown, or

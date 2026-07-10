@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,12 +19,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -37,7 +34,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -60,8 +56,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.CatalogTea
+import com.macsia.teatiers.ui.components.BoardChoice
+import com.macsia.teatiers.ui.components.BoardPickerDialog
 import com.macsia.teatiers.ui.components.TypeChip
-import com.macsia.teatiers.viewmodel.BoardPick
 import com.macsia.teatiers.viewmodel.BrowseCatalogUiState
 import com.macsia.teatiers.viewmodel.BrowseCatalogViewModel
 
@@ -177,18 +174,22 @@ fun BrowseCatalogScreen(
 
     teaToPlace?.let { tea ->
         BoardPickerDialog(
-            tea = tea,
-            boards = boards,
-            onDismiss = { teaToPlace = null },
+            title = stringResource(R.string.browse_pick_board_title, tea.displayName),
+            boards = boards.map { BoardChoice(it.id, it.name) },
+            emptyText = stringResource(R.string.browse_pick_board_empty),
             onPick = { boardId ->
                 teaToPlace = null
                 onAddToBoard(boardId, tea.id)
             },
-            // No boards yet: send the user back to the home screen, which owns board creation.
-            onGoCreateBoard = {
+            onDismiss = { teaToPlace = null },
+            // "Create a board" is always offered (UX2-P1-2); send the user back to the home screen,
+            // which owns board creation. UX3-P2-8: the hint explains — in every case, not just the
+            // empty-list one — that this drops the current pick and the tea is re-added afterward.
+            onCreateBoard = {
                 teaToPlace = null
                 onBack()
             },
+            hint = stringResource(R.string.browse_pick_board_create_hint),
         )
     }
 }
@@ -281,66 +282,6 @@ private fun BrowseTeaRow(tea: CatalogTea, onClick: () -> Unit) {
     }
 }
 
-/**
- * "Add to which board?" — boards are listed as tappable rows. "Create a board" (UX2-P1-2) is
- * always offered as the confirm action, not just when the list is empty: it routes to the Boards
- * home (which owns creation) either way, but the tea's placement is lost either way too — the user
- * re-adds it after creating the board, same as the empty-boards path already did.
- */
-@Composable
-private fun BoardPickerDialog(
-    tea: CatalogTea,
-    boards: List<BoardPick>,
-    onDismiss: () -> Unit,
-    onPick: (String) -> Unit,
-    onGoCreateBoard: () -> Unit,
-) {
-    val hasBoards = boards.isNotEmpty()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.browse_pick_board_title, tea.displayName)) },
-        text = {
-            if (!hasBoards) {
-                Text(stringResource(R.string.browse_pick_board_empty))
-            } else {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    // TextButton rows read as tappable (the bare-Text rows did not), full-width left-aligned.
-                    boards.forEach { board ->
-                        TextButton(
-                            onClick = { onPick(board.id) },
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(vertical = 14.dp, horizontal = 8.dp),
-                        ) {
-                            Text(
-                                text = board.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Start,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        // UX2-P1-2: always offer "create a board", not just when the list is empty — a user who
-        // wants to add this tea to a BRAND-NEW board (a plausible flow even with existing boards)
-        // otherwise has to cancel, create one from the Boards home, then come back and re-search.
-        confirmButton = {
-            TextButton(onClick = onGoCreateBoard) {
-                Text(stringResource(R.string.boards_create_action))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.browse_pick_board_cancel))
-            }
-        },
-    )
-}
 
 @Composable
 private fun CenteredProgress() {

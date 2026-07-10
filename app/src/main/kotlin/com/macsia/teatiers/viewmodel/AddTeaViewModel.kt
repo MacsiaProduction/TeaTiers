@@ -610,8 +610,12 @@ class AddTeaViewModel @Inject constructor(
     }
 
     /**
-     * Deletes the user-tea everywhere from the edit screen — every board the tea sits on loses
-     * its placement (FK cascade). Destructive; the screen gates this behind a confirm dialog.
+     * Deletes the user-tea everywhere from the edit screen — every board the tea sits on loses its
+     * placement (FK cascade). Destructive; the screen gates it behind a confirm dialog.
+     *
+     * No Undo snackbar here (UX3-P2-29, parity with [TeaDetailViewModel.deleteTea]): this path pops
+     * back on success, so an in-place snackbar would vanish with the screen. The confirm dialog is the
+     * deliberate safety net for this entry point; the in-place board delete offers Undo instead.
      */
     fun deleteTea(onDeleted: () -> Unit) {
         val editing = _editingTeaId.value ?: return

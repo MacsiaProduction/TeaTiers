@@ -54,6 +54,8 @@ import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaPhoto
+import com.macsia.teatiers.ui.components.BoardChoice
+import com.macsia.teatiers.ui.components.BoardPickerDialog
 import com.macsia.teatiers.ui.components.EnrichmentStatus
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
@@ -80,8 +82,10 @@ fun TeaDetailScreen(
     val referenceFlavors by viewModel.referenceFlavors.collectAsStateWithLifecycle()
     val referenceImages by viewModel.referenceImages.collectAsStateWithLifecycle()
     val loaded = uiState as? TeaDetailUiState.Loaded
+    val boards by viewModel.boards.collectAsStateWithLifecycle()
     var menuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showBoardPicker by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
 
@@ -116,6 +120,14 @@ fun TeaDetailScreen(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false },
                         ) {
+                            // UX3-P1-1: the discoverable path back onto a board for an orphaned tea.
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_add_to_board)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    showBoardPicker = true
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_delete_tea_forever)) },
                                 onClick = {
@@ -163,6 +175,21 @@ fun TeaDetailScreen(
                         .padding(horizontal = ScreenInset, vertical = 8.dp),
                 )
         }
+    }
+
+    if (showBoardPicker) {
+        BoardPickerDialog(
+            title = stringResource(R.string.detail_add_to_board_title),
+            boards = boards.map { BoardChoice(it.id, it.name) },
+            // No create-board button here: the tea already exists, so the empty case just asks the
+            // user to make a board first rather than navigating away and losing context.
+            emptyText = stringResource(R.string.detail_add_to_board_empty),
+            onPick = { boardId ->
+                showBoardPicker = false
+                viewModel.addToBoard(boardId)
+            },
+            onDismiss = { showBoardPicker = false },
+        )
     }
 
     if (confirmDelete) {

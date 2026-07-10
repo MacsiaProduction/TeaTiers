@@ -147,6 +147,20 @@ class TeaDetailViewModelTest {
     }
 
     @Test
+    fun `addToBoard places the shown tea on the chosen board (UX3-P1-1)`() = runTest {
+        coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
+        coEvery { repository.placeExistingTeaOnBoard("b", "t1") } returns true
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
+        vm.bind("t1")
+        advanceUntilIdle()
+
+        vm.addToBoard("b")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.placeExistingTeaOnBoard("b", "t1") }
+    }
+
+    @Test
     fun `retryEnrichment skips a redundant tap while a resolve is already in flight`() = runTest {
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
         every { enrichmentManager.isInFlight("t1") } returns true

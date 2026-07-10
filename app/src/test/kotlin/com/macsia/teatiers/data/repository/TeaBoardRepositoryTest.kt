@@ -297,6 +297,41 @@ class TeaBoardRepositoryTest {
         }
 
     @Test
+    fun `placeExistingTeaOnBoard re-places an orphaned tea without duplicating the row (UX3-P1-1)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val dao = FakeTeaDao()
+            val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
+            val seed = listOf(seededBoard, board2).toSeedEntities()
+            dao.seed(seed.boards, seed.tiers, seed.catalogRefs, seed.teas, seed.placements, seed.flavors, seed.purchases, seed.photos)
+            val repository = TeaBoardRepository(dao, FakePhotoStore(), backgroundScope, SampleBoardProvider(), FakeOnboardingState(seeded = true))
+            advanceUntilIdle()
+            val teasBefore = dao.teaCount()
+
+            // "tray" is a real user-tea that only sits on board b — place it onto b2's tray directly.
+            val placed = repository.placeExistingTeaOnBoard("b2", "tray")
+            advanceUntilIdle()
+
+            assertTrue(placed)
+            assertEquals(teasBefore, dao.teaCount()) // reused the existing row, created no new tea
+            assertTrue(repository.boards.value.first { it.id == "b2" }.unranked.any { it.tea.id == "tray" })
+
+            // Idempotent: a second call must not add a second placement.
+            assertTrue(repository.placeExistingTeaOnBoard("b2", "tray"))
+            advanceUntilIdle()
+            assertEquals(1, repository.boards.value.first { it.id == "b2" }.unranked.count { it.tea.id == "tray" })
+        }
+
+    @Test
+    fun `placeExistingTeaOnBoard returns false for an unknown board or tea`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repositoryWithSeed()
+            advanceUntilIdle()
+
+            assertFalse(repository.placeExistingTeaOnBoard("nope", "tray"))
+            assertFalse(repository.placeExistingTeaOnBoard("b", "ghost"))
+        }
+
+    @Test
     fun `tea lookup resolves a user-tea by id from any board`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
