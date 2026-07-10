@@ -90,9 +90,13 @@ import com.macsia.teatiers.viewmodel.ScanUiState
 import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val ScreenInset = 16.dp
+
+/** How long a scan runs before the "this can take a while" reassurance appears (UX3-P2-21). */
+private const val SCAN_SLOW_HINT_MS = 8_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -505,18 +509,36 @@ fun AddTeaScreen(
             // server limit; the hint states it is sent for enrichment and not stored in the catalog.
             if (!isEdit) {
                 val recognizing = scanState is ScanUiState.Recognizing
+                // UX3-P2-21: recognition can take 10-60s; surface a reassurance after a few seconds so
+                // it doesn't read as frozen. Reset whenever the Recognizing state flips.
+                var scanSlowHint by remember { mutableStateOf(false) }
+                LaunchedEffect(recognizing) {
+                    scanSlowHint = false
+                    if (recognizing) {
+                        delay(SCAN_SLOW_HINT_MS)
+                        scanSlowHint = true
+                    }
+                }
+                // UX3-P1-6: while recognizing the button doubles as a Cancel — previously it was merely
+                // disabled and the only exit (system back) didn't stop the in-flight request.
                 OutlinedButton(
-                    onClick = { showScanChooser = true },
-                    enabled = !recognizing,
+                    onClick = { if (recognizing) viewModel.cancelScan() else showScanChooser = true },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     if (recognizing) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.ocr_recognizing))
+                        Text(stringResource(R.string.ocr_cancel_scan))
                     } else {
                         Text(stringResource(R.string.ocr_scan_label))
                     }
+                }
+                if (recognizing && scanSlowHint) {
+                    Text(
+                        text = stringResource(R.string.ocr_recognizing_slow_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 OutlinedTextField(
                     value = form.sourceText,

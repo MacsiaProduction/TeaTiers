@@ -282,7 +282,8 @@
     <string name="ocr_scan_source_title">Сканировать упаковку</string>
     <string name="ocr_scan_source_camera">Сделать фото</string>
     <string name="ocr_scan_source_gallery">Выбрать из галереи</string>
-    <string name="ocr_recognizing">Распознаём текст…</string>
+    <string name="ocr_cancel_scan">Отменить распознавание</string>
+    <string name="ocr_recognizing_slow_hint">Это может занять до минуты…</string>
     <string name="ocr_review_title">Проверьте распознанный текст</string>
     <string name="ocr_review_hint">Отредактируйте текст перед добавлением в описание упаковки. Фото не сохраняется.</string>
     <string name="ocr_use">Использовать</string>
