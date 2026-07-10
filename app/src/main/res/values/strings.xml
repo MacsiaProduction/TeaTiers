@@ -42,6 +42,7 @@
     <string name="error_cannot_open_link">Не удалось открыть ссылку.</string>
     <string name="add_tea_error_name_required">Укажите хотя бы одно название на любом языке.</string>
     <string name="add_tea_catalog_applied">Заполнено из каталога.</string>
+    <string name="add_tea_duplicate_name_hint">Такой чай уже есть — будет добавлен как новый образец.</string>
 
     <!-- A11y for the boards list summary card (polish, lane 4). %1$s name, %2$d count, %3$s plural unit. -->
     <string name="a11y_board_summary">Подборка %1$s, %2$d %3$s</string>

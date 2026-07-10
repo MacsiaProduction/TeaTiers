@@ -102,8 +102,9 @@ data class DeletedTea(
  *
  * After the shared-teas reopening teas are user-global: each board exposes [Placement]s, the
  * underlying [Tea] is shared across boards, and edits to a tea ripple to every board it sits
- * on. New teas auto-link to an existing user-tea by name match (case-insensitive on `nameRu`,
- * exact on `nameZh`, case-insensitive on `pinyin`, in that order).
+ * on. A new tea reuses an existing user-tea ONLY by catalog identity (decision #132 / v7 finding
+ * #17); a custom (non-catalog) add always creates a new sample — a name match is a non-blocking
+ * suggestion, never a silent auto-merge.
  *
  * On first run (empty DB) the store is seeded from [SampleBoardProvider]; later runs read what
  * the user saved. v1 → v2 schema migration is destructive (the builder configures
@@ -287,13 +288,14 @@ class TeaBoardRepository @Inject constructor(
     }
 
     /**
-     * Adds a placement of [tea] on [boardId]. Resolve-or-create (decisions.md #42): if a
-     * matching user-tea already exists by name we reuse it (no overwrite of its fields), else
-     * we insert a fresh user-tea. With a known [tierId] the placement joins that tier; an
-     * unknown tier (or null) lands it in the unranked tray. Returns the resolved user-tea id
-     * (existing or freshly-created) plus whether a new row was inserted — the caller only kicks
-     * off background enrichment for a genuinely new tea (#21), never an auto-linked existing one.
-     * Null when [boardId] is unknown (and nothing was written).
+     * Adds a placement of [tea] on [boardId] (decisions.md #42, #132). A new tea reuses an existing
+     * user-tea ONLY when it shares a catalog ref; a custom add always inserts a fresh user-tea, so a
+     * same-named second sample keeps its own typed fields instead of silently collapsing into the
+     * first (UX3-P0-1). [forceNew] ("add another sample") bypasses even the catalog reuse. With a
+     * known [tierId] the placement joins that tier; an unknown tier (or null) lands it in the unranked
+     * tray. Returns the resolved user-tea id (existing or freshly-created) plus whether a new row was
+     * inserted — the caller only kicks off background enrichment for a genuinely new tea (#21). Null
+     * when [boardId] is unknown (and nothing was written).
      */
     suspend fun addTea(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean = false): AddedTea? =
         addTeaLock.withLock { addTeaLocked(boardId, tea, tierId, forceNew) }
@@ -301,12 +303,13 @@ class TeaBoardRepository @Inject constructor(
     private suspend fun addTeaLocked(boardId: String, tea: Tea, tierId: String?, forceNew: Boolean): AddedTea? {
         val board = board(boardId) ?: return null
         val resolvedTier = tierId?.takeIf { id -> board.tiers.any { it.id == id } }
-        // forceNew is the P1-1 "add another sample" path (#132): bypass reuse so a second sample of the
-        // same catalog ref is created with its own notes/flavor/photos, instead of resolving to the first.
-        val existingTeaId = if (forceNew) null else resolveTeaIdForMatch(tea)
+        // Reuse ONLY by catalog identity (decision #132 / v7 finding #17). forceNew ("add another
+        // sample") bypasses even that; a custom add never reuses, so a same-named tea becomes an
+        // independent sample instead of silently discarding the second add's typed fields (UX3-P0-1).
+        val existingTeaId = if (forceNew) null else resolveCatalogReuse(tea)
 
         // The board invariant forbids the same user-tea twice on one board (UNIQUE(boardId, teaId)).
-        // If the resolved tea is already placed here (e.g. re-adding a name-matched tea), adding again
+        // If the resolved tea is already placed here (re-adding a catalog-matched tea), adding again
         // is an idempotent no-op rather than a swallowed constraint-violation crash.
         if (existingTeaId != null && dao.placementExists(boardId, existingTeaId)) {
             return AddedTea(teaId = existingTeaId, created = false)
@@ -549,23 +552,34 @@ class TeaBoardRepository @Inject constructor(
     private fun Tea.toMergeFields() = TeaMergeFields(nameRu, nameZh, pinyin, nameEn, type.name, origin)
 
     /**
-     * Tries to find an existing user-tea matching [candidate] by name (decisions.md #42). Picks
-     * the first non-blank match field on the candidate in priority `nameRu` → `nameZh` →
-     * `pinyin`, then returns any user-tea whose same field equals it. Returns null when no
-     * match field is non-blank or no row matches.
-     *
-     * The match is done in Kotlin rather than SQLite because SQLite's built-in `LOWER` is
-     * ASCII-only and would never lower-case Russian uppercase letters; pulling the (small)
-     * candidate set into memory keeps the rule correct without an ICU build.
+     * The existing user-tea sharing [candidate]'s catalog ref, if any — the ONLY default reuse path
+     * (decision #132 / v7 finding #17). Two adds of the same catalog tea, even with differently-typed
+     * names, resolve to one user-tea; a custom add (no catalog id) never reuses and always creates a
+     * new sample, so it can never silently drop the second add's typed fields (UX3-P0-1).
      */
-    private suspend fun resolveTeaIdForMatch(candidate: Tea): String? {
-        // Catalog identity wins over name matching (#42): two adds of the same catalog tea — even with
-        // differently-typed names — resolve to one user-tea, and a second catalog-linked row is prevented.
-        candidate.catalogTeaId?.let { id -> dao.findTeaIdByCatalogId(id)?.let { return it } }
-        val candidateKey = candidate.matchKey() ?: return null
-        return dao.loadTeaMatchKeys()
-            .firstOrNull { row -> row.matches(candidateKey) }
-            ?.id
+    private suspend fun resolveCatalogReuse(candidate: Tea): String? =
+        candidate.catalogTeaId?.let { id -> dao.findTeaIdByCatalogId(id) }
+
+    /**
+     * Whether saving [candidate] as a new custom sample would duplicate a name the user already has —
+     * the non-blocking dedup suggestion of decision #132 (never a merge). True only when there is no
+     * catalog reuse AND an existing user-tea shares the name in any locale; the add form shows a hint
+     * so an accidental re-type is visible, but the sample is still created independently.
+     */
+    suspend fun wouldDuplicateName(candidate: Tea): Boolean =
+        resolveCatalogReuse(candidate) == null && nameMatchExists(candidate)
+
+    /**
+     * Whether an existing user-tea already carries [candidate]'s name. Picks the first non-blank match
+     * field in priority `nameRu` → `nameZh` → `pinyin`, then checks any row whose same field equals it.
+     *
+     * The match is done in Kotlin rather than SQLite because SQLite's built-in `LOWER` is ASCII-only
+     * and would never lower-case Russian uppercase letters; pulling the (small) name set into memory
+     * keeps the rule correct without an ICU build.
+     */
+    private suspend fun nameMatchExists(candidate: Tea): Boolean {
+        val candidateKey = candidate.matchKey() ?: return false
+        return dao.loadTeaMatchKeys().any { row -> row.matches(candidateKey) }
     }
 }
 

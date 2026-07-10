@@ -165,7 +165,7 @@ class AddTeaViewModelTest {
     }
 
     @Test
-    fun `submit does not enrich an auto-linked existing tea`() = runTest {
+    fun `submit does not enrich a reused existing tea (created is false)`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = false)
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
@@ -175,6 +175,38 @@ class AddTeaViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 0) { enrichmentManager.enrich(any(), any(), any()) }
+    }
+
+    @Test
+    fun `duplicateNameHint turns on for a same-name custom add (UX3-P0-1)`() = runTest {
+        coEvery { repository.wouldDuplicateName(any()) } returns true
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+
+        viewModel.duplicateNameHint.test {
+            assertFalse(awaitItem()) // blank form -> no hint
+            viewModel.update { it.copy(nameRu = "Лунцзин") }
+            advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+            assertTrue(awaitItem()) // repository flags the name -> hint on
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `duplicateNameHint stays off for a forceNew add-another even on a name match`() = runTest {
+        // The repository would flag a duplicate, but "add another sample" is a deliberate new sample —
+        // the ViewModel must gate the hint off (never even asks the repository).
+        coEvery { repository.wouldDuplicateName(any()) } returns true
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b", forceNew = true)
+
+        viewModel.duplicateNameHint.test {
+            assertFalse(awaitItem()) // blank form
+            viewModel.update { it.copy(nameRu = "Лунцзин") }
+            advanceTimeBy(CATALOG_SEARCH_DEBOUNCE_MS + 1)
+            expectNoEvents() // forceNew suppresses the hint; it never flips true
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

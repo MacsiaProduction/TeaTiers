@@ -211,62 +211,46 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
-    fun `addTea auto-links to an existing user-tea by Russian name match`() = runTest(UnconfinedTestDispatcher()) {
-        // Two boards so the dedup is observable: adding a same-named tea on board2 must reuse
-        // the user-tea row introduced by board1's seed.
-        val board1 = seededBoard
-        val board2 = Board(
-            id = "b2",
-            name = "Доска 2",
-            tiers = listOf(Tier("b2-s", "S", 0)),
-            placements = emptyMap(),
-            unranked = emptyList(),
-        )
-        val repository = repositoryWithSeed(listOf(board1, board2))
-        advanceUntilIdle()
+    fun `addTea creates an independent new sample for a same-named custom tea (UX3-P0-1)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // decision #132 / v7 finding #17: a custom (non-catalog) add is ALWAYS create-new. A second
+            // add of a same-named tea must NOT reuse the first and silently drop its typed fields — it
+            // becomes a distinct sample carrying its own notes/vendor.
+            val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
+            val repository = repositoryWithSeed(listOf(seededBoard, board2))
+            advanceUntilIdle()
 
-        // Same name (case + whitespace different on purpose) as the seeded "green" tea.
-        repository.addTea("b2", tea("brand-new-id", nameRu = "  GREEN  "), tierId = "b2-s")
-        advanceUntilIdle()
+            // Same name as the seeded "green" tea (case + whitespace different on purpose), plus typed
+            // fields that the old name-auto-merge would have discarded.
+            val added = repository.addTea(
+                "b2",
+                tea("throwaway", nameRu = "  GREEN  ").copy(notes = "мои заметки", vendor = "Лавка"),
+                tierId = "b2-s",
+            )!!
 
-        val placedOnBoard2 = repository.boards.value.first { it.id == "b2" }
-            .placements.getValue("b2-s").single()
-        // The auto-link reused the original tea id ("green"), not the throwaway candidate id.
-        assertEquals("green", placedOnBoard2.tea.id)
-        // Editing one ripples to the other (verified separately) — for now just confirm both
-        // boards reference the same user-tea id.
-        val onBoard1 = repository.boards.value.first { it.id == "b" }
-            .placements.getValue("s").single()
-        assertEquals(onBoard1.tea.id, placedOnBoard2.tea.id)
-    }
+            assertTrue(added.created, "a custom same-named add creates a new sample, never auto-merges")
+            assertTrue(added.teaId != "green", "it is a distinct user-tea, not the existing one")
+            assertEquals("мои заметки", repository.tea(added.teaId)?.notes)
+            assertEquals("Лавка", repository.tea(added.teaId)?.vendor)
+            assertNotNull(repository.tea("green")) // the original sample is untouched
+        }
 
     @Test
-    fun `addTea auto-links to an existing user-tea by English name match`() = runTest(UnconfinedTestDispatcher()) {
-        // An existing tea was catalog-enriched with nameEn "Tieguanyin"; the user later types that
-        // English spelling (into the required nameRu) for a new add. It must dedup against the row's
-        // nameEn rather than become a second card (review F6 — nameEn added to the local matcher).
-        val board1 = Board(
-            id = "b",
-            name = "Доска",
-            tiers = listOf(Tier("s", "S", 0)),
-            placements = mapOf(
-                "s" to listOf(place("b", Tea(id = "tgy", nameRu = "Тегуаньинь", nameEn = "Tieguanyin", type = TeaType.OOLONG))),
-            ),
-            unranked = emptyList(),
-        )
-        val board2 = Board("b2", "Доска 2", listOf(Tier("b2-s", "S", 0)), emptyMap(), emptyList())
-        val repository = repositoryWithSeed(listOf(board1, board2))
-        advanceUntilIdle()
+    fun `wouldDuplicateName flags a same-name custom add across locales but not a catalog reuse`() =
+        runTest(UnconfinedTestDispatcher()) {
+            // An existing tea, catalog-enriched with nameEn "Tieguanyin" and linked to catalogTeaId 42.
+            val existing = Tea(id = "tgy", nameRu = "Тегуаньинь", nameEn = "Tieguanyin", type = TeaType.OOLONG, catalogTeaId = 42L)
+            val board = Board("b", "Доска", listOf(Tier("s", "S", 0)), mapOf("s" to listOf(place("b", existing))), emptyList())
+            val repository = repositoryWithSeed(listOf(board))
+            advanceUntilIdle()
 
-        val result = repository.addTea(
-            "b2",
-            Tea(id = "throwaway", nameRu = "  tieguanyin  ", type = TeaType.OOLONG),
-            tierId = "b2-s",
-        )!!
-
-        assertFalse(result.created)
-        assertEquals("tgy", result.teaId)
-    }
+            // A custom add typing the English spelling into nameRu duplicates the name (review F6) -> hint.
+            assertTrue(repository.wouldDuplicateName(Tea(id = "x", nameRu = "  tieguanyin  ", type = TeaType.OOLONG)))
+            // A brand-new name is not a duplicate.
+            assertFalse(repository.wouldDuplicateName(Tea(id = "y", nameRu = "Совсем новый", type = TeaType.GREEN)))
+            // A catalog-linked add that RESOLVES to the existing tea is a reuse, not a create-new dupe.
+            assertFalse(repository.wouldDuplicateName(Tea(id = "z", nameRu = "Другое имя", type = TeaType.OOLONG, catalogTeaId = 42L)))
+        }
 
     @Test
     fun `addTea links by catalogTeaId even when the typed names differ`() = runTest(UnconfinedTestDispatcher()) {
@@ -688,22 +672,25 @@ class TeaBoardRepositoryTest {
         }
 
     @Test
-    fun `addTea of a tea already on the board is an idempotent no-op, not a UNIQUE crash`() = runTest(UnconfinedTestDispatcher()) {
-        val repository = repositoryWithSeed()
-        advanceUntilIdle()
+    fun `addTea of a same-named custom tea creates a second sample on the same board (UX3-P0-1)`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val repository = repositoryWithSeed()
+            advanceUntilIdle()
 
-        // "green" is already on board b (tier s). Re-adding a name-matched tea resolves to the existing
-        // tea; the UNIQUE(boardId, teaId) invariant means this is a no-op, not a swallowed crash.
-        val added = repository.addTea("b", tea("green", nameRu = "green"), tierId = "a")
-        advanceUntilIdle()
+            // "green" is already on board b (tier s). A custom add of a same-named tea is create-new
+            // (#132), so board b now holds TWO distinct samples that happen to share a name — two
+            // different tea rows, so the UNIQUE(boardId, teaId) invariant is never touched.
+            val added = repository.addTea("b", tea("throwaway", nameRu = "green"), tierId = "a")
+            advanceUntilIdle()
 
-        assertEquals("green", added?.teaId)
-        assertFalse(added!!.created, "an already-present tea is not newly created")
-        val board = repository.boards.value.single()
-        assertEquals(1, board.placements.values.flatten().count { it.tea.id == "green" }, "green is not duplicated")
-        assertTrue(board.placements.getValue("s").any { it.tea.id == "green" }, "green stays in its original tier")
-        assertTrue(board.placements.getValue("a").none { it.tea.id == "green" }, "green was not added into tier a")
-    }
+            assertNotNull(added)
+            assertTrue(added!!.created, "a same-named custom add is a new sample, not a reuse")
+            assertTrue(added.teaId != "green")
+            val board = repository.boards.value.single()
+            assertEquals(2, board.placements.values.flatten().count { it.tea.nameRu == "green" }, "both samples are placed")
+            assertTrue(board.placements.getValue("a").any { it.tea.id == added.teaId }, "the new sample lands in tier a")
+            assertTrue(board.placements.getValue("s").any { it.tea.id == "green" }, "the original stays in tier s")
+        }
 
     @Test
     fun `addTea of a catalog-linked tea already on the board dedups via catalog id`() = runTest(UnconfinedTestDispatcher()) {
@@ -734,7 +721,7 @@ class TeaBoardRepositoryTest {
     }
 
     @Test
-    fun `restorePlacement is a no-op when the tea was re-added before undo`() = runTest(UnconfinedTestDispatcher()) {
+    fun `restorePlacement no-ops when an equal placement already exists`() = runTest(UnconfinedTestDispatcher()) {
         val repository = repositoryWithSeed()
         advanceUntilIdle()
 
@@ -743,15 +730,13 @@ class TeaBoardRepositoryTest {
         advanceUntilIdle()
         assertNotNull(removed)
 
-        // ...the user re-adds green before tapping undo...
-        repository.addTea("b", tea("green", nameRu = "green"), tierId = "s")
-        advanceUntilIdle()
-
-        // ...then taps Undo. The tea is already back, so the undo no-ops instead of violating UNIQUE.
+        // ...restore it, then tap Undo AGAIN. The second restore must no-op on the (boardId, teaId)
+        // UNIQUE invariant rather than duplicate the placement or crash.
         repository.restorePlacement(removed!!)
+        repository.restorePlacement(removed)
         advanceUntilIdle()
 
         val board = repository.boards.value.single()
-        assertEquals(1, board.placements.values.flatten().count { it.tea.id == "green" }, "undo did not duplicate or crash")
+        assertEquals(1, board.placements.values.flatten().count { it.tea.id == "green" }, "restore did not duplicate or crash")
     }
 }
