@@ -33,6 +33,7 @@ import com.macsia.teatiers.domain.model.TeaPhoto
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.domain.model.seedTiers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.Flow
@@ -43,11 +44,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** How many consecutive failed `boards` reads re-subscribe before falling back to an empty list (UX3-P2-6). */
+private const val BOARDS_READ_MAX_RETRIES = 3
+private const val BOARDS_READ_RETRY_DELAY_MS = 500L
 
 /** Result of [TeaBoardRepository.addTea]: the resolved user-tea id and whether a new row was inserted. */
 data class AddedTea(val teaId: String, val created: Boolean)
@@ -147,16 +153,33 @@ class TeaBoardRepository @Inject constructor(
      */
     val boardsLoaded: StateFlow<Boolean> = _boardsLoaded.asStateFlow()
 
+    // Consecutive `boards` read failures. Reset on every healthy emission (the onEach below) so the
+    // retry budget counts a single failure *burst*, not lifetime failures — `boards` is Eagerly-collected
+    // once for the whole process, so retryWhen's built-in `attempt` would otherwise accumulate unrelated
+    // hiccups across the app's life and freeze the flow on the Nth ever. Single collector → plain var.
+    private var boardsReadFailures = 0
+
     val boards: StateFlow<List<Board>> = dao.observeBoards()
         .map { rows -> rows.map(BoardWithChildren::toDomain) }
         // A raw Room read error would otherwise propagate to this app-scope collector and, with no
         // CoroutineExceptionHandler, reach the thread's default handler → app crash; and the StateFlow
-        // would stop updating, freezing every board screen. Catch it: log, then surface an empty board
-        // list so the home screen shows its (recoverable) empty state instead of crashing or hanging on
-        // a spinner. ponytail: no in-flow retry — a restart re-opens the DB and re-collects; add a
-        // reactive error/retry UI state only if these reads ever fail in practice (they don't post-open).
+        // would stop updating, freezing every board screen.
+        // UX3-P2-6: a transient error used to hit the terminal catch below and freeze the flow at
+        // emptyList() for the whole process (a user with 10 boards would then see the empty home state
+        // — reads as data loss). Re-subscribe a few times with a short backoff first so a transient
+        // failure self-heals; only a sustained burst falls through to the empty-list fallback.
+        .onEach { boardsReadFailures = 0 } // a healthy emission re-arms the retry budget
+        .retryWhen { cause, _ ->
+            if (boardsReadFailures++ < BOARDS_READ_MAX_RETRIES) {
+                Log.w("TeaBoardRepository", "boards read failed (${boardsReadFailures} in a row), retrying", cause)
+                delay(BOARDS_READ_RETRY_DELAY_MS)
+                true
+            } else {
+                false
+            }
+        }
         .catch { e ->
-            Log.e("TeaBoardRepository", "boards read failed", e)
+            Log.e("TeaBoardRepository", "boards read failed permanently", e)
             emit(emptyList())
         }
         .onEach { _boardsLoaded.value = true }

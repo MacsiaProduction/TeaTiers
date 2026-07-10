@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -125,6 +126,7 @@ fun AddTeaScreen(
     val catalogSearch by viewModel.catalogSearch.collectAsStateWithLifecycle()
     val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val formLoading by viewModel.formLoading.collectAsStateWithLifecycle()
     val duplicateNameHint by viewModel.duplicateNameHint.collectAsStateWithLifecycle()
     val isEdit = teaId != null
     var menuExpanded by remember { mutableStateOf(false) }
@@ -133,7 +135,9 @@ fun AddTeaScreen(
     // Guard the back paths (system back + nav arrow): warn before dropping an in-progress form.
     val attemptBack = { if (viewModel.isDirty()) confirmDiscard = true else onBack() }
     BackHandler(enabled = true) { attemptBack() }
-    var flavorsExpanded by remember { mutableStateOf(false) }
+    // UX3-P2-5: rememberSaveable (like sampleExpanded two lines down) so rotating the device mid-rating
+    // doesn't silently collapse the extended-flavor section and hide sliders the user was working on.
+    var flavorsExpanded by rememberSaveable { mutableStateOf(false) }
     var sampleExpanded by rememberSaveable { mutableStateOf(false) }
     // UX-P2-8: once the user manually taps the chevron (expand OR collapse), their choice wins for
     // the rest of this screen's life — the auto-expand-on-data effect below must not re-fire and
@@ -237,6 +241,17 @@ fun AddTeaScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
     ) { innerPadding ->
+        if (formLoading) {
+            // UX3-P2-4: edit mode loads the tea async — show a spinner instead of a blank default form
+            // for a frame. Only ever true in edit mode (add mode is ready immediately).
+            Box(
+                Modifier.fillMaxSize().padding(innerPadding),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

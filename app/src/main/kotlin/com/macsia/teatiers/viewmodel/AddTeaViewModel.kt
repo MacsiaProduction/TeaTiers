@@ -75,6 +75,11 @@ class AddTeaViewModel @Inject constructor(
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
+    /** True while an edit-mode form loads its tea (UX3-P2-4) so the screen shows a spinner instead of a
+     *  blank default form for a frame before the load resolves. Always false in add mode. */
+    private val _formLoading = MutableStateFlow(false)
+    val formLoading: StateFlow<Boolean> = _formLoading.asStateFlow()
+
     /**
      * The form as last bound (empty in add mode, the loaded tea in edit mode); [isDirty] compares
      * against it so the screen can warn before discarding edits (audit #3). Edit-mode photo changes
@@ -240,19 +245,29 @@ class AddTeaViewModel @Inject constructor(
         _draftPhotos.value = emptyList()
         _catalogQuery.value = ""
         _catalogDetailId.value = null
+        _formLoading.value = teaId != null // edit mode loads async below; add mode is ready immediately
         // A genuinely new entry (fresh token past the early-return above): abort any scan from the
         // previous binding so its Review dialog can't pop onto — and merge into — this session (UX3-P1-5).
         cancelScan()
         if (teaId != null) {
             viewModelScope.launch {
-                val tea = repository.tea(teaId)
-                val count = repository.placementCountForTea(teaId)
-                if (_editingTeaId.value == teaId) {
-                    val loaded = tea?.toForm() ?: AddTeaForm()
-                    _form.value = loaded
-                    pristineForm = loaded
-                    _placementCount.value = count
+                val result = runCatching {
+                    val tea = repository.tea(teaId)
+                    val count = repository.placementCountForTea(teaId)
+                    (tea?.toForm() ?: AddTeaForm()) to count
                 }
+                // A newer bind() superseded this load — it owns _formLoading now, so leave it alone.
+                if (_editingTeaId.value != teaId) return@launch
+                result
+                    .onSuccess { (loaded, count) ->
+                        _form.value = loaded
+                        pristineForm = loaded
+                        _placementCount.value = count
+                    }
+                    // A Room read error must not strand a full-screen spinner (review): clear it below,
+                    // leaving the blank form navigable, and explain via a snackbar.
+                    .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
+                _formLoading.value = false
             }
         } else if (catalogTeaId != null) {
             // Entered from catalog browse (#42 follow-up): prefill from the chosen catalog tea, exactly
