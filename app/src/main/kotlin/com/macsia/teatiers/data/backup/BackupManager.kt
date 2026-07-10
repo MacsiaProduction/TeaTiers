@@ -11,10 +11,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.EOFException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.zip.ZipException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -23,6 +25,10 @@ import javax.inject.Singleton
 
 private const val TAG = "BackupManager"
 private const val SHARE_DIR = "backups"
+
+/** Share-export files older than this are pruned on the next share (UX3-P2-19); newer ones may still
+ *  be held by an open system chooser, so they are left alone. Well past any share interaction. */
+private const val SHARE_FILE_TTL_MS = 10 * 60 * 1000L
 
 /** Cache subdir an import streams into + validates before any live mutation (review P1-5). */
 private const val IMPORT_STAGING_DIR = "import-staging"
@@ -108,7 +114,11 @@ class BackupManager @Inject constructor(
     suspend fun createShareUri(): Uri? = withContext(Dispatchers.IO) {
         try {
             val dir = File(context.cacheDir, SHARE_DIR).apply { mkdirs() }
-            dir.listFiles()?.forEach { it.delete() }
+            // UX3-P2-19: prune only STALE files, never the whole dir. Clearing it on every call could
+            // delete an in-flight share's file out from under the open system chooser (a double-tap
+            // handed it a since-deleted content URI); the unique per-share filename keeps them distinct.
+            val staleBefore = System.currentTimeMillis() - SHARE_FILE_TTL_MS
+            dir.listFiles()?.forEach { if (it.lastModified() < staleBefore) it.delete() }
             val file = File(dir, fileName())
             FileOutputStream(file).use { writeArchive(it) }
             FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -177,6 +187,20 @@ class BackupManager @Inject constructor(
             } catch (e: BackupArchive.TooLargeException) {
                 Log.w(TAG, "Import rejected: archive too large", e)
                 return BackupResult.TooLarge
+            } catch (e: ZipException) {
+                // UX3-P2-18: a malformed zip (the user picked a non-zip, or the header is corrupt).
+                // That's "not a backup", not a generic "restore failed" — route it to the same
+                // purpose-built message rather than letting the outer catch report Failed.
+                Log.w(TAG, "Import rejected: not a valid zip archive", e)
+                return BackupResult.InvalidFile
+            } catch (e: EOFException) {
+                // A truncated archive — an interrupted download/transfer of a real backup ends its
+                // DEFLATE stream early and throws EOFException (an IOException sibling, NOT a
+                // ZipException). Same user story: the file isn't a complete TeaTiers backup. We catch
+                // it specifically (not a blanket IOException, which would also mislabel a genuine
+                // disk-full while unpacking to the staging dir as "not a backup").
+                Log.w(TAG, "Import rejected: truncated/corrupt archive", e)
+                return BackupResult.InvalidFile
             }
             if (extracted.json.isBlank()) return BackupResult.InvalidFile
             val bundle = runCatching { json.decodeFromString<BackupBundle>(extracted.json) }
@@ -295,7 +319,8 @@ class BackupManager @Inject constructor(
     }
 
     private fun fileName(): String {
-        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+        // Millisecond stamp so two shares in quick succession never collide on one file (UX3-P2-19).
+        val stamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(Date())
         return "teatiers-backup-$stamp.zip"
     }
 }
