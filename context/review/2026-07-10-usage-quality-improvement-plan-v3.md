@@ -25,6 +25,26 @@ that are now the biggest lever on real-user value, since the interaction-bug bac
 Status legend: `OPEN` · `DONE` · `REVIEWED` (deliberate no-change) · `DECIDE` (owner call needed) ·
 `TRACKED` (already in `OLD-REVIEWS.md`/`INDEX.md` under another ID).
 
+## Round-3 implementation — COMPLETE (2026-07-10)
+
+All P0/P1 findings and the scheduled P2s are fixed and merged (PRs #207–#216, flow:
+plan → review → implement → adversarial review → publish → merge, per batch). Then a
+**comprehensive final review** (5 reviewers over the whole round-3 diff + adversarial
+verify, workflow `round3-final-review`) caught a **P0 crash no per-batch review could see**
+— tapping Save while the new edit-form loading spinner (P2-4) was up called `requestFocus()`
+on the spinner-hidden `nameRu` field → uncaught `IllegalStateException`. Fixed in #216 with
+four other cross-batch P2s. Lesson: a cross-batch final review is worth it — single-batch
+reviews are blind to interactions between batches.
+
+Batch → PR: P0-1 #207 · enrichment #208 · scan #209 · orphans/board-flows #210 · a11y #211 ·
+loading-parity #212 · behavior-polish #213 · IME-Next #214 · tests&docs #215 · final-review-fixes #216.
+
+**Deferred (with notes):** P2-2 (LazyRow — drag-layout dependency), P2-27 (FlavorRadar Canvas —
+device verification), P2-20 (diagnostics scrub — owner DECIDE; no user-data leak found).
+**Owner decisions, not built:** feature gaps UX3-F-1..F-8 (stats, price, consumption status,
+journal-lite notes, board copy/archive, text share, bulk ops, board compare).
+**Carried over, still open:** the round-1/2 tracked items (UX-P1-3 draft loss, etc.) in `OLD-REVIEWS.md`.
+
 ## P0 — data integrity
 
 | ID | Finding | Where | Status |
