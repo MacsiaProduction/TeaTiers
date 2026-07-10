@@ -250,6 +250,10 @@ class AddTeaViewModel @Inject constructor(
         // previous binding so its Review dialog can't pop onto — and merge into — this session (UX3-P1-5).
         cancelScan()
         if (teaId != null) {
+            // The entry this load belongs to. The VM is reused across Add/Edit entries, so guard on the
+            // token (not just teaId): two binds to the SAME tea id must still supersede each other, else
+            // a slow stale load could overwrite edits the user already made after a faster rebind.
+            val boundToken = lastEntryToken
             viewModelScope.launch {
                 val result = runCatching {
                     val tea = repository.tea(teaId)
@@ -257,7 +261,7 @@ class AddTeaViewModel @Inject constructor(
                     (tea?.toForm() ?: AddTeaForm()) to count
                 }
                 // A newer bind() superseded this load — it owns _formLoading now, so leave it alone.
-                if (_editingTeaId.value != teaId) return@launch
+                if (lastEntryToken != boundToken) return@launch
                 result
                     .onSuccess { (loaded, count) ->
                         _form.value = loaded
