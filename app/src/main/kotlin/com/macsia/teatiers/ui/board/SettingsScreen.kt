@@ -2,6 +2,7 @@ package com.macsia.teatiers.ui.board
 
 import android.content.Intent
 import android.os.Build
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
@@ -84,6 +85,7 @@ fun SettingsScreen(
     diagnosticsViewModel: DiagnosticsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val photoUsage by viewModel.photoUsage.collectAsStateWithLifecycle()
     val backupBusy by backupViewModel.busy.collectAsStateWithLifecycle()
     val safetyBackupAvailable by backupViewModel.safetyBackupAvailable.collectAsStateWithLifecycle()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
@@ -198,6 +200,20 @@ fun SettingsScreen(
             }
 
             SettingsSection(title = stringResource(R.string.settings_data_section)) {
+                // Informational storage snapshot (R4-PWR-3): makes app-private photo growth visible so
+                // an unexpectedly large backup .zip isn't a surprise. Hidden until there's a photo.
+                photoUsage?.takeIf { it.count > 0 }?.let { usage ->
+                    Text(
+                        text = stringResource(
+                            R.string.settings_storage_photos,
+                            Formatter.formatShortFileSize(context, usage.bytes),
+                            usage.count,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
                 ActionRow(
                     title = stringResource(R.string.backup_export),
                     hint = stringResource(R.string.backup_export_hint),

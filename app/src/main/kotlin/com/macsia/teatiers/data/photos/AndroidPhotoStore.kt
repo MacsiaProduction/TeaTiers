@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -17,8 +18,23 @@ import javax.inject.Singleton
 private const val TAG = "AndroidPhotoStore"
 private const val PHOTOS_DIR = "tea_photos"
 
-/** Reject a picked image larger than this before copying it to disk (matches the server OCR cap). */
-private const val MAX_PHOTO_BYTES = 8L * 1024 * 1024
+/**
+ * Reject a picked image larger than this before buffering it to downscale (OOM guard, AND-P1-5).
+ * Generous: a real phone photo is far smaller, and anything up to this cap is downsampled — not
+ * rejected — so an 8–25 MB full-res capture lands as a bounded stored photo instead of failing.
+ */
+private const val MAX_SOURCE_BYTES = 25L * 1024 * 1024
+
+/** Free-space preflight floor when the source size is undeclared. */
+private const val WRITE_ESTIMATE_BYTES = 8L * 1024 * 1024
+
+/**
+ * Stored-photo target: decoded, EXIF-oriented and re-encoded to JPEG with the longest edge capped
+ * here (R4-PWR-3). 2048 px is ample for full-screen pinch-zoom while keeping a typical photo a few
+ * hundred KB instead of several MB — bounding both app storage and the backup .zip.
+ */
+private const val STORED_MAX_DIM = 2048
+private const val STORED_JPEG_QUALITY = 85
 
 /** Don't sweep a file written this recently — it may be an in-flight copy whose row isn't in yet. */
 private const val RECENT_GRACE_MS = 60_000L
@@ -45,48 +61,63 @@ class AndroidPhotoStore @Inject constructor(
 
     override suspend fun copyIn(source: Uri): PhotoCopyResult = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
-        // Reject an oversized image before reading a byte of it (AND-P1-5). AssetFileDescriptor.length
-        // is UNKNOWN_LENGTH (-1) for some providers; treat unknown as "allow" and let the copy proceed.
+        // Reject a pathological source before we buffer it to downscale (AND-P1-5). AssetFileDescriptor.length
+        // is UNKNOWN_LENGTH (-1) for some providers; treat unknown as "allow" and let the decode proceed.
         val declaredSize = runCatching {
             resolver.openAssetFileDescriptor(source, "r")?.use { it.length }
         }.getOrNull()
-        if (declaredSize != null && declaredSize > MAX_PHOTO_BYTES) {
+        if (declaredSize != null && declaredSize > MAX_SOURCE_BYTES) {
             Log.w(TAG, "Refusing oversized photo ($declaredSize bytes)")
             return@withContext PhotoCopyResult.TooLarge
         }
         // Preflight free-space check (UX-P1-1): a full disk would otherwise surface as a generic
         // IOException from the write below, which the user can't tell apart from "add photo did
-        // nothing" — check against the declared size (or the cap, if undeclared) before writing a byte.
+        // nothing". The re-encoded JPEG is far smaller than the source, so checking against the
+        // declared source size (or an 8 MB floor if undeclared) is conservative.
         // ponytail: a preflight check, not a filesystem-quota guarantee — a concurrent writer could
         // still race the free space between this check and the write; that residual failure falls
         // through to the generic IOException catch below, which is an acceptable rare edge.
-        val required = declaredSize ?: MAX_PHOTO_BYTES
+        val required = declaredSize ?: WRITE_ESTIMATE_BYTES
         if (rootDir.usableSpace < required) {
             Log.w(TAG, "Insufficient storage for photo copy (need ~$required bytes)")
             return@withContext PhotoCopyResult.OutOfSpace
         }
-        val ext = extensionFor(source)
+        // Read + downscale under a broad guard: unlike the old streaming copy, decoding a bitmap can
+        // throw OutOfMemoryError (an Error, not an Exception) on a pathological/undeclared-length
+        // source, and readBytes() can too — either would otherwise escape withContext uncaught and
+        // crash the app. Mirror the OCR path (AndroidImageReader) which runCatches the same work.
+        // Downscale + re-encode to a bounded JPEG (R4-PWR-3); if the source can't be decoded as an
+        // image (corrupt/non-image pick, or a decode OOM), fall back to storing the raw bytes so we
+        // never silently drop what the user picked — the extension then keeps the source type.
+        val prepared: Pair<ByteArray, String>? = runCatching {
+            val raw = resolver.openInputStream(source)?.use { it.readBytes() } ?: return@runCatching null
+            val jpeg = runCatching { decodeOrientDownscaleJpeg(raw, STORED_MAX_DIM, STORED_JPEG_QUALITY) }
+                .getOrNull()
+            if (jpeg != null) jpeg to ".jpg" else raw to extensionFor(source)
+        }.getOrElse { e ->
+            if (e is CancellationException) throw e
+            Log.w(TAG, "Failed to read/decode source uri", e)
+            null
+        }
+        if (prepared == null) return@withContext PhotoCopyResult.Failed
+        val (bytes, ext) = prepared
         val target = File(rootDir, "${UUID.randomUUID()}$ext")
         try {
-            resolver.openInputStream(source)?.use { input ->
-                FileOutputStream(target).use { output ->
-                    input.copyTo(output)
-                    output.fd.sync()
-                }
-            } ?: run {
-                Log.w(TAG, "openInputStream returned null for source uri")
-                return@withContext PhotoCopyResult.Failed
+            FileOutputStream(target).use { output ->
+                output.write(bytes)
+                output.fd.sync()
             }
             PhotoCopyResult.Success(target.absolutePath)
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Permission denied reading source uri", e)
-            target.delete()
-            PhotoCopyResult.Failed
         } catch (e: IOException) {
-            Log.w(TAG, "Failed to copy source uri", e)
+            Log.w(TAG, "Failed to write photo", e)
             target.delete()
             PhotoCopyResult.Failed
         }
+    }
+
+    override suspend fun usage(): PhotoStorageUsage = withContext(Dispatchers.IO) {
+        val files = rootDir.listFiles()?.filter { it.isFile } ?: emptyList()
+        PhotoStorageUsage(count = files.size, bytes = files.sumOf { it.length() })
     }
 
     override suspend fun importInto(originalName: String, input: InputStream): String? =

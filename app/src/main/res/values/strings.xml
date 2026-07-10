@@ -36,7 +36,7 @@
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
     <!-- UX-P1-1: specific reasons a photo copy failed, instead of the generic message above. -->
-    <string name="error_photo_too_large">Фото слишком большое (максимум 8 МБ). Выберите файл меньшего размера.</string>
+    <string name="error_photo_too_large">Фото слишком большое (максимум 25 МБ). Выберите файл меньшего размера.</string>
     <string name="error_photo_out_of_space">На устройстве не хватает места для фото. Освободите место и попробуйте снова.</string>
     <string name="error_generic">Что-то пошло не так. Изменения не сохранены.</string>
     <string name="error_cannot_open_link">Не удалось открыть ссылку.</string>
@@ -81,6 +81,7 @@
     <string name="settings_language_hint">Переводы интерфейса появятся позже; пока доступен русский.</string>
 
     <string name="settings_data_section">Данные</string>
+    <string name="settings_storage_photos">Фотографии: %1$s · %2$d шт.</string>
     <string name="backup_export">Сохранить копию</string>
     <string name="backup_export_hint">Выгрузить все подборки, чаи и фото в один файл.</string>
     <string name="backup_share">Поделиться копией</string>
