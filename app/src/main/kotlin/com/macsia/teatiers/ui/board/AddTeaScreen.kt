@@ -66,6 +66,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -158,6 +159,15 @@ fun AddTeaScreen(
     // pendingNameFocus flag when the form is invalid. We then pop the flag and route focus
     // to the nameRu field so the user knows where to look. Snackbar covers the "why".
     val nameRuFocusRequester = remember { FocusRequester() }
+
+    // UX3-P2-23: IME "Next" advances to the following field instead of "Done" closing the keyboard, so
+    // filling this multi-field form doesn't require dismissing + re-targeting each field by hand.
+    // FocusDirection.Next follows reading order, so it steps through the side-by-side (Row) name and
+    // sample fields correctly. Applied to every single-line text field below.
+    val focusManager = LocalFocusManager.current
+    val nextFieldKeyboard = KeyboardOptions(imeAction = ImeAction.Next)
+    val nextFieldNumberKeyboard = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
+    val moveToNextField = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Next) })
 
     // Opt-in packaging scan (slice 3). Gallery uses the permission-free PickVisualMedia; camera uses
     // TakePicture into a FileProvider URI (also permission-free — the camera app owns the capture).
@@ -297,6 +307,8 @@ fun AddTeaScreen(
                 onValueChange = { v -> viewModel.update { it.copy(nameRu = v) } },
                 label = { Text(stringResource(R.string.field_name_ru)) },
                 singleLine = true,
+                keyboardOptions = nextFieldKeyboard,
+                keyboardActions = moveToNextField,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(nameRuFocusRequester),
@@ -306,6 +318,8 @@ fun AddTeaScreen(
                 onValueChange = { v -> viewModel.update { it.copy(nameEn = v) } },
                 label = { Text(stringResource(R.string.field_name_en)) },
                 singleLine = true,
+                keyboardOptions = nextFieldKeyboard,
+                keyboardActions = moveToNextField,
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -314,6 +328,8 @@ fun AddTeaScreen(
                     onValueChange = { v -> viewModel.update { it.copy(pinyin = v) } },
                     label = { Text(stringResource(R.string.field_pinyin)) },
                     singleLine = true,
+                    keyboardOptions = nextFieldKeyboard,
+                    keyboardActions = moveToNextField,
                     modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
@@ -321,6 +337,8 @@ fun AddTeaScreen(
                     onValueChange = { v -> viewModel.update { it.copy(nameZh = v) } },
                     label = { Text(stringResource(R.string.field_name_zh)) },
                     singleLine = true,
+                    keyboardOptions = nextFieldKeyboard,
+                    keyboardActions = moveToNextField,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -361,6 +379,8 @@ fun AddTeaScreen(
                 onValueChange = { v -> viewModel.update { it.copy(origin = v) } },
                 label = { Text(stringResource(R.string.field_origin)) },
                 singleLine = true,
+                keyboardOptions = nextFieldKeyboard,
+                keyboardActions = moveToNextField,
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -403,6 +423,8 @@ fun AddTeaScreen(
                         onValueChange = { v -> viewModel.update { it.copy(vendor = v) } },
                         label = { Text(stringResource(R.string.field_vendor)) },
                         singleLine = true,
+                        keyboardOptions = nextFieldKeyboard,
+                        keyboardActions = moveToNextField,
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
@@ -410,6 +432,8 @@ fun AddTeaScreen(
                         onValueChange = { v -> viewModel.update { it.copy(product = v) } },
                         label = { Text(stringResource(R.string.field_product)) },
                         singleLine = true,
+                        keyboardOptions = nextFieldKeyboard,
+                        keyboardActions = moveToNextField,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -424,7 +448,8 @@ fun AddTeaScreen(
                             if (form.harvestYearError) Text(stringResource(R.string.field_harvest_year_implausible))
                         },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = nextFieldNumberKeyboard,
+                        keyboardActions = moveToNextField,
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
@@ -432,6 +457,8 @@ fun AddTeaScreen(
                         onValueChange = { v -> viewModel.update { it.copy(batch = v) } },
                         label = { Text(stringResource(R.string.field_batch)) },
                         singleLine = true,
+                        keyboardOptions = nextFieldKeyboard,
+                        keyboardActions = moveToNextField,
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
@@ -439,6 +466,8 @@ fun AddTeaScreen(
                         onValueChange = { v -> viewModel.update { it.copy(grade = v) } },
                         label = { Text(stringResource(R.string.field_grade)) },
                         singleLine = true,
+                        keyboardOptions = nextFieldKeyboard,
+                        keyboardActions = moveToNextField,
                         modifier = Modifier.weight(1f),
                     )
                 }
