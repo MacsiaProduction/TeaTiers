@@ -19,7 +19,7 @@
     <!-- UX2-P1-10: one-tap way to clear the seeded sample boards, reachable even after the intro card above is dismissed. -->
     <string name="boards_clear_sample_data">Очистить примеры подборок</string>
     <string name="boards_clear_sample_data_confirm_title">Удалить примеры подборок?</string>
-    <string name="boards_clear_sample_data_confirm_message">Оставшиеся демонстрационные подборки будут удалены. Чаи останутся в вашей коллекции — удаляются только сами подборки.</string>
+    <string name="boards_clear_sample_data_confirm_message">Оставшиеся демонстрационные подборки будут удалены. Сами чаи останутся в разделе «Мои чаи», но пропадут с этих подборок — если вы добавляли свой чай только в такую подборку, его нужно будет заново добавить на доску из «Моих чаёв».</string>
     <string name="boards_clear_sample_data_confirm_action">Удалить</string>
     <string name="snackbar_sample_data_cleared">Примеры подборок удалены</string>
 
@@ -164,6 +164,7 @@
     <string name="action_delete_tea_forever">Удалить чай совсем</string>
     <string name="action_retry_enrichment">Повторить уточнение</string>
     <string name="action_add_another_sample">Добавить ещё образец</string>
+    <string name="action_add_to_board">Добавить в подборку</string>
     <string name="action_undo">Вернуть</string>
     <string name="snackbar_placement_removed">Чай убран с подборки</string>
     <string name="snackbar_board_deleted">Подборка удалена</string>
@@ -210,6 +211,9 @@
     <string name="detail_flavor_reference">Справочно из каталога</string>
     <string name="detail_flavor_use_reference">Использовать как мою оценку</string>
     <string name="detail_reference_applied">Справочная оценка применена</string>
+    <string name="detail_add_to_board_title">В какую подборку добавить?</string>
+    <string name="detail_add_to_board_empty">Сначала создайте подборку на главном экране.</string>
+    <string name="detail_added_to_board">Добавлено в подборку</string>
     <string name="detail_notes_title">Заметки</string>
     <string name="detail_purchase_title">Где купить</string>
     <string name="detail_purchase_empty">Место покупки не указано.</string>
@@ -439,5 +443,5 @@
     <string name="a11y_browse_add">Добавить «%1$s» в подборку</string>
     <string name="browse_pick_board_title">Добавить «%1$s» в подборку</string>
     <string name="browse_pick_board_empty">Сначала создайте подборку на главном экране.</string>
-    <string name="browse_pick_board_cancel">Отмена</string>
+    <string name="browse_pick_board_create_hint">«Создать подборку» откроет главный экран — этот чай нужно будет добавить заново.</string>
 </resources>

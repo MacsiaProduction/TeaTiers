@@ -7,6 +7,7 @@ import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.TeaBoardRepository
 import com.macsia.teatiers.data.repository.TeaEnrichmentManager
+import com.macsia.teatiers.domain.model.Board
 import com.macsia.teatiers.domain.model.CatalogImage
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorScore
@@ -51,6 +52,27 @@ class TeaDetailViewModel @Inject constructor(
 
     fun bind(teaId: String) {
         this.teaId.value = teaId
+    }
+
+    /** Boards offered as "add to board" targets (UX3-P1-1). */
+    val boards: StateFlow<List<Board>> = repository.boards
+
+    /**
+     * Places the shown tea onto [boardId] — the explicit "add to board" action (UX3-P1-1). This is the
+     * discoverable path back for an orphaned tea (removed from every board, or stranded by a deleted
+     * board), which the detail/My-Teas screens otherwise couldn't re-place except via the silent
+     * name/catalog re-resolve. Idempotent: re-adding a tea already on the board changes nothing and
+     * still confirms with the same snackbar.
+     */
+    fun addToBoard(boardId: String) {
+        val id = teaId.value ?: return
+        viewModelScope.launch {
+            runCatching { repository.placeExistingTeaOnBoard(boardId, id) }
+                .onSuccess { placed ->
+                    eventHost.emit(ShowSnackbar(if (placed) R.string.detail_added_to_board else R.string.error_generic))
+                }
+                .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
