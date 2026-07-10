@@ -2,6 +2,7 @@ package com.macsia.teatiers.data.repository
 
 import android.net.Uri
 import com.macsia.teatiers.data.photos.PhotoCopyResult
+import com.macsia.teatiers.data.photos.PhotoStorageUsage
 import com.macsia.teatiers.data.photos.PhotoStore
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicInteger
@@ -67,4 +68,7 @@ class FakePhotoStore : PhotoStore {
         deleted += orphans
         return orphans.size
     }
+
+    override suspend fun usage(): PhotoStorageUsage =
+        PhotoStorageUsage(count = onDisk.size, bytes = onDisk.size.toLong())
 }
