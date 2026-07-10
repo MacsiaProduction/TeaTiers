@@ -194,6 +194,7 @@
     <string name="tier_label_required">Метка не может быть пустой</string>
     <string name="tier_color_title">Цвет тира</string>
     <string name="tier_color_default">По умолчанию</string>
+    <string name="tier_color_swatch_a11y">Цвет %1$d из %2$d</string>
     <string name="tier_delete_title">Удалить тир?</string>
     <!-- %1$s — метка тира -->
     <string name="tier_delete_message">Чаи из тира «%1$s» переедут в «Без ранга». Сам тир будет удалён.</string>

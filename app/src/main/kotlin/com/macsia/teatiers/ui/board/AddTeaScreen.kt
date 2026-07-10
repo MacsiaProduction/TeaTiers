@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -933,7 +934,7 @@ private fun CatalogResultRow(tea: CatalogTea, onPick: () -> Unit, onInfo: () -> 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onPick)
+                    .clickable(role = Role.Button, onClick = onPick)
                     .semantics(mergeDescendants = true) { contentDescription = pickDescription }
                     .padding(vertical = 8.dp),
             ) {

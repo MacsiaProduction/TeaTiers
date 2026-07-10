@@ -3,6 +3,7 @@ package com.macsia.teatiers.ui.board
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -308,10 +312,19 @@ private fun TierColorDialog(
         title = { Text(stringResource(R.string.tier_color_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                TierColorPresets.chunked(4).forEach { rowColors ->
+                // UX3-P1-7: each swatch was a bare clickable Box — a TalkBack user heard nothing and
+                // couldn't tell which color was applied. selectable(role=RadioButton) announces the
+                // selected state; an ordinal contentDescription distinguishes the otherwise-unnamed
+                // presets. (A precise color name per preset would be ideal but brittle for this palette.)
+                TierColorPresets.chunked(4).forEachIndexed { rowIndex, rowColors ->
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        rowColors.forEach { argb ->
+                        rowColors.forEachIndexed { colIndex, argb ->
                             val selected = currentColor == argb
+                            val label = stringResource(
+                                R.string.tier_color_swatch_a11y,
+                                rowIndex * 4 + colIndex + 1,
+                                TierColorPresets.size,
+                            )
                             Box(
                                 modifier = Modifier
                                     .size(48.dp) // UX-P2-3: Material's 48dp minimum touch target (was 44dp)
@@ -326,7 +339,12 @@ private fun TierColorDialog(
                                         },
                                         shape = CircleShape,
                                     )
-                                    .clickable { onPick(argb) },
+                                    .selectable(
+                                        selected = selected,
+                                        role = Role.RadioButton,
+                                        onClick = { onPick(argb) },
+                                    )
+                                    .semantics { contentDescription = label },
                             )
                         }
                     }
