@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
@@ -92,7 +93,7 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
         tonalElevation = 1.dp,
         modifier = modifier
             .width(CardWidth)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
     ) {
         Column(Modifier.padding(14.dp)) {
             val firstPhotoUri = tea.photos.firstOrNull()?.uri

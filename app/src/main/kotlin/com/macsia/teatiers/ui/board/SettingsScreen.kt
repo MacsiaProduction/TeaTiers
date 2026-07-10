@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -589,8 +590,9 @@ private fun SwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // role = Switch makes the whole row one toggleable TalkBack node.
-            .selectable(selected = checked, role = Role.Switch, onClick = { onCheckedChange(!checked) })
+            // UX3-P2-25: toggleable (not selectable) so TalkBack announces the on/off checked state a
+            // Switch role expects — selectable set `selected` ("selected"), mismatching the role.
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

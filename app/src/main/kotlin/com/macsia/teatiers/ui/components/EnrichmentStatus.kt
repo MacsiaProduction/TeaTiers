@@ -13,6 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.macsia.teatiers.R
@@ -35,6 +38,7 @@ fun EnrichmentStatus(
     state: EnrichmentState,
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
+    announceChanges: Boolean = false,
 ) {
     val label = when (state) {
         EnrichmentState.PENDING -> stringResource(R.string.enrichment_status_pending)
@@ -48,7 +52,19 @@ fun EnrichmentStatus(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        // UX3-P2-24: an OPT-IN polite live region so a state change (e.g. resolving -> failed) is
+        // announced even when TalkBack focus isn't on this element. Only the detail screen sets it: the
+        // board card and My Teas row are each one `mergeDescendants` node, so a live region here would
+        // be absorbed by the parent and re-announce the WHOLE card on every change (noisy). The detail
+        // screen renders this standalone, so the announcement stays scoped to the status line.
+        modifier = if (announceChanges) {
+            modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        } else {
+            modifier
+        },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (state == EnrichmentState.PENDING) {
             CircularProgressIndicator(
                 strokeWidth = 1.5.dp,

@@ -251,7 +251,7 @@ private fun BoardSummaryCard(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onClick)
+                    .clickable(role = Role.Button, onClick = onClick)
                     .semantics(mergeDescendants = true) { contentDescription = a11yLabel }
                     .padding(20.dp),
             ) {

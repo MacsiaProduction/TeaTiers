@@ -48,7 +48,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -220,7 +222,7 @@ private fun MyTeaRow(item: MyTeaItem, onClick: () -> Unit, modifier: Modifier = 
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
         // Merge into one TalkBack node so the whole row reads as a single button (name, type, count).
-        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) { role = Role.Button },
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             TeaThumb(uri = tea.photos.firstOrNull()?.uri, fallbackType = tea.type)
