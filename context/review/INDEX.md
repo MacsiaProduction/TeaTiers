@@ -12,7 +12,9 @@ this index reflects what is still open against `main`.
 > **Compaction (2026-07-10).** Every review file listed below (including `archive-2026-06/` and the
 > round-1/2 usage-quality plans) was condensed into **`OLD-REVIEWS.md`** and the originals removed from
 > the tree (recoverable via git history). Filenames below are kept as historical identifiers — read the
-> matching section in `OLD-REVIEWS.md`. Round 3 lives in `2026-07-10-usage-quality-improvement-plan-v3.md`.
+> matching section in `OLD-REVIEWS.md`. Round 3 (fully implemented, #207–#216) was condensed into
+> `OLD-REVIEWS.md` on 2026-07-10 and its file removed. The live usage-quality plan is round 4:
+> `2026-07-10-usage-quality-improvement-plan-v4.md`.
 
 - Locked intent: `context/decisions.md` #136 (foundation) + **#137** (C1–C7 contracts) + **#139** (2026-06-22
   correction: the production-safe bar — several #137 "DONE" closures reopened).

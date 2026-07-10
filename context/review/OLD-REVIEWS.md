@@ -1,13 +1,13 @@
-# Old reviews — compacted archive (2026-07-08)
+# Old reviews — compacted archive (2026-07-08, extended 2026-07-10)
 
-> One-file condensation of all review docs prior to the round-3 usage-quality audit. Originals removed
-> from the tree (recoverable via git history). Live finding status: `INDEX.md`. Round-1/2 UX finding
-> details preserved below because round-3 carries some items forward.
+> One-file condensation of all review docs prior to the round-4 usage-quality audit. Originals removed
+> from the tree (recoverable via git history). Live finding status: `INDEX.md`. Round-1/2/3 UX finding
+> details preserved below because later rounds carry some items forward.
 
 Sections below are chronological. For each pre-archived (`archive-2026-06/`) doc, one short paragraph
 is given (they were already dispositioned before archiving). For the eleven top-level dated reviews,
-a fuller essence + compact finding list is given, with the two usage-quality plans kept in full detail
-(tables, every finding ID) since round-3 references them directly.
+a fuller essence + compact finding list is given, with the three usage-quality plans kept in full detail
+(tables, every finding ID) since later rounds reference them directly.
 
 ---
 
@@ -498,3 +498,93 @@ Carried over from round 1, still OPEN, not re-litigated: `UX-P1-3` (process-deat
 `UX-P1-8` (My Teas join perf), `UX-P2-12` (unserialized drag writes), `UX-P2-14` (Undo loads full
 tables), `UX-P2-15` (diagnostics delivery visibility — independently re-confirmed open), `UX-F-5`
 (re-openable tier help), `UX-F-6` (brewing log, owner-scoping needed).
+
+---
+
+## 2026-07-10 — Usage-quality audit round 3 (UX3-)
+
+Round 3 at `fac7a30`, after rounds 1–2 landed as PRs #191–#206. Six parallel read-only passes seeded
+with the known-open list (journeys, per-screen states, regression review of #191–#206, feature gaps,
+server-felt behavior, a11y/copy); every P0/P1 candidate adversarially verified by 10 independent
+skeptics (8 confirmed, 2 downgraded to P2, 1 refuted — the journey pass's "drafts survive process
+death" claim; UX-P1-3 stays OPEN). Verdict: rounds 1–2 genuinely cleaned house; round 3 found one old
+product-decision violation still live (silent name-match merge, decision #132), a P1 band around
+enrichment/scan session state, one complete assistive-tech block (tier color picker), and — the
+interaction-bug backlog being nearly dry — the first set of product-level feature gaps as the biggest
+remaining lever.
+
+**Implementation complete same day** (PRs #207–#216, per-batch plan → implement → adversarial review).
+A cross-batch final review (5 reviewers over the whole round-3 diff) then caught a P0 no per-batch
+review could see — Save during the new edit-form loading spinner called `requestFocus()` on a
+spinner-hidden field → crash; fixed with four cross-batch P2s in #216. Lesson recorded: always run one
+final review over the combined diff of a multi-PR effort.
+
+### P0 — data integrity
+
+| ID | Finding | Status |
+|---|---|:--:|
+| UX3-P0-1 | Adding a tea whose typed name matches an existing tea silently discarded everything typed (name-match resolve set `teaToInsert = null`; only placement+photos persisted, no message) — violated locked decision #132 / v7 finding #17 | **DONE** (#207) — manual add always creates a new sample; name match is a non-blocking reuse-or-new prompt; `forceNew` extended to non-catalog teas |
+
+### P1 — dead ends, silent failures, major friction (all skeptic-confirmed)
+
+| ID | Finding | Status |
+|---|---|:--:|
+| UX3-P1-1 | Orphaned tea ("Не в подборках") had no deliberate path back onto any board | **DONE** (#210) — explicit add-to-board on Detail/My Teas |
+| UX3-P1-2 | QUEUED/RATE_LIMITED enrichment had no user-drivable retry (menu gated to FAILED only; 5-min cooldown dead zone) | **DONE** (#208) — retry menu covers QUEUED/RATE_LIMITED |
+| UX3-P1-3 | `/teas/resolve` client timeout (15s) shorter than server's Wikidata worst case (~22s) → false "Нет сети" label | **DONE** (#208) — interceptor exemption extended |
+| UX3-P1-4 | Tea detail + My Teas rendered zero enrichment state for any state (status/retry existed only on board cards) | **DONE** (#208) |
+| UX3-P1-5 | Stale OCR scan state leaked across Add/Edit sessions (`bind()` never reset `_scan`; no cancellable Job) — tea A's review dialog could merge into tea B's form | **DONE** (#209) — tracked Job, reset on bind |
+| UX3-P1-6 | No cancel during an in-flight scan (up to ~60s; only exit was system back, which didn't cancel) | **DONE** (#209) — Recognizing state is an active Cancel |
+| UX3-P1-7 | Tier color picker a complete TalkBack block (bare `Box.clickable` swatches, no label/role/state) | **DONE** (#211) |
+
+### Feature gaps (verified absent; all owner DECIDE, none built)
+
+UX3-F-1 collection stats/overview (high demand) · UX3-F-2 price/spend tracking — structurally
+impossible, no price field anywhere (high) · UX3-F-3 consumption status wishlist/drinking/finished
+(high) · UX3-F-4 dated journal notes instead of one overwritable string (med-high) · UX3-F-5 board
+duplicate/archive/seed-from-collection (med) · UX3-F-6 text-only board share — decision #27's deferral
+covers only the image form (med) · UX3-F-7 bulk operations on My Teas (low-med) · UX3-F-8 board
+comparison / auto "all teas" board (low).
+
+### P2 — polish (compact; final statuses)
+
+**DONE**: UX3-P2-1 BoardScreen blank-scaffold spinner (#212) · P2-3 My Teas premature empty state
+(#212) · P2-4 edit-form loading gate (#212) · P2-5 `flavorsExpanded` rememberSaveable (#212) · P2-6
+boards-flow one-shot `.catch` → consecutive-failure retry (#212; distinct error-vs-empty UI remains a
+deliberate deferral) · P2-8 board-picker create-board hint always shown (#210) · P2-9 "clear sample
+data" copy names ranking loss (#210) · P2-11 multi-photo pick capped at 8 (#213) · P2-12 merge-scope
+doc fix + blank-out test (#215) · P2-13 `StandardTestDispatcher` re-entrancy test (#215) · P2-14
+facets self-heal from `applyMore` (#213) · P2-16 `resumePending` once per launch in
+`MainActivity.onCreate` (#208) · P2-17 post-import `resumePending(force=true)` (#208) · P2-18
+non-zip import → `backup_invalid_file` copy (#213) · P2-19 unique per-share backup filenames (#213) ·
+P2-21 OCR slow hint after 8s (#209) · P2-23 IME `ImeAction.Next` chaining on the add form (#214) ·
+P2-24 live region on enrichment status, detail screen (#211) · P2-25 settings switches `toggleable`
+(#211) · P2-26 `Role.Button` on 5 list-item cards (#211) · P2-28 «Доски»→«Подборки» in privacy
+copy (#213).
+
+**Still open / deferred**: UX3-P2-2 tier rows compose placements eagerly (`Row`+`horizontalScroll`,
+not `LazyRow`) — OPEN, drag-layout dependency · UX3-P2-15 retried/resumed enrichment drops the user's
+`sourceText` grounding (`retry()`/`resumePending()` hard-code null) — DEFERRED, own follow-up ·
+UX3-P2-20 diagnostics "никогда не включает пути" not enforced on ACRA traces — DECIDE (owner; no
+actual user-data leak found) · UX3-P2-22 update check never fires automatically — deliberately
+TRACKED into REL-P0-2 (wire WITH the Ed25519 manifest, not before) · UX3-P2-27 FlavorRadar fixed
+`.height(240-260.dp)` vs font-scaled Canvas labels — DEFERRED, needs device-visual verification ·
+UX3-P2-10 camera temp-file sweep — SKIPPED (already bounded to one file per dir) · UX3-P2-29 delete
+from Detail/Edit has no Undo — REVIEWED, confirm dialog is the deliberate safety net (#210) ·
+UX3-P2-7 enrichment copy overpromise — folded into P1-2's fix.
+
+Doc hygiene: `AddTeaScreen.kt:109-110` comment falsely claims process-death survival (caused a
+refuted round-3 finding) — fix when touching the file; UX-P1-3 re-confirmed OPEN (no
+`SavedStateHandle` anywhere).
+
+### Verified clean in round 3 (don't re-audit soon)
+
+Fix batches #191–#206 (per-batch regression verdicts); search/browse paging + stale-response
+cancellation; rate-limit budgets vs client call patterns; backup export/import validation +
+safety-snapshot + FileProvider hygiene; privacy disclosures vs actual egress (OCR re-encode strips
+EXIF/GPS beyond the stated promise); onboarding/sample-clear; drag fallbacks + tier-editor guards;
+OCR failure-state taxonomy; dark theme; ru copy register.
+
+Carried over from rounds 1–2, still OPEN after round 3: UX-P1-3, UX-P1-8, UX-P2-12, UX-P2-14,
+UX-P2-15, UX-F-5, UX-F-6, UX2-F-3, UX2-F-4, UX2-P2-3, UX2-P2-8, UX2-P2-9/11, UX2-P2-21, UX2-P2-22,
+UX2-P2-25/26 (VERIFY items).
