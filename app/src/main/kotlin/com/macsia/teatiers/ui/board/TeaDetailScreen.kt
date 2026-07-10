@@ -54,6 +54,7 @@ import com.macsia.teatiers.domain.model.PhotoSource
 import com.macsia.teatiers.domain.model.PurchaseLocation
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.domain.model.TeaPhoto
+import com.macsia.teatiers.ui.components.EnrichmentStatus
 import com.macsia.teatiers.ui.components.FlavorRadar
 import com.macsia.teatiers.ui.components.FlavorStrip
 import com.macsia.teatiers.ui.components.LiquorSwatch
@@ -154,6 +155,7 @@ fun TeaDetailScreen(
                     referenceFlavors = referenceFlavors,
                     referenceImages = referenceImages,
                     onUseReference = viewModel::useReferenceAsMyRating,
+                    onRetryEnrichment = viewModel::retryEnrichment,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
@@ -192,6 +194,7 @@ private fun TeaDetailBody(
     referenceFlavors: List<FlavorScore>,
     referenceImages: List<CatalogImage>,
     onUseReference: () -> Unit,
+    onRetryEnrichment: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val liquor = TeaTheme.colors.liquorByType[tea.type] ?: MaterialTheme.colorScheme.secondary
@@ -231,6 +234,11 @@ private fun TeaDetailBody(
                 )
             }
         }
+
+        // Enrichment state + an inline retry (UX3-P1-4): the board card kept its retry in an overflow
+        // menu, so a tea reached from My Teas or a direct link had no way to see or re-drive a stuck
+        // resolve. Renders nothing once DONE / for a plain custom tea.
+        EnrichmentStatus(state = tea.enrichmentState, onRetry = onRetryEnrichment)
 
         tea.shortBlurb?.let {
             Text(text = it, style = MaterialTheme.typography.bodyLarge)

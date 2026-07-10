@@ -3,6 +3,7 @@ package com.macsia.teatiers.viewmodel
 import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.data.repository.CatalogRepository
 import com.macsia.teatiers.data.repository.TeaBoardRepository
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import com.macsia.teatiers.domain.model.CatalogProvenance
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 import com.macsia.teatiers.domain.model.FlavorDimension
@@ -15,6 +16,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,7 @@ class TeaDetailViewModelTest {
 
     private val repository = mockk<TeaBoardRepository>()
     private val catalog = mockk<CatalogRepository>()
+    private val enrichmentManager = mockk<TeaEnrichmentManager>(relaxed = true)
     private val mainDispatcher = UnconfinedTestDispatcher()
 
     @BeforeEach
@@ -62,7 +65,7 @@ class TeaDetailViewModelTest {
     fun `reference flavors are fetched for a catalog-linked tea`() = runTest {
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = 5)
         coEvery { catalog.detail(5) } returns referenceDetail(FlavorScore(FlavorDimension.GRASSY, 4))
-        val vm = TeaDetailViewModel(repository, catalog)
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
         vm.bind("t1")
 
         backgroundScope.launch { vm.referenceFlavors.collect {} }
@@ -74,7 +77,7 @@ class TeaDetailViewModelTest {
     @Test
     fun `no catalog lookup for an unlinked tea`() = runTest {
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
-        val vm = TeaDetailViewModel(repository, catalog)
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
         vm.bind("t1")
 
         backgroundScope.launch { vm.referenceFlavors.collect {} }
@@ -87,7 +90,7 @@ class TeaDetailViewModelTest {
     @Test
     fun `uiState resolves to Loaded for an existing tea`() = runTest {
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
-        val vm = TeaDetailViewModel(repository, catalog)
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
         vm.bind("t1")
 
         backgroundScope.launch { vm.uiState.collect {} }
@@ -101,7 +104,7 @@ class TeaDetailViewModelTest {
     @Test
     fun `uiState resolves to NotFound when the tea is missing`() = runTest {
         coEvery { repository.tea("gone") } returns null
-        val vm = TeaDetailViewModel(repository, catalog)
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
         vm.bind("gone")
 
         backgroundScope.launch { vm.uiState.collect {} }
@@ -116,7 +119,7 @@ class TeaDetailViewModelTest {
         coEvery { repository.tea("t1") } returns tea(catalogTeaId = 5)
         coEvery { catalog.detail(5) } returns referenceDetail(*reference.toTypedArray())
         coEvery { repository.updateFlavor(any(), any()) } just Runs
-        val vm = TeaDetailViewModel(repository, catalog)
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
         vm.bind("t1")
         backgroundScope.launch { vm.referenceFlavors.collect {} }
         advanceUntilIdle()
@@ -128,5 +131,31 @@ class TeaDetailViewModelTest {
         // (which would round-trip a possibly-stale tea.value snapshot and could clobber a concurrent edit).
         coVerify(exactly = 1) { repository.updateFlavor("t1", reference) }
         coVerify(exactly = 0) { repository.updateTea(any(), any(), any()) }
+    }
+
+    @Test
+    fun `retryEnrichment re-dispatches the bound tea when it is not already in flight (UX3-P1-4)`() = runTest {
+        coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
+        every { enrichmentManager.isInFlight("t1") } returns false
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
+        vm.bind("t1")
+        advanceUntilIdle()
+
+        vm.retryEnrichment()
+
+        verify(exactly = 1) { enrichmentManager.retry("t1") }
+    }
+
+    @Test
+    fun `retryEnrichment skips a redundant tap while a resolve is already in flight`() = runTest {
+        coEvery { repository.tea("t1") } returns tea(catalogTeaId = null)
+        every { enrichmentManager.isInFlight("t1") } returns true
+        val vm = TeaDetailViewModel(repository, catalog, enrichmentManager)
+        vm.bind("t1")
+        advanceUntilIdle()
+
+        vm.retryEnrichment()
+
+        verify(exactly = 0) { enrichmentManager.retry(any()) }
     }
 }

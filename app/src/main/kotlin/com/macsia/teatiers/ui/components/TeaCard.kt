@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,7 +33,6 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.macsia.teatiers.R
-import com.macsia.teatiers.domain.model.EnrichmentState
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.theme.TeaTheme
 
@@ -136,7 +134,7 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
             }
             Spacer(Modifier.height(10.dp))
             TypeChip(type = tea.type)
-            EnrichmentStatus(state = tea.enrichmentState)
+            EnrichmentStatus(state = tea.enrichmentState, modifier = Modifier.padding(top = 8.dp))
             if (tea.flavor.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 FlavorStrip(
@@ -151,41 +149,3 @@ fun TeaCard(tea: Tea, modifier: Modifier = Modifier, onClick: (() -> Unit)? = nu
     }
 }
 
-/**
- * Optimistic-enrichment hint under the type chip (#21/#28): a tiny spinner while we resolve the
- * catalog, a muted "queued" line offline, and an error-toned "failed" line (the board card's
- * overflow offers the retry). Renders nothing once DONE or for a plain custom tea (NONE).
- */
-@Composable
-private fun EnrichmentStatus(state: EnrichmentState) {
-    val label = when (state) {
-        EnrichmentState.PENDING -> stringResource(R.string.enrichment_status_pending)
-        EnrichmentState.QUEUED -> stringResource(R.string.enrichment_status_queued)
-        EnrichmentState.RATE_LIMITED -> stringResource(R.string.enrichment_status_rate_limited)
-        EnrichmentState.FAILED -> stringResource(R.string.enrichment_status_failed)
-        EnrichmentState.NONE, EnrichmentState.DONE -> return
-    }
-    val color = if (state == EnrichmentState.FAILED) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (state == EnrichmentState.PENDING) {
-            CircularProgressIndicator(
-                strokeWidth = 1.5.dp,
-                color = color,
-                modifier = Modifier.size(12.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}

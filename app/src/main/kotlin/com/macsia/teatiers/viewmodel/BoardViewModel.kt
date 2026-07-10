@@ -43,7 +43,8 @@ class BoardViewModel @Inject constructor(
         enrichmentManager.resumePending()
     }
 
-    /** Retries enrichment of a tea whose background resolve FAILED (per-card overflow action, #28). */
+    /** Retries a tea's background resolve from the per-card overflow (#28). Reachable for any
+     *  retryable state — FAILED, or a deferred QUEUED/RATE_LIMITED (UX3-P1-2) — not just FAILED. */
     fun retryEnrichment(teaId: String) {
         // UX2-P2-15: a rapid double-tap silently no-op'd on the second tap with zero feedback.
         if (enrichmentManager.isInFlight(teaId)) {

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
+import com.macsia.teatiers.ui.components.EnrichmentStatus
 import com.macsia.teatiers.ui.components.LiquorSwatch
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.viewmodel.MyTeaItem
@@ -250,6 +251,10 @@ private fun MyTeaRow(item: MyTeaItem, onClick: () -> Unit, modifier: Modifier = 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                // Display-only enrichment state (UX3-P1-4): My Teas showed nothing for an in-flight /
+                // failed resolve. Retry lives on the detail screen (this row is one merged TalkBack
+                // button, so a nested retry control here would break that), reached by tapping through.
+                EnrichmentStatus(state = tea.enrichmentState, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }

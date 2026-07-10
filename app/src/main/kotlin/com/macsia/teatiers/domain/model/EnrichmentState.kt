@@ -14,3 +14,12 @@ package com.macsia.teatiers.domain.model
  * - [FAILED]  the call errored; the card offers a manual retry so a tea is never stuck loading.
  */
 enum class EnrichmentState { NONE, PENDING, QUEUED, RATE_LIMITED, DONE, FAILED }
+
+/**
+ * States a user can re-drive with a manual retry: an outright [FAILED], or a deferred resolve left
+ * [QUEUED] (offline) / [RATE_LIMITED] (server busy). Drives the retry affordance on every surface that
+ * shows a tea (board card, detail) so a stuck tea is never a dead end (UX3-P1-2/P1-4). [PENDING] is
+ * already in flight; [NONE]/[DONE] need nothing.
+ */
+val EnrichmentState.isRetryable: Boolean
+    get() = this == EnrichmentState.FAILED || this == EnrichmentState.QUEUED || this == EnrichmentState.RATE_LIMITED

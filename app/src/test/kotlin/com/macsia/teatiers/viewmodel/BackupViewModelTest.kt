@@ -3,10 +3,12 @@ package com.macsia.teatiers.viewmodel
 import android.net.Uri
 import com.macsia.teatiers.data.backup.BackupManager
 import com.macsia.teatiers.data.backup.BackupResult
+import com.macsia.teatiers.data.repository.TeaEnrichmentManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.Test
 class BackupViewModelTest {
 
     private val backupManager = mockk<BackupManager>()
+    private val enrichmentManager = mockk<TeaEnrichmentManager>(relaxed = true)
     private val uri = mockk<Uri>()
 
     @BeforeEach
@@ -47,7 +50,7 @@ class BackupViewModelTest {
             gate.await()
             BackupResult.Imported(teaCount = 1)
         }
-        val viewModel = BackupViewModel(backupManager)
+        val viewModel = BackupViewModel(backupManager, enrichmentManager)
 
         viewModel.importFrom(uri)
         assertTrue(viewModel.busy.value)
@@ -65,7 +68,7 @@ class BackupViewModelTest {
             gate.await()
             BackupResult.Imported(teaCount = 1)
         }
-        val viewModel = BackupViewModel(backupManager)
+        val viewModel = BackupViewModel(backupManager, enrichmentManager)
 
         viewModel.importFrom(uri)
         assertTrue(viewModel.busy.value)
@@ -74,5 +77,39 @@ class BackupViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { backupManager.createShareUri() }
+    }
+
+    @Test
+    fun `a successful import force-resumes enrichment of the restored teas (UX3-P2-17)`() = runTest {
+        coEvery { backupManager.importFrom(any()) } returns BackupResult.Imported(teaCount = 3)
+        val viewModel = BackupViewModel(backupManager, enrichmentManager)
+
+        viewModel.importFrom(uri)
+        advanceUntilIdle()
+
+        // A restore swaps in a different tea set, so its queued teas must resume past the cooldown.
+        verify(exactly = 1) { enrichmentManager.resumePending(force = true) }
+    }
+
+    @Test
+    fun `a rejected import leaves enrichment untouched`() = runTest {
+        coEvery { backupManager.importFrom(any()) } returns BackupResult.InvalidFile
+        val viewModel = BackupViewModel(backupManager, enrichmentManager)
+
+        viewModel.importFrom(uri)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { enrichmentManager.resumePending(any()) }
+    }
+
+    @Test
+    fun `undoing a restore also force-resumes enrichment of the reinstated teas (UX3-P2-17)`() = runTest {
+        coEvery { backupManager.restoreSafetyBackup() } returns BackupResult.Imported(teaCount = 2)
+        val viewModel = BackupViewModel(backupManager, enrichmentManager)
+
+        viewModel.restoreSafetyBackup()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { enrichmentManager.resumePending(force = true) }
     }
 }

@@ -79,7 +79,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
-import com.macsia.teatiers.domain.model.EnrichmentState
+import com.macsia.teatiers.domain.model.isRetryable
 import com.macsia.teatiers.domain.model.Placement
 import com.macsia.teatiers.domain.model.Tea
 import com.macsia.teatiers.ui.components.FlavorRadar
@@ -761,7 +761,10 @@ private fun DraggableTeaCard(
                         },
                     )
                 }
-                if (placement.tea.enrichmentState == EnrichmentState.FAILED) {
+                // Retry is offered for any deferred/failed state (UX3-P1-2), not just FAILED — a
+                // QUEUED (offline) or RATE_LIMITED tea otherwise had no user-drivable retry until the
+                // manager's 5-min resume cooldown elapsed. retry() bypasses that cooldown per-tea.
+                if (placement.tea.enrichmentState.isRetryable) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.action_retry_enrichment)) },
                         onClick = {
