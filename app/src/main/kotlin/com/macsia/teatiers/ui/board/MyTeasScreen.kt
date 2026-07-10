@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -172,6 +173,11 @@ fun MyTeasScreen(
             }
 
             when {
+                // UX3-P2-3: spinner until Room's first read lands, so a cold start doesn't flash the
+                // "no teas yet" empty state (which is indistinguishable from a real empty collection).
+                state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
                 state.collectionEmpty -> EmptyMyTeas(
                     title = stringResource(R.string.my_teas_empty_title),
                     hint = stringResource(R.string.my_teas_empty_hint),

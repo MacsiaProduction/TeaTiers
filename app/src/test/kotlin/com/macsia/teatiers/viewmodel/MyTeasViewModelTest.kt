@@ -7,6 +7,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -19,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -56,6 +58,25 @@ class MyTeasViewModelTest {
         runCurrent()
 
         assertEquals("Лун", viewModel.state.value.query)
+    }
+
+    @Test
+    fun `state is loading until the first tea-list emission, then not (UX3-P2-3)`() = runTest {
+        // A SharedFlow with no initial value so the combine can't run until we emit — mirrors Room's
+        // cold-start read landing after the screen first composes.
+        val teas = MutableSharedFlow<List<Tea>>(replay = 0)
+        every { repository.allTeas } returns teas
+        val viewModel = MyTeasViewModel(repository)
+        viewModel.state.onEach {}.launchIn(backgroundScope)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.loading) // nothing emitted yet -> spinner, not the empty state
+
+        teas.emit(emptyList())
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.loading) // emitted (even empty) -> load is done
+        assertTrue(viewModel.state.value.collectionEmpty)
     }
 
     @Test

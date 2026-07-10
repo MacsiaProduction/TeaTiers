@@ -29,6 +29,9 @@ data class MyTeasUiState(
     val availableTypes: List<TeaType> = emptyList(),
     /** Whether the user has any teas at all — distinguishes "empty collection" from "no matches". */
     val collectionEmpty: Boolean = true,
+    /** True until Room's first emission (UX3-P2-3) so the screen shows a spinner instead of flashing
+     *  the "no teas yet" empty state on a cold start (indistinguishable from a real empty collection). */
+    val loading: Boolean = true,
 )
 
 /**

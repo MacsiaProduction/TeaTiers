@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -230,7 +231,14 @@ private fun BoardContent(
             snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { innerPadding ->
             if (state == null) {
-                Box(Modifier.fillMaxSize().padding(innerPadding))
+                // UX3-P2-1: a spinner while the board loads, matching Boards/Detail/Browse — this was
+                // the one screen that showed a blank scaffold during the cold-start read.
+                Box(
+                    Modifier.fillMaxSize().padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
                 return@Scaffold
             }
             val isFullyEmpty = state.tiers.all { it.placements.isEmpty() } && state.unranked.isEmpty()

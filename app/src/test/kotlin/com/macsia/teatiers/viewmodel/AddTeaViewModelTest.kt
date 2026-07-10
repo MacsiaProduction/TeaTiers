@@ -210,6 +210,38 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `formLoading gates the edit form until the tea resolves, then clears (UX3-P2-4)`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.tea("t1") } coAnswers { gate.await(); Tea(id = "t1", nameRu = "Чай", type = TeaType.GREEN) }
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.bind(teaId = "t1")
+        assertTrue(viewModel.formLoading.value) // edit mode: loading until the async tea load resolves
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(viewModel.formLoading.value)
+    }
+
+    @Test
+    fun `formLoading is false in add mode (nothing to load)`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        assertFalse(viewModel.formLoading.value)
+    }
+
+    @Test
+    fun `formLoading clears even when the edit-mode load throws, never stranding a spinner`() = runTest {
+        coEvery { repository.tea("t1") } throws RuntimeException("db read failed")
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+
+        viewModel.bind(teaId = "t1")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.formLoading.value) // a Room error leaves a navigable blank form, not a spinner
+    }
+
+    @Test
     fun `picking a catalog tea carries its id and skips background enrichment`() = runTest {
         coEvery { repository.addTea(any(), any(), any()) } returns AddedTea("tea-1", created = true)
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)

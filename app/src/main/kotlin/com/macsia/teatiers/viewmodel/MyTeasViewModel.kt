@@ -66,6 +66,7 @@ class MyTeasViewModel @Inject constructor(
             items = filterMyTeas(teas, q, type, sortOption).map { MyTeaItem(it, counts[it.id] ?: 0) },
             availableTypes = TeaType.entries.filter { candidate -> teas.any { it.type == candidate } },
             collectionEmpty = teas.isEmpty(),
+            loading = false, // the combine only runs once allTeas has emitted, so the load is done
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FilteredTeas())
 
@@ -82,6 +83,7 @@ class MyTeasViewModel @Inject constructor(
             items = f.items,
             availableTypes = f.availableTypes,
             collectionEmpty = f.collectionEmpty,
+            loading = f.loading,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MyTeasUiState())
 
@@ -91,5 +93,6 @@ class MyTeasViewModel @Inject constructor(
         val items: List<MyTeaItem> = emptyList(),
         val availableTypes: List<TeaType> = emptyList(),
         val collectionEmpty: Boolean = true,
+        val loading: Boolean = true,
     )
 }
