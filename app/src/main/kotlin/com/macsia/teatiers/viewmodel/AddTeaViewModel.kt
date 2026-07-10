@@ -21,6 +21,7 @@ import com.macsia.teatiers.domain.model.Tier
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +86,10 @@ class AddTeaViewModel @Inject constructor(
     /** "Scan packaging" flow (slice 3): Idle → Recognizing → Review(text) → applied to sourceText. */
     private val _scan = MutableStateFlow<ScanUiState>(ScanUiState.Idle)
     val scan: StateFlow<ScanUiState> = _scan.asStateFlow()
+
+    /** The in-flight scan coroutine, tracked so [cancelScan] can abort it (UX3-P1-6) and [bind] can
+     *  clear it — otherwise a scan started for one tea leaks into a re-bound session (UX3-P1-5). */
+    private var scanJob: Job? = null
 
     /**
      * Catalog search box (add mode only). Typing here queries the shared catalog; picking a result
@@ -235,6 +240,9 @@ class AddTeaViewModel @Inject constructor(
         _draftPhotos.value = emptyList()
         _catalogQuery.value = ""
         _catalogDetailId.value = null
+        // A genuinely new entry (fresh token past the early-return above): abort any scan from the
+        // previous binding so its Review dialog can't pop onto — and merge into — this session (UX3-P1-5).
+        cancelScan()
         if (teaId != null) {
             viewModelScope.launch {
                 val tea = repository.tea(teaId)
@@ -290,7 +298,7 @@ class AddTeaViewModel @Inject constructor(
      */
     fun scanLabel(uri: Uri) {
         if (_scan.value == ScanUiState.Recognizing) return // a scan is already in flight
-        viewModelScope.launch {
+        scanJob = viewModelScope.launch {
             _scan.value = ScanUiState.Recognizing
             val bytes = imageReader.read(uri)
             if (bytes == null) {
@@ -349,8 +357,14 @@ class AddTeaViewModel @Inject constructor(
         _scan.value = ScanUiState.Idle
     }
 
-    /** Dismisses the scan review without applying the recognized text. */
+    /**
+     * Returns the scan flow to Idle: cancels an in-flight recognition (UX3-P1-6 — the Recognizing
+     * button doubles as a Cancel) and dismisses a pending review without applying its text. Also
+     * called from [bind] so a scan never leaks into a differently-bound Add/Edit session (UX3-P1-5).
+     */
     fun cancelScan() {
+        scanJob?.cancel()
+        scanJob = null
         _scan.value = ScanUiState.Idle
     }
 

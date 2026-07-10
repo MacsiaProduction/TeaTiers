@@ -946,6 +946,49 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `re-binding to a different entry cancels an in-flight scan (UX3-P1-5)`() = runTest {
+        // Gate the OCR call so the scan is genuinely still Recognizing (in-flight) at re-bind time —
+        // this directly proves bind() kills the live coroutine, not just an already-settled review.
+        val gate = CompletableDeferred<Unit>()
+        coEvery { catalogRepository.ocr(any()) } coAnswers { gate.await(); OcrResult.Recognized("текст", "текст") }
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b", entryToken = "e1")
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle()
+        assertEquals(ScanUiState.Recognizing, viewModel.scan.value)
+
+        // A genuinely new Add/Edit session (fresh token) must abort the in-flight scan so its Review
+        // can't pop onto the new form and merge tea A's packaging text into tea B.
+        viewModel.bind(boardId = "b", entryToken = "e2")
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+
+        // Even when the cancelled OCR call's gate later completes, no stale Review may resurrect.
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+    }
+
+    @Test
+    fun `cancelScan aborts an in-flight recognition and no stale review resurrects (UX3-P1-6)`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { catalogRepository.ocr(any()) } coAnswers { gate.await(); OcrResult.Recognized("x", "x") }
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.scanLabel(mockk())
+        advanceUntilIdle() // runs up to the gated OCR call
+        assertEquals(ScanUiState.Recognizing, viewModel.scan.value)
+
+        viewModel.cancelScan()
+        advanceUntilIdle()
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+
+        // Even if the now-cancelled OCR call's gate later completes, no stale Review may pop up.
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(ScanUiState.Idle, viewModel.scan.value)
+    }
+
+    @Test
     fun `applyScannedText fills sourceText and closes the review`() = runTest {
         coEvery { catalogRepository.ocr(any()) } returns OcrResult.Recognized("Зелёный чай", "Зелёный чай")
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
