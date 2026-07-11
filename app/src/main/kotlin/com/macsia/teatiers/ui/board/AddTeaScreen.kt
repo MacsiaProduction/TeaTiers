@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -189,6 +190,28 @@ fun AddTeaScreen(
         ActivityResultContracts.TakePicture(),
     ) { success -> if (success) pendingCameraUri?.let(viewModel::scanLabel) }
 
+    // Shared by the top-bar Save and the bottom Save (R4-VIS-3). Stays invokable even when the form is
+    // invalid so the user gets the snackbar + name-focus pump rather than a silently disabled control.
+    val onSave: () -> Unit = {
+        viewModel.submit { photoFailure ->
+            if (photoFailure != null) {
+                // Show the photo-copy failure (with its specific reason, UX-P1-1) on this still-mounted
+                // screen's host, then navigate — popping first would tear out the collector before the
+                // message ever rendered, losing it silently.
+                val message = photoFailureMessages.getValue(photoFailure.messageRes)
+                snackbarScope.launch {
+                    snackbarHostState.showSnackbar(message)
+                    onSaved()
+                }
+            } else {
+                onSaved()
+            }
+        }
+        if (viewModel.consumeNameRequiredFocus()) {
+            nameRuFocusRequester.requestFocus()
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -214,26 +237,7 @@ fun AddTeaScreen(
                         // field (hidden behind the formLoading spinner), throwing on an unattached
                         // FocusRequester and crashing the screen (final-review P0).
                         enabled = !isSaving && !formLoading,
-                        onClick = {
-                            viewModel.submit { photoFailure ->
-                                if (photoFailure != null) {
-                                    // Show the photo-copy failure (with its specific reason, UX-P1-1) on
-                                    // this still-mounted screen's host, then navigate — popping first
-                                    // would tear out the collector before the message ever rendered,
-                                    // losing it silently.
-                                    val message = photoFailureMessages.getValue(photoFailure.messageRes)
-                                    snackbarScope.launch {
-                                        snackbarHostState.showSnackbar(message)
-                                        onSaved()
-                                    }
-                                } else {
-                                    onSaved()
-                                }
-                            }
-                            if (viewModel.consumeNameRequiredFocus()) {
-                                nameRuFocusRequester.requestFocus()
-                            }
-                        },
+                        onClick = onSave,
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
@@ -628,6 +632,16 @@ fun AddTeaScreen(
                 onRemove = viewModel::removePurchase,
                 onUpdateAt = viewModel::updatePurchase,
             )
+            // R4-VIS-3: a reachable Save at the natural end of a long form — the top-bar Save is a hard
+            // reach on a large phone, and this is where the user lands after filling everything in.
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onSave,
+                enabled = !isSaving,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.action_save))
+            }
             Spacer(Modifier.height(8.dp))
         }
     }
