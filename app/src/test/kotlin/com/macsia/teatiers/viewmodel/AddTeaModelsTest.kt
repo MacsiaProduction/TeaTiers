@@ -46,6 +46,17 @@ class AddTeaModelsTest {
     }
 
     @Test
+    fun `toTea caps names at the server name limit so enrichment can't 400 forever (R4-LOC-1)`() {
+        // The choke point covering every write path (direct typing, "add manually from query",
+        // catalog pick): a pasted over-long name must be truncated before it reaches /resolve.
+        val long = "я".repeat(NameMaxLength + 50)
+        val tea = AddTeaForm(nameRu = long, pinyin = long, type = TeaType.GREEN).toTea()
+
+        assertEquals(NameMaxLength, tea.nameRu?.length)
+        assertEquals(NameMaxLength, tea.pinyin?.length)
+    }
+
+    @Test
     fun `toTea keeps every non-empty purchase draft and drops blank ones`() {
         val form = AddTeaForm(
             nameRu = "Чай",

@@ -61,12 +61,23 @@ class BoardViewModel @Inject constructor(
             .onFailure { eventHost.emit(ShowSnackbar(R.string.error_generic)) }
     }
 
-    val uiState: StateFlow<BoardUiState?> = combine(repository.boards, boardId) { boards, id ->
-        id?.let { boards.firstOrNull { board -> board.id == it }?.toUiState() }
+    val uiState: StateFlow<BoardScreenState> = combine(
+        repository.boards,
+        boardId,
+        repository.boardsLoaded,
+    ) { boards, id, loaded ->
+        // Loading until a board is bound AND the boards flow has emitted at least once. Once loaded,
+        // a missing id is NotFound (deleted board, or the terminal read-failure empty list) — never a
+        // perpetual spinner (R4-REG-2).
+        when {
+            id == null || !loaded -> BoardScreenState.Loading
+            else -> boards.firstOrNull { it.id == id }?.toUiState()
+                ?.let { BoardScreenState.Loaded(it) } ?: BoardScreenState.NotFound
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = null,
+        initialValue = BoardScreenState.Loading,
     )
 
     /**

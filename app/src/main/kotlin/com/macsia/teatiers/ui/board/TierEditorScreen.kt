@@ -64,6 +64,7 @@ import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.ui.theme.TierColorPresetsArgb
 import com.macsia.teatiers.ui.theme.pickOnColorArgb
+import com.macsia.teatiers.viewmodel.BoardScreenState
 import com.macsia.teatiers.viewmodel.BoardViewModel
 import com.macsia.teatiers.viewmodel.CollectUiEvents
 import com.macsia.teatiers.viewmodel.TierWithPlacements
@@ -89,7 +90,7 @@ fun TierEditorScreen(
 ) {
     LaunchedEffect(boardId) { viewModel.bind(boardId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val tiers = state?.tiers.orEmpty()
+    val tiers = (state as? BoardScreenState.Loaded)?.board?.tiers.orEmpty()
     val order = tiers.map { it.tier.id }
     val ramp = TeaTheme.colors.tierRamp
     val newTierLabel = stringResource(R.string.tier_new_label)

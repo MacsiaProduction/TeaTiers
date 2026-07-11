@@ -94,6 +94,13 @@ data class PurchaseDraft(
  */
 const val SourceTextMaxLength = 4_000
 
+/**
+ * Server cap on a tea name sent to `POST /resolve` (mirrors the backend `ResolveRequestDto
+ * .MAX_NAME_LENGTH`). The add form hard-stops the name fields here so an over-long paste can't save a
+ * tea whose background enrichment then 400s forever with a retry that can never succeed (R4-LOC-1).
+ */
+const val NameMaxLength = 200
+
 /** Mutable state of the add/edit form. [isValid] gates the Save action. */
 data class AddTeaForm(
     val nameRu: String = "",
@@ -162,10 +169,13 @@ fun AddTeaForm.toTea(): Tea {
     return Tea(
         id = "user-${UUID.randomUUID()}",
         // P1-2: a blank ru name becomes null so the display resolver falls through to another locale.
-        nameRu = nameRu.trim().ifBlank { null },
-        nameZh = nameZh.trim().ifBlank { null },
-        pinyin = pinyin.trim().ifBlank { null },
-        nameEn = nameEn.trim().ifBlank { null },
+        // NameMaxLength cap here is the single choke point (R4-LOC-1): the add-form fields cap on input,
+        // but catalog-pick / "add manually from query" write the form programmatically — capping at the
+        // save boundary keeps every path under the server's /resolve limit so enrichment can't 400 forever.
+        nameRu = nameRu.trim().take(NameMaxLength).ifBlank { null },
+        nameZh = nameZh.trim().take(NameMaxLength).ifBlank { null },
+        pinyin = pinyin.trim().take(NameMaxLength).ifBlank { null },
+        nameEn = nameEn.trim().take(NameMaxLength).ifBlank { null },
         type = type,
         origin = origin.trim().ifBlank { null },
         flavor = flavorScores,

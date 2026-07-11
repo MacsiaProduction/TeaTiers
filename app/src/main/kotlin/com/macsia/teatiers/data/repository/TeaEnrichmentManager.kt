@@ -10,10 +10,16 @@ import com.macsia.teatiers.domain.model.EnrichmentState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** Max concurrent resolves when resuming a pending backlog — small enough to stay well under the
+ *  server's per-IP /resolve rate limit even for a large restored pending set (R4-PWR-1). */
+private const val RESUME_CONCURRENCY = 3
 
 /**
  * Optimistic background catalog enrichment (plan §6, decisions.md #21/#28). A freshly-added tea
@@ -104,8 +110,15 @@ class TeaEnrichmentManager @Inject constructor(
             if (!lastResumeAttemptMs.compareAndSet(last, now)) return
         }
         scope.launch {
+            // Fan out the backlog instead of awaiting each tea's full poll budget in series (R4-PWR-1):
+            // a handful of QUEUED teas from an offline session no longer serialize into minutes of
+            // catch-up. Capped by a semaphore (not just the per-tea `inFlight` dedup) so a large
+            // restore's pending set can't burst dozens of concurrent /resolve calls into the per-IP
+            // rate limiter.
+            val gate = Semaphore(RESUME_CONCURRENCY)
             dao.teasNeedingEnrichment().forEach { row ->
-                runEnrichment(row.id, row.resolveName() ?: return@forEach, sourceText = null)
+                val name = row.resolveName() ?: return@forEach
+                launch { gate.withPermit { runEnrichment(row.id, name, sourceText = null) } }
             }
         }
     }

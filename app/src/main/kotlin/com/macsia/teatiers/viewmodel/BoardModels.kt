@@ -15,6 +15,18 @@ data class BoardUiState(
     val unranked: List<Placement>,
 )
 
+/**
+ * Load state for the board screen (R4-REG-2), mirroring [TeaDetailUiState]. Distinguishes "still
+ * loading" from "this board couldn't be resolved" — a deleted board, or the boards flow terminally
+ * failing its read retries and settling on an empty list — so the screen shows a message instead of
+ * an indefinite spinner that can never resolve (before this the null state rendered a forever-spinner).
+ */
+sealed interface BoardScreenState {
+    data object Loading : BoardScreenState
+    data object NotFound : BoardScreenState
+    data class Loaded(val board: BoardUiState) : BoardScreenState
+}
+
 /** Compact board entry for the boards list. */
 data class BoardSummary(
     val id: String,
