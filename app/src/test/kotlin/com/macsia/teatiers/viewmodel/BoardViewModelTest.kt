@@ -40,11 +40,47 @@ class BoardViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         every { repository.boards } returns MutableStateFlow(emptyList<Board>())
+        every { repository.boardsLoaded } returns MutableStateFlow(true)
     }
 
     @AfterEach
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `uiState stays Loading until the boards flow has loaded (R4-REG-2)`() = runTest {
+        every { repository.boardsLoaded } returns MutableStateFlow(false)
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.bind("b")
+        advanceUntilIdle()
+
+        assertEquals(BoardScreenState.Loading, viewModel.uiState.value)
+    }
+
+    @Test
+    fun `uiState is NotFound when boards loaded but the bound id is absent (R4-REG-2)`() = runTest {
+        // boards=empty + boardsLoaded=true (setUp): a deleted board, or the boards flow settling on the
+        // terminal read-failure empty list — must resolve to NotFound, never a perpetual spinner.
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.bind("missing")
+        advanceUntilIdle()
+
+        assertEquals(BoardScreenState.NotFound, viewModel.uiState.value)
+    }
+
+    @Test
+    fun `uiState is Loaded when the bound board is present`() = runTest {
+        val board = Board(id = "b", name = "Board", tiers = emptyList(), placements = emptyMap(), unranked = emptyList())
+        every { repository.boards } returns MutableStateFlow(listOf(board))
+        val viewModel = BoardViewModel(repository, enrichmentManager)
+        backgroundScope.launch { viewModel.uiState.collect {} }
+        viewModel.bind("b")
+        advanceUntilIdle()
+
+        assertEquals(BoardScreenState.Loaded(board.toUiState()), viewModel.uiState.value)
     }
 
     @Test

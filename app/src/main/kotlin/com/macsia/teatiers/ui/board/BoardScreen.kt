@@ -90,6 +90,7 @@ import com.macsia.teatiers.ui.components.TeaCard
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.ui.theme.TeaTheme
 import com.macsia.teatiers.ui.theme.pickOnColorArgb
+import com.macsia.teatiers.viewmodel.BoardScreenState
 import com.macsia.teatiers.viewmodel.BoardUiState
 import com.macsia.teatiers.viewmodel.BoardViewModel
 import com.macsia.teatiers.viewmodel.CollectUiEvents
@@ -122,11 +123,12 @@ fun BoardScreen(
     viewModel: BoardViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(boardId) { viewModel.bind(boardId) }
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val screenState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     CollectUiEvents(viewModel.events, snackbarHostState)
     BoardContent(
-        state = state,
+        state = (screenState as? BoardScreenState.Loaded)?.board,
+        notFound = screenState is BoardScreenState.NotFound,
         snackbarHostState = snackbarHostState,
         onBack = onBack,
         onOpenTea = onOpenTea,
@@ -145,6 +147,7 @@ fun BoardScreen(
 @Composable
 private fun BoardContent(
     state: BoardUiState?,
+    notFound: Boolean,
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onOpenTea: (String) -> Unit,
@@ -232,12 +235,22 @@ private fun BoardContent(
         ) { innerPadding ->
             if (state == null) {
                 // UX3-P2-1: a spinner while the board loads, matching Boards/Detail/Browse — this was
-                // the one screen that showed a blank scaffold during the cold-start read.
+                // the one screen that showed a blank scaffold during the cold-start read. R4-REG-2: once
+                // the boards flow has loaded but this board can't be resolved (deleted, or a terminal
+                // read failure), show a message instead of a spinner that would otherwise spin forever.
                 Box(
-                    Modifier.fillMaxSize().padding(innerPadding),
+                    Modifier.fillMaxSize().padding(innerPadding).padding(ScreenInset),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    if (notFound) {
+                        Text(
+                            text = stringResource(R.string.board_load_failed),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        CircularProgressIndicator()
+                    }
                 }
                 return@Scaffold
             }

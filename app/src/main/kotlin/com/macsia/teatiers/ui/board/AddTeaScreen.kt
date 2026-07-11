@@ -90,6 +90,7 @@ import com.macsia.teatiers.viewmodel.PurchaseDraft
 import com.macsia.teatiers.viewmodel.PurchaseKind
 import com.macsia.teatiers.viewmodel.QuickRateDimensions
 import com.macsia.teatiers.viewmodel.ScanUiState
+import com.macsia.teatiers.viewmodel.NameMaxLength
 import com.macsia.teatiers.viewmodel.SourceTextMaxLength
 import com.macsia.teatiers.viewmodel.visibleExtendedDimensions
 import kotlin.math.roundToInt
@@ -311,7 +312,7 @@ fun AddTeaScreen(
             FieldLabel(stringResource(R.string.field_names_section))
             OutlinedTextField(
                 value = form.nameRu,
-                onValueChange = { v -> viewModel.update { it.copy(nameRu = v) } },
+                onValueChange = { v -> viewModel.update { it.copy(nameRu = v.take(NameMaxLength)) } },
                 label = { Text(stringResource(R.string.field_name_ru)) },
                 singleLine = true,
                 keyboardOptions = nextFieldKeyboard,
@@ -322,7 +323,7 @@ fun AddTeaScreen(
             )
             OutlinedTextField(
                 value = form.nameEn,
-                onValueChange = { v -> viewModel.update { it.copy(nameEn = v) } },
+                onValueChange = { v -> viewModel.update { it.copy(nameEn = v.take(NameMaxLength)) } },
                 label = { Text(stringResource(R.string.field_name_en)) },
                 singleLine = true,
                 keyboardOptions = nextFieldKeyboard,
@@ -332,7 +333,7 @@ fun AddTeaScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = form.pinyin,
-                    onValueChange = { v -> viewModel.update { it.copy(pinyin = v) } },
+                    onValueChange = { v -> viewModel.update { it.copy(pinyin = v.take(NameMaxLength)) } },
                     label = { Text(stringResource(R.string.field_pinyin)) },
                     singleLine = true,
                     keyboardOptions = nextFieldKeyboard,
@@ -341,7 +342,7 @@ fun AddTeaScreen(
                 )
                 OutlinedTextField(
                     value = form.nameZh,
-                    onValueChange = { v -> viewModel.update { it.copy(nameZh = v) } },
+                    onValueChange = { v -> viewModel.update { it.copy(nameZh = v.take(NameMaxLength)) } },
                     label = { Text(stringResource(R.string.field_name_zh)) },
                     singleLine = true,
                     keyboardOptions = nextFieldKeyboard,

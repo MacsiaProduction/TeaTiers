@@ -32,6 +32,7 @@
     <!-- Share a board (tier list) as plain text. -->
     <string name="a11y_board_share">Поделиться подборкой</string>
     <string name="board_share_chooser">Поделиться подборкой</string>
+    <string name="board_load_failed">Не удалось загрузить подборку. Вернитесь назад и попробуйте снова.</string>
 
     <!-- Snackbar / inline error copy (polish, lane 2). -->
     <string name="error_photo_copy_failed">Не удалось добавить фото. Попробуйте ещё раз.</string>
