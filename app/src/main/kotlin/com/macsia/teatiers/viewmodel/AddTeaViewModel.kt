@@ -245,7 +245,10 @@ class AddTeaViewModel @Inject constructor(
         _draftPhotos.value = emptyList()
         _catalogQuery.value = ""
         _catalogDetailId.value = null
-        _formLoading.value = teaId != null // edit mode loads async below; add mode is ready immediately
+        // Edit mode and the catalog-browse entry both load async below; a plain add is ready immediately.
+        // Gating the catalog entry too (R4-JRN-3 follow-up) stops the form flashing blank→filled and
+        // stops a keystroke during the fetch from being folded into pickCatalogTea's new pristine baseline.
+        _formLoading.value = teaId != null || catalogTeaId != null
         // A genuinely new entry (fresh token past the early-return above): abort any scan from the
         // previous binding so its Review dialog can't pop onto — and merge into — this session (UX3-P1-5).
         cancelScan()
@@ -278,20 +281,26 @@ class AddTeaViewModel @Inject constructor(
             // like picking a search result. The route can only carry the id, so re-fetch its detail. A
             // failed fetch leaves the form empty + explains via a snackbar (the user can still type the
             // tea). Guard against a stale re-bind racing this async fetch.
+            val boundToken = lastEntryToken
             viewModelScope.launch {
-                when (val result = catalogRepository.detail(catalogTeaId)) {
-                    is CatalogDetailResult.Loaded ->
-                        if (this@AddTeaViewModel.boardId.value == boardId && _editingTeaId.value == null) {
-                            pickCatalogTea(result.detail.toCatalogTea())
-                        }
-                    is CatalogDetailResult.Retracted ->
-                        eventHost.emit(ShowSnackbar(R.string.catalog_detail_withdrawn))
-                    CatalogDetailResult.Offline ->
-                        eventHost.emit(ShowSnackbar(R.string.catalog_search_offline))
-                    CatalogDetailResult.RateLimited ->
-                        eventHost.emit(ShowSnackbar(R.string.catalog_detail_rate_limited))
-                    CatalogDetailResult.Error ->
-                        eventHost.emit(ShowSnackbar(R.string.error_generic))
+                try {
+                    when (val result = catalogRepository.detail(catalogTeaId)) {
+                        is CatalogDetailResult.Loaded ->
+                            if (lastEntryToken == boundToken && this@AddTeaViewModel.boardId.value == boardId && _editingTeaId.value == null) {
+                                pickCatalogTea(result.detail.toCatalogTea())
+                            }
+                        is CatalogDetailResult.Retracted ->
+                            eventHost.emit(ShowSnackbar(R.string.catalog_detail_withdrawn))
+                        CatalogDetailResult.Offline ->
+                            eventHost.emit(ShowSnackbar(R.string.catalog_search_offline))
+                        CatalogDetailResult.RateLimited ->
+                            eventHost.emit(ShowSnackbar(R.string.catalog_detail_rate_limited))
+                        CatalogDetailResult.Error ->
+                            eventHost.emit(ShowSnackbar(R.string.error_generic))
+                    }
+                } finally {
+                    // A newer bind() superseded this load — it owns _formLoading now, so leave it alone.
+                    if (lastEntryToken == boundToken) _formLoading.value = false
                 }
             }
         }
@@ -422,6 +431,7 @@ class AddTeaViewModel @Inject constructor(
      */
     fun pickCatalogTea(tea: CatalogTea) {
         val previous = _form.value
+        val previousPristine = pristineForm
         // UX2-P1-8: this VM is reused across navigations, so bind() may re-bind it to a DIFFERENT
         // entry before the Undo snackbar times out. Capture the entry it belongs to and only restore
         // `previous` if that entry is still the one bound — otherwise Undo would stomp a different
@@ -440,6 +450,10 @@ class AddTeaViewModel @Inject constructor(
                 catalogTeaId = tea.id,
             )
         }
+        // R4-JRN-3: treat the auto-fill as the new baseline so backing out right after a pick (zero
+        // typing) doesn't warn "введённые данные не сохранятся" about data the user never entered. Only
+        // edits made AFTER the pick count as dirty. Undo reverts both the form and this baseline.
+        pristineForm = _form.value
         _catalogQuery.value = ""
         // The pick overwrites the form (names/type/origin); offer an Undo so it is never a silent,
         // unrecoverable replace of what the user had typed.
@@ -447,7 +461,12 @@ class AddTeaViewModel @Inject constructor(
             ShowSnackbar(
                 R.string.add_tea_catalog_applied,
                 R.string.action_undo,
-                onAction = { if (lastEntryToken == entryTokenAtPick) _form.value = previous },
+                onAction = {
+                    if (lastEntryToken == entryTokenAtPick) {
+                        _form.value = previous
+                        pristineForm = previousPristine
+                    }
+                },
             ),
         )
     }
@@ -486,14 +505,6 @@ class AddTeaViewModel @Inject constructor(
         // origin (region ?: country) so the form keeps the more specific "where from" the sheet showed.
         detail.origin?.let { origin -> _form.update { it.copy(origin = origin) } }
         _catalogDetailId.value = null
-    }
-
-    private fun CatalogDetailResult.toUiState(): CatalogDetailUiState = when (this) {
-        is CatalogDetailResult.Loaded -> CatalogDetailUiState.Loaded(detail)
-        is CatalogDetailResult.Retracted -> CatalogDetailUiState.Withdrawn
-        CatalogDetailResult.Offline -> CatalogDetailUiState.Offline
-        CatalogDetailResult.RateLimited -> CatalogDetailUiState.RateLimited
-        CatalogDetailResult.Error -> CatalogDetailUiState.Error
     }
 
     fun addPurchase() {

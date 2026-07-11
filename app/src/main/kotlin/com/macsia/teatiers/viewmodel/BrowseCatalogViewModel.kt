@@ -20,8 +20,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -87,6 +91,42 @@ class BrowseCatalogViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = boardRepository.boards.value.map { BoardPick(it.id, it.name) },
         )
+
+    /**
+     * Catalog detail sheet (R4-JRN-2): lets the user preview a catalog tea's flavor/description/origin
+     * before committing to add it — the same Info → sheet affordance the add-form search already has,
+     * which this browse screen (whose whole purpose is exploration) was missing. [_catalogDetailId] is
+     * the open tea's id (null = closed); [_catalogDetailRetry] bumps to re-fetch the same id after a
+     * transient failure. Reuses the shared [CatalogDetailUiState] and the repository's detail cache.
+     */
+    private val _catalogDetailId = MutableStateFlow<Long?>(null)
+    private val _catalogDetailRetry = MutableStateFlow(0)
+
+    val catalogDetail: StateFlow<CatalogDetailUiState> =
+        combine(_catalogDetailId, _catalogDetailRetry) { id, _ -> id }
+            .flatMapLatest { id ->
+                if (id == null) {
+                    flowOf<CatalogDetailUiState>(CatalogDetailUiState.Hidden)
+                } else {
+                    flow {
+                        emit(CatalogDetailUiState.Loading)
+                        emit(catalogRepository.detail(id).toUiState())
+                    }
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogDetailUiState.Hidden)
+
+    fun openCatalogDetail(id: Long) {
+        _catalogDetailId.value = id
+    }
+
+    fun closeCatalogDetail() {
+        _catalogDetailId.value = null
+    }
+
+    fun retryCatalogDetail() {
+        _catalogDetailRetry.update { it + 1 }
+    }
 
     /** Catalog search box atop the browse list (audit #4). Blank/short => the paginated browse. */
     private val _query = MutableStateFlow("")

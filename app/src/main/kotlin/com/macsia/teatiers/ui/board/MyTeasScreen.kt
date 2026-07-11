@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.ui.components.EnrichmentStatus
 import com.macsia.teatiers.ui.components.LiquorSwatch
+import com.macsia.teatiers.ui.components.TooltipIconButton
 import com.macsia.teatiers.ui.components.TypeChip
 import com.macsia.teatiers.viewmodel.MyTeaItem
 import com.macsia.teatiers.viewmodel.MyTeasSortOption
@@ -98,15 +99,15 @@ fun MyTeasScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { sortMenuExpanded = true }) {
-                        Icon(
-                            // ponytail: material-icons-core has no Sort glyph and pulling in the much
-                            // larger -extended artifact for one icon isn't worth it; List reads close
-                            // enough paired with the "Сортировка" (Sort) a11y label below.
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = stringResource(R.string.a11y_my_teas_sort),
-                        )
-                    }
+                    // ponytail: material-icons-core has no Sort glyph and pulling in the much larger
+                    // -extended artifact for one icon isn't worth it; List reads close enough. R4-JRN-1:
+                    // a tooltip surfaces "Сортировка" on long-press/hover so this List glyph isn't
+                    // confused with the same glyph used for "Каталог" on the Boards screen.
+                    TooltipIconButton(
+                        label = stringResource(R.string.a11y_my_teas_sort),
+                        icon = Icons.AutoMirrored.Filled.List,
+                        onClick = { sortMenuExpanded = true },
+                    )
                     DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
                         SortMenuItem(
                             label = stringResource(R.string.my_teas_sort_name),
