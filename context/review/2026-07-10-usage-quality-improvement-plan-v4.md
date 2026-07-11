@@ -28,6 +28,26 @@ price tracking, and consumption status.
 Status legend: `OPEN` · `DONE` · `REVIEWED` (deliberate no-change) · `DECIDE` (owner call needed) ·
 `TRACKED` (already tracked under another ID).
 
+## Implementation — COMPLETE (2026-07-11)
+
+All implementable findings are fixed and merged (PRs #220–#227), each via the flow
+plan → review → implement → adversarial review → publish → merge. Then a **combined final
+review over the whole round-4 diff** (the pass that caught a P0 in round 3) found one **P1 no
+per-batch review could see** — batch 4's catalog-pick `pristineForm` sync folded pre-pick typing
+into the "clean" baseline, so backing out after typing-then-picking silently discarded the typed
+data with no confirmation. Fixed in #227 with a restore-path name-cap gap, plus the first-ever
+`isDirty` tests (the dirty-after-typing test fails on the pre-fix code). Lesson reconfirmed: the
+cross-batch final review is worth it.
+
+Finding → PR: R4-PWR-3 #220 · R4-F-1 #221 · R4-REG-2/PWR-1/LOC-1 #222 · R4-JRN-2/1/3 #223 ·
+R4-REG-1/LOC-2/3/4 #224 · R4-VIS-1/3/4/6 #225 · R4-PWR-2 doc note #226 · cross-batch fixes #227.
+
+**Deferred to owner (plan's "at discretion"):** R4-VIS-2 (max-width cap — a broad every-screen
+layout change) and R4-VIS-5 (pull-to-refresh — a non-janky version needs a list-preserving refresh
+state in the VM). **Owner decisions, not built:** the feature-gap slate R4-F-2..F-10 and the
+carried-over UX3-F-1..F-8 (stats, price, consumption status, …) — the biggest remaining user-value
+lever, all still awaiting product scoping.
+
 ## P1 — the one confirmed heavyweight
 
 | ID | Finding | Where | Status |
