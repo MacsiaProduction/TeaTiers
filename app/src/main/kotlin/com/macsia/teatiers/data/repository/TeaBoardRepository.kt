@@ -106,6 +106,13 @@ data class DeletedTea(
  * #42). Boards are exposed as a hot [StateFlow] collected on the app scope so the synchronous
  * reads below see loaded data and an added tea shows up on every screen at once.
  *
+ * R4-PWR-2 (REVIEWED, accepted): because the `boards` flow materialises the full nested board
+ * tree, any write to a related table re-runs that assembly on [Dispatchers.Default] even when no
+ * board screen is visible. This is a deliberate trade-off, not an oversight (decisions #34/#39): the
+ * hot, app-scoped flow is what lets the dozens of synchronous `boards.value` validation readers work,
+ * and it never touches the main thread. Switching to `WhileSubscribed` would stale those readers and
+ * break the [_boardsLoaded] retry invariant, so the recompute cost is knowingly accepted here.
+ *
  * After the shared-teas reopening teas are user-global: each board exposes [Placement]s, the
  * underlying [Tea] is shared across boards, and edits to a tea ripple to every board it sits
  * on. A new tea reuses an existing user-tea ONLY by catalog identity (decision #132 / v7 finding
