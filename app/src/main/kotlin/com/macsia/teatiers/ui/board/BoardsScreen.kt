@@ -63,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.macsia.teatiers.R
 import com.macsia.teatiers.domain.model.TierTemplate
 import com.macsia.teatiers.ui.components.LiquorSwatch
+import com.macsia.teatiers.ui.components.TooltipIconButton
 import com.macsia.teatiers.viewmodel.BoardSummary
 import com.macsia.teatiers.viewmodel.BoardsViewModel
 import com.macsia.teatiers.viewmodel.CollectUiEvents
@@ -96,24 +97,23 @@ fun BoardsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.boards_title)) },
                 actions = {
-                    IconButton(onClick = onOpenMyTeas) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.a11y_my_teas_open),
-                        )
-                    }
-                    IconButton(onClick = onOpenBrowseCatalog) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.List,
-                            contentDescription = stringResource(R.string.a11y_browse_catalog_open),
-                        )
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.a11y_settings_open),
-                        )
-                    }
+                    // Icon-only actions with reused glyphs (Search=My Teas, List=Catalog): a tooltip
+                    // reveals each label on long-press/hover so they aren't guesswork (R4-JRN-1).
+                    TooltipIconButton(
+                        label = stringResource(R.string.a11y_my_teas_open),
+                        icon = Icons.Filled.Search,
+                        onClick = onOpenMyTeas,
+                    )
+                    TooltipIconButton(
+                        label = stringResource(R.string.a11y_browse_catalog_open),
+                        icon = Icons.AutoMirrored.Filled.List,
+                        onClick = onOpenBrowseCatalog,
+                    )
+                    TooltipIconButton(
+                        label = stringResource(R.string.a11y_settings_open),
+                        icon = Icons.Filled.Settings,
+                        onClick = onOpenSettings,
+                    )
                 },
             )
         },

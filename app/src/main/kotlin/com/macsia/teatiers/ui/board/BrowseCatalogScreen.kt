@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalFocusManager
@@ -83,7 +86,10 @@ fun BrowseCatalogScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle()
     val availableTypes by viewModel.availableTypes.collectAsStateWithLifecycle()
+    val catalogDetail by viewModel.catalogDetail.collectAsStateWithLifecycle()
     var teaToPlace by remember { mutableStateOf<CatalogTea?>(null) }
+    // The CatalogTea the detail sheet was opened for (R4-JRN-2), so "use this tea" routes into the picker.
+    var detailTea by remember { mutableStateOf<CatalogTea?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -107,6 +113,9 @@ fun BrowseCatalogScreen(
                 value = query,
                 onValueChange = viewModel::setQuery,
                 label = { Text(stringResource(R.string.catalog_search_label)) },
+                // R4-JRN-2: name what this screen IS — a shared catalog, not the user's own collection —
+                // which a first-time user otherwise can't tell apart from My Teas.
+                supportingText = { Text(stringResource(R.string.browse_catalog_search_hint)) },
                 singleLine = true,
                 // Search is live/debounced; the IME action just collapses the keyboard (audit).
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -164,6 +173,7 @@ fun BrowseCatalogScreen(
                         BrowseList(
                             state = s,
                             onPick = { teaToPlace = it },
+                            onInfo = { detailTea = it; viewModel.openCatalogDetail(it.id) },
                             onLoadMore = viewModel::loadMore,
                             onRetryMore = viewModel::retry,
                         )
@@ -192,12 +202,30 @@ fun BrowseCatalogScreen(
             hint = stringResource(R.string.browse_pick_board_create_hint),
         )
     }
+
+    // R4-JRN-2: preview a catalog tea before committing. "Use this tea" closes the sheet and routes the
+    // tea into the same board picker a direct tap would, so the preview is a non-committing detour.
+    CatalogDetailSheet(
+        state = catalogDetail,
+        onDismiss = {
+            detailTea = null
+            viewModel.closeCatalogDetail()
+        },
+        onUse = {
+            val tea = detailTea
+            detailTea = null
+            viewModel.closeCatalogDetail()
+            if (tea != null) teaToPlace = tea
+        },
+        onRetry = viewModel::retryCatalogDetail,
+    )
 }
 
 @Composable
 private fun BrowseList(
     state: BrowseCatalogUiState.Loaded,
     onPick: (CatalogTea) -> Unit,
+    onInfo: (CatalogTea) -> Unit,
     onLoadMore: () -> Unit,
     onRetryMore: () -> Unit,
 ) {
@@ -230,7 +258,7 @@ private fun BrowseList(
             }
         }
         items(state.teas, key = { it.id }) { tea ->
-            BrowseTeaRow(tea = tea, onClick = { onPick(tea) })
+            BrowseTeaRow(tea = tea, onClick = { onPick(tea) }, onInfo = { onInfo(tea) })
         }
         when {
             state.appending -> item("appending") { FooterProgress() }
@@ -240,19 +268,28 @@ private fun BrowseList(
 }
 
 @Composable
-private fun BrowseTeaRow(tea: CatalogTea, onClick: () -> Unit) {
+private fun BrowseTeaRow(tea: CatalogTea, onClick: () -> Unit, onInfo: () -> Unit) {
     val addDescription = stringResource(R.string.a11y_browse_add, tea.displayName)
+    val infoDescription = stringResource(R.string.a11y_catalog_info, tea.displayName)
     Surface(
-        onClick = onClick,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) { contentDescription = addDescription },
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        Row(
+            Modifier.padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Tapping the body adds the tea to a board; the info button (a separate a11y node) previews it.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(role = Role.Button, onClick = onClick)
+                    .semantics(mergeDescendants = true) { contentDescription = addDescription }
+                    .padding(vertical = 10.dp),
+            ) {
                 Text(
                     text = tea.displayName,
                     style = MaterialTheme.typography.titleSmall,
@@ -276,8 +313,10 @@ private fun BrowseTeaRow(tea: CatalogTea, onClick: () -> Unit) {
                     )
                 }
             }
-            Spacer(Modifier.width(10.dp))
             TypeChip(type = tea.type)
+            IconButton(onClick = onInfo) {
+                Icon(imageVector = Icons.Filled.Info, contentDescription = infoDescription)
+            }
         }
     }
 }

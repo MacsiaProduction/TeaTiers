@@ -437,6 +437,7 @@
     <!-- Browse the whole shared catalog (#42 follow-up): list all catalog teas, add one to a board. -->
     <string name="a11y_browse_catalog_open">Каталог чаёв</string>
     <string name="browse_catalog_title">Каталог чаёв</string>
+    <string name="browse_catalog_search_hint">Общий каталог чаёв — не ваша коллекция.</string>
     <string name="browse_catalog_empty">Каталог пока пуст.</string>
     <!-- UX-F-4: typed search is capped at one page (no cursor) — tell the user results may be truncated. -->
     <string name="catalog_search_truncated_hint">Показаны первые совпадения. Уточните запрос, если не нашли нужный чай.</string>

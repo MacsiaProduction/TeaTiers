@@ -1,5 +1,6 @@
 package com.macsia.teatiers.viewmodel
 
+import com.macsia.teatiers.data.repository.CatalogDetailResult
 import com.macsia.teatiers.domain.model.CatalogTea
 import com.macsia.teatiers.domain.model.CatalogTeaDetail
 
@@ -52,6 +53,16 @@ sealed interface CatalogDetailUiState {
 
     /** Server answered with an error; the sheet offers a retry. */
     data object Error : CatalogDetailUiState
+}
+
+/** Maps a catalog-detail fetch outcome to the sheet's UI state. Shared by the add-form and browse
+ *  screens (R4-JRN-2) so both surface the same detail sheet from the same repository call. */
+fun CatalogDetailResult.toUiState(): CatalogDetailUiState = when (this) {
+    is CatalogDetailResult.Loaded -> CatalogDetailUiState.Loaded(detail)
+    is CatalogDetailResult.Retracted -> CatalogDetailUiState.Withdrawn
+    CatalogDetailResult.Offline -> CatalogDetailUiState.Offline
+    CatalogDetailResult.RateLimited -> CatalogDetailUiState.RateLimited
+    CatalogDetailResult.Error -> CatalogDetailUiState.Error
 }
 
 /** Shortest query that triggers a catalog search; 1-char Latin/Cyrillic/pinyin queries are too noisy. */
