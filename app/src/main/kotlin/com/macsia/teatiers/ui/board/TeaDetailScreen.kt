@@ -234,13 +234,22 @@ private fun TeaDetailBody(
             LiquorSwatch(type = tea.type, size = 64.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(text = tea.displayName, style = MaterialTheme.typography.headlineMedium)
+                // R4-LOC-3: cap + ellipsize like every other name site (incl. this screen's own top bar);
+                // otherwise a very long pasted/imported name wraps into a tall block beside the fixed swatch.
+                Text(
+                    text = tea.displayName,
+                    style = MaterialTheme.typography.headlineMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 if (tea.secondaryName.isNotEmpty()) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = tea.secondaryName,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 tea.nameEn?.let {
@@ -248,6 +257,8 @@ private fun TeaDetailBody(
                         text = it,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

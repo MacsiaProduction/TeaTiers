@@ -238,8 +238,10 @@ private fun TierEditRow(
             ) {
                 Text(
                     // Fall back to the saved label so clearing the field to retype doesn't blank the
-                    // swatch (and its a11y) while the DB still holds the old name.
-                    text = (label.takeIf { it.isNotBlank() } ?: row.tier.label).take(2),
+                    // swatch (and its a11y) while the DB still holds the old name. R4-LOC-4: truncate by
+                    // code points, not UTF-16 units, so a leading emoji (e.g. a flag = one surrogate pair)
+                    // isn't cut in half into a broken glyph.
+                    text = (label.takeIf { it.isNotBlank() } ?: row.tier.label).takeCodePoints(2),
                     color = onRamp,
                     style = MaterialTheme.typography.titleMedium,
                 )
@@ -368,4 +370,11 @@ private fun List<String>.swap(i: Int, j: Int): List<String> {
         it[i] = this[j]
         it[j] = this[i]
     }
+}
+
+/** First [n] Unicode code points (not UTF-16 units), so an emoji/surrogate pair is never split. */
+private fun String.takeCodePoints(n: Int): String {
+    if (n <= 0) return ""
+    if (isEmpty() || codePointCount(0, length) <= n) return this
+    return substring(0, offsetByCodePoints(0, n))
 }
