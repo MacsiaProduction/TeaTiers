@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -176,6 +179,9 @@ private fun PhotoZoomDialog(photos: List<TeaPhoto>, startIndex: Int, onDismiss: 
                     onClick = onDismiss,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
+                        // R4-VIS-6: this full-screen dialog draws under the system bars (edge-to-edge),
+                        // so inset the close button or it can sit under the status bar / camera cutout.
+                        .windowInsetsPadding(WindowInsets.systemBars)
                         .padding(12.dp),
                 ) {
                     Icon(

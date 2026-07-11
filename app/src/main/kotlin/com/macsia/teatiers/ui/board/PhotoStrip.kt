@@ -47,10 +47,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -247,6 +249,9 @@ private fun PhotoThumbnail(
             add(CustomAccessibilityAction(removeLabel) { onRemove(); true })
         }
     }
+    // R4-VIS-4: confirm the long-press pickup with a haptic, matching the board tea-card drag (which
+    // this gesture mirrors, decisions.md #38) — the two long-press drags otherwise felt different.
+    val haptic = LocalHapticFeedback.current
 
     Box(
         modifier = Modifier
@@ -255,7 +260,10 @@ private fun PhotoThumbnail(
             .graphicsLayer { translationX = animatedOffsetX }
             .pointerInput(photo.id) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { state.startDrag(photo.id) },
+                    onDragStart = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        state.startDrag(photo.id)
+                    },
                     onDrag = { change, drag ->
                         change.consume()
                         state.updateDrag(drag.x)

@@ -1,6 +1,8 @@
 package com.macsia.teatiers.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -34,8 +36,16 @@ fun TeaTiersApp() {
     }
 
     Surface(color = MaterialTheme.colorScheme.background) {
-        when (val current = backStack.last()) {
-            Destination.Boards ->
+        // R4-VIS-1: a fade between destinations instead of a hard one-frame cut — the app is otherwise
+        // motion-conscious (spring drag, animated tier rows) but screen changes were the one un-designed
+        // transition. Crossfade is direction-agnostic, so it looks right for both push and pop.
+        // ponytail: a snappy fade, kept short. During the fade both screens compose, and sibling screens
+        // sharing a hiltViewModel by class (Board/TierEditor, Add/Edit) briefly overlap on the same VM —
+        // harmless on a screen fading to removal, and a short duration keeps that window tiny. Not worth
+        // debouncing navigation for a couple of frames only reachable by fast repeated taps.
+        Crossfade(targetState = backStack.last(), animationSpec = tween(180), label = "screen") { current ->
+            when (current) {
+                Destination.Boards ->
                 BoardsScreen(
                     onOpenBoard = { navigate(Destination.Board(it)) },
                     onOpenMyTeas = { navigate(Destination.MyTeas) },
@@ -107,6 +117,7 @@ fun TeaTiersApp() {
                     boardId = current.boardId,
                     onBack = ::pop,
                 )
+            }
         }
     }
 
