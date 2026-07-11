@@ -169,7 +169,10 @@ fun AddTeaScreen(
     // FocusDirection.Next follows reading order, so it steps through the side-by-side (Row) name and
     // sample fields correctly. Applied to every single-line text field below.
     val focusManager = LocalFocusManager.current
-    val nextFieldKeyboard = KeyboardOptions(imeAction = ImeAction.Next)
+    // R4-LOC-2: names/origin/vendor/product/batch/grade are proper nouns and transliterations (pinyin is
+    // the worst case — plain Latin an IME happily "corrects" into an unrelated English word); disable
+    // autocorrect on every identity field. Applied via this shared KeyboardOptions.
+    val nextFieldKeyboard = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = false)
     val nextFieldNumberKeyboard = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
     val moveToNextField = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Next) })
 
@@ -766,6 +769,10 @@ private fun PurchaseDraftCard(
     onRemove: () -> Unit,
     onUpdate: ((PurchaseDraft) -> PurchaseDraft) -> Unit,
 ) {
+    // R4-REG-1: the round-3 IME-Next sweep missed this card (composed inline with the rest of the form),
+    // so its single-line fields dismissed the keyboard instead of advancing. Chain them like the others.
+    val focusManager = LocalFocusManager.current
+    val moveToNextField = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Next) })
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
@@ -804,6 +811,8 @@ private fun PurchaseDraftCard(
                 onValueChange = { v -> onUpdate { it.copy(label = v) } },
                 label = { Text(stringResource(R.string.field_purchase_label)) },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = moveToNextField,
                 modifier = Modifier.fillMaxWidth(),
             )
             when (draft.kind) {
@@ -826,7 +835,8 @@ private fun PurchaseDraftCard(
                         if (draft.urlError) Text(stringResource(R.string.field_purchase_url_invalid))
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                    keyboardActions = moveToNextField,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
