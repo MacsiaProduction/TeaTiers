@@ -71,7 +71,14 @@ data class BackupCatalogRef(
 )
 
 @Serializable
-data class BackupBoard(val id: String, val name: String, val position: Int)
+data class BackupBoard(
+    val id: String,
+    val name: String,
+    val position: Int,
+    // v9 created-at (R4-F-1). Defaulted so an older bundle still decodes; without it a restore would
+    // silently reset every board's creation time (and the "recently added" ordering) to null.
+    val createdAtEpochMs: Long? = null,
+)
 
 @Serializable
 data class BackupTier(
@@ -105,6 +112,9 @@ data class BackupTea(
     val batch: String? = null,
     val grade: String? = null,
     val displayNamePref: String? = null,
+    // v9 created-at (R4-F-1). Defaulted so an older bundle still decodes; without it a restore would
+    // silently reset every sample's creation time (and the "recently added" ordering) to null.
+    val createdAtEpochMs: Long? = null,
 )
 
 @Serializable
@@ -161,7 +171,7 @@ fun SeedEntities.toBundle(exportedAtEpochMs: Long, appVersion: String): BackupBu
     formatVersion = BACKUP_FORMAT_VERSION,
     exportedAtEpochMs = exportedAtEpochMs,
     appVersion = appVersion,
-    boards = boards.map { BackupBoard(it.id, it.name, it.position) },
+    boards = boards.map { BackupBoard(it.id, it.name, it.position, it.createdAtEpochMs) },
     tiers = tiers.map { BackupTier(it.id, it.boardId, it.label, it.position, it.colorArgb) },
     catalogRefs = catalogRefs.map {
         BackupCatalogRef(
@@ -174,7 +184,7 @@ fun SeedEntities.toBundle(exportedAtEpochMs: Long, appVersion: String): BackupBu
         BackupTea(
             it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
             it.catalogTeaId, it.enrichmentState,
-            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref,
+            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref, it.createdAtEpochMs,
         )
     },
     placements = placements.map { BackupPlacement(it.id, it.boardId, it.teaId, it.tierId, it.position) },
@@ -210,7 +220,7 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
         TeaSampleEntity(
             it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
             it.catalogTeaId, it.enrichmentState,
-            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref,
+            it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref, it.createdAtEpochMs,
         )
     }
     // Restore the bundle's refs, then union in a stub for any linked sample whose ref is missing from
@@ -226,7 +236,7 @@ fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntitie
     } + refTypeById.filterKeys { it !in bundledRefIds }
         .map { (id, type) -> CatalogRefEntity(id = id, type = type, fetchedAtEpochMs = 0L) }
     return SeedEntities(
-        boards = boards.map { BoardEntity(it.id, it.name, it.position) },
+        boards = boards.map { BoardEntity(it.id, it.name, it.position, it.createdAtEpochMs) },
         tiers = tiers.map { TierEntity(it.id, it.boardId, it.label, it.position, it.colorArgb) },
         catalogRefs = refRows,
         teas = teaRows,

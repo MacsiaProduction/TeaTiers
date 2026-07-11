@@ -29,6 +29,9 @@ data class Tea(
     val photos: List<TeaPhoto> = emptyList(),
     val catalogTeaId: Long? = null,
     val enrichmentState: EnrichmentState = EnrichmentState.NONE,
+    // Wall-clock ms when the sample was first added (R4-F-1); null for pre-v9 rows and seed data.
+    // Drives the "recently added" sort; not shown directly.
+    val createdAtEpochMs: Long? = null,
 ) {
 
     /** The vendor/product/year/batch/grade disambiguator line, "Vendor · Product · 2024 · …", or "". */

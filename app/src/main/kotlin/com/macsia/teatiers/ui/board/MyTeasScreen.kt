@@ -118,6 +118,11 @@ fun MyTeasScreen(
                             selected = state.sort == MyTeasSortOption.TYPE,
                             onClick = { viewModel.setSort(MyTeasSortOption.TYPE); sortMenuExpanded = false },
                         )
+                        SortMenuItem(
+                            label = stringResource(R.string.my_teas_sort_created),
+                            selected = state.sort == MyTeasSortOption.CREATED,
+                            onClick = { viewModel.setSort(MyTeasSortOption.CREATED); sortMenuExpanded = false },
+                        )
                     }
                 },
             )

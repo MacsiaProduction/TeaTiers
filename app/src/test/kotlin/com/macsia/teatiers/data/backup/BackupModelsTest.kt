@@ -17,7 +17,8 @@ import org.junit.jupiter.api.Test
 class BackupModelsTest {
 
     private fun snapshot(): SeedEntities = SeedEntities(
-        boards = listOf(BoardEntity("b1", "Daily", 0)),
+        // Non-null createdAtEpochMs so the round-trip equality assertion guards the v9 created-at field.
+        boards = listOf(BoardEntity("b1", "Daily", 0, createdAtEpochMs = 111L)),
         tiers = listOf(TierEntity("t1", "b1", "S", 0, 0xFFFF8800)),
         // Non-null catalogPublicId so the round-trip assertion actually guards the durable v8 key.
         catalogRefs = listOf(CatalogRefEntity(id = 42L, type = "OOLONG", catalogPublicId = "pub-42", brand = "Acme", fetchedAtEpochMs = 7L)),
@@ -28,7 +29,7 @@ class BackupModelsTest {
                 "tea1", "Те Гуань Инь", null, "tie guan yin", null, "OOLONG", "Fujian", null, "nice",
                 catalogTeaId = 42L, enrichmentState = "DONE",
                 vendor = "Wuyi Star", product = "Spring 2022", harvestYear = 2022,
-                batch = "B-12", grade = "AA", displayNamePref = "ru",
+                batch = "B-12", grade = "AA", displayNamePref = "ru", createdAtEpochMs = 222L,
             ),
         ),
         placements = listOf(PlacementEntity("p1", "b1", "tea1", "t1", 0)),

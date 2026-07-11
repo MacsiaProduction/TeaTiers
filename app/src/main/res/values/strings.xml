@@ -60,6 +60,7 @@
     <string name="a11y_my_teas_sort">Сортировка</string>
     <string name="my_teas_sort_name">По названию</string>
     <string name="my_teas_sort_type">По типу</string>
+    <string name="my_teas_sort_created">Сначала новые</string>
     <string name="a11y_my_teas_open">Мои чаи</string>
     <string name="a11y_search_clear">Очистить поиск</string>
 

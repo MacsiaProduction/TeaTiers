@@ -41,6 +41,22 @@ class MyTeasModelsTest {
     }
 
     @Test
+    fun `CREATED sort orders most recent first, undated last, tie-broken by name (R4-F-1)`() {
+        val teas = listOf(
+            Tea(id = "old", nameRu = "Старый", type = TeaType.GREEN, createdAtEpochMs = 100L),
+            Tea(id = "new", nameRu = "Новый", type = TeaType.GREEN, createdAtEpochMs = 300L),
+            Tea(id = "mid", nameRu = "Средний", type = TeaType.GREEN, createdAtEpochMs = 200L),
+            Tea(id = "n1", nameRu = "Бета", type = TeaType.GREEN, createdAtEpochMs = null),
+            Tea(id = "n2", nameRu = "Альфа", type = TeaType.GREEN, createdAtEpochMs = null),
+        )
+
+        val result = filterMyTeas(teas, query = "", type = null, sort = MyTeasSortOption.CREATED).map { it.id }
+
+        // most-recent first; the two undated teas sort last, tie-broken by name (Альфа before Бета)
+        assertEquals(listOf("new", "mid", "old", "n2", "n1"), result)
+    }
+
+    @Test
     fun `query matches across ru, en, pinyin, and zh, case-insensitively`() {
         val teas = listOf(
             tea("ru", "Лунцзин"),
