@@ -32,6 +32,11 @@ import androidx.room.migration.Migration
  * baseline. Adds the nullable `catalog_refs.catalogPublicId` (the durable server UUID) next to the
  * legacy Long `id` — additive, no data touched. See [MIGRATION_7_8]; proved lossless by
  * TeaDatabaseMigrationTest.
+ *
+ * **v9 (created-at, R4-F-1):** adds the nullable `tea_samples.createdAtEpochMs` and
+ * `boards.createdAtEpochMs` (wall-clock ms, stamped at insert) so the collection can be sorted by
+ * "recently added" and a future activity/stats view has a timestamp to work from. Additive — no
+ * existing row is read or rewritten. See [MIGRATION_8_9].
  */
 @Database(
     entities = [
@@ -45,7 +50,7 @@ import androidx.room.migration.Migration
         PhotoEntity::class,
         CatalogCacheEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class TeaDatabase : RoomDatabase() {
@@ -61,4 +66,14 @@ abstract class TeaDatabase : RoomDatabase() {
  */
 val MIGRATION_7_8 = Migration(7, 8) { db ->
     db.execSQL("ALTER TABLE catalog_refs ADD COLUMN catalogPublicId TEXT")
+}
+
+/**
+ * v8→v9 (R4-F-1): add the nullable `createdAtEpochMs` to `tea_samples` and `boards`. Purely additive
+ * — existing rows get NULL (no known creation time) and are simply ordered last by the "recently
+ * added" sort. Wired in [com.macsia.teatiers.di.AppModule]; tested in TeaDatabaseMigrationTest.
+ */
+val MIGRATION_8_9 = Migration(8, 9) { db ->
+    db.execSQL("ALTER TABLE tea_samples ADD COLUMN createdAtEpochMs INTEGER")
+    db.execSQL("ALTER TABLE boards ADD COLUMN createdAtEpochMs INTEGER")
 }

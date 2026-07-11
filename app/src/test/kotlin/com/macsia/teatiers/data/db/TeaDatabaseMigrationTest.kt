@@ -29,6 +29,9 @@ import org.robolectric.annotation.Config
  * [v7_to_v8_addsCatalogPublicId_lossless] seeds a v7 row, migrates, and proves no data is dropped and
  * the new column lands nullable (lazily backfilled at runtime, not by the migration).
  *
+ * **v8→v9 (created-at, R4-F-1)** adds nullable `createdAtEpochMs` to `tea_samples` + `boards`:
+ * [v8_to_v9_addsCreatedAt_lossless] proves it's lossless and the new columns land NULL for existing rows.
+ *
  * MigrationTestHelper reads the exported schemas from the merged debug assets (wired in
  * build.gradle.kts via `sourceSets["debug"].assets.srcDir("schemas")` + `unitTests.isIncludeAndroidResources
  * = true`). AndroidJUnit4 delegates to Robolectric on the JVM; junit-vintage-engine runs it on the
@@ -87,6 +90,38 @@ class TeaDatabaseMigrationTest {
             assertEquals("blurb preserved", "a roasted oolong", c.getString(2))
             assertEquals("fetchedAt preserved", 123L, c.getLong(3))
             assertEquals("new column backfills lazily, so it's NULL right after migrate", true, c.isNull(4))
+        }
+        db.close()
+    }
+
+    @Test
+    fun v8_to_v9_addsCreatedAt_lossless() {
+        // Additive created-at migration (R4-F-1). Seed a v8 sample + board, run Migration(8,9), and
+        // prove it's lossless: existing columns round-trip and the new createdAtEpochMs lands NULL on
+        // both tables (stamped only for rows inserted after the bump — the migration never backfills).
+        helper.createDatabase(TEST_DB, 8).use { db ->
+            db.execSQL(
+                "INSERT INTO tea_samples (id, nameRu, type, enrichmentState) " +
+                    "VALUES ('t1', 'Да Хун Пао', 'OOLONG', 'DONE')",
+            )
+            db.execSQL("INSERT INTO boards (id, name, position) VALUES ('b1', 'Любимое', 3)")
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 9, true, MIGRATION_8_9)
+        db.query("SELECT nameRu, type, enrichmentState, createdAtEpochMs FROM tea_samples WHERE id = 't1'").use { c ->
+            assertEquals("the v8 sample survives the migration", 1, c.count)
+            c.moveToFirst()
+            assertEquals("nameRu preserved", "Да Хун Пао", c.getString(0))
+            assertEquals("type preserved", "OOLONG", c.getString(1))
+            assertEquals("enrichmentState preserved", "DONE", c.getString(2))
+            assertEquals("sample createdAt is NULL right after migrate (never backfilled)", true, c.isNull(3))
+        }
+        db.query("SELECT name, position, createdAtEpochMs FROM boards WHERE id = 'b1'").use { c ->
+            assertEquals("the v8 board survives the migration", 1, c.count)
+            c.moveToFirst()
+            assertEquals("board name preserved", "Любимое", c.getString(0))
+            assertEquals("board position preserved", 3, c.getInt(1))
+            assertEquals("board createdAt is NULL right after migrate", true, c.isNull(2))
         }
         db.close()
     }

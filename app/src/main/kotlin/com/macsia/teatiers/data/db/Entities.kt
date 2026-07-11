@@ -24,6 +24,8 @@ data class BoardEntity(
     @PrimaryKey val id: String,
     val name: String,
     val position: Int,
+    // v9 (R4-F-1): wall-clock ms the board was created; nullable — pre-v9 rows and seed data carry null.
+    val createdAtEpochMs: Long? = null,
 )
 
 @Entity(
@@ -97,6 +99,9 @@ data class TeaSampleEntity(
     val batch: String? = null,
     val grade: String? = null,
     val displayNamePref: String? = null,
+    // v9 (R4-F-1): wall-clock ms the sample was first added; nullable — pre-v9 rows and seed data
+    // carry null. Drives the My Teas "recently added" sort.
+    val createdAtEpochMs: Long? = null,
 )
 
 /**

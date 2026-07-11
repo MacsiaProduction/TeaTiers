@@ -293,7 +293,7 @@ class TeaBoardRepository @Inject constructor(
         val clean = label.trim().ifEmpty { return null }
         val boardId = "board-${UUID.randomUUID().toString().take(8)}"
         val position = boards.value.size
-        val boardEntity = BoardEntity(id = boardId, name = clean, position = position)
+        val boardEntity = BoardEntity(id = boardId, name = clean, position = position, createdAtEpochMs = clock())
         val tierEntities = template.seedTiers(boardId).map { tier ->
             TierEntity(
                 id = tier.id,
@@ -366,7 +366,7 @@ class TeaBoardRepository @Inject constructor(
         // throwaway UUID, but a sample/test caller may pass a sticky id and we don't want
         // to risk a PK collision — the placement is the user-visible handle anyway.
         val teaIdToPlace = existingTeaId ?: "tea-${UUID.randomUUID()}"
-        val teaToInsert = if (existingTeaId == null) tea.copy(id = teaIdToPlace).toEntities() else null
+        val teaToInsert = if (existingTeaId == null) tea.copy(id = teaIdToPlace).toEntities(nowMs = clock()) else null
 
         val placementId = "placement-${UUID.randomUUID()}"
         val position = dao.nextPlacementPosition(boardId)

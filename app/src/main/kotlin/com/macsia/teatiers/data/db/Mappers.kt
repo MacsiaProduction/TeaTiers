@@ -80,6 +80,7 @@ fun TeaWithChildren.toDomain(): Tea = Tea(
     photos = photos.sortedBy { it.position }.map { it.toDomain() },
     catalogTeaId = tea.catalogTeaId,
     enrichmentState = enrichmentStateFromDb(tea.enrichmentState),
+    createdAtEpochMs = tea.createdAtEpochMs,
 )
 
 /** Stored enrichment-state name -> enum; an unknown/renamed value falls back to NONE. */
@@ -143,6 +144,9 @@ fun Tea.toEntities(rowId: String = id, nowMs: Long = 0L): TeaEntities {
         harvestYear = harvestYear,
         batch = batch,
         grade = grade,
+        // Keep an existing timestamp on round-trip; stamp nowMs on a fresh add; seed rows (nowMs=0)
+        // stay null (no known creation time). Mirrors the photo createdAt convention above.
+        createdAtEpochMs = createdAtEpochMs ?: nowMs.takeIf { it > 0L },
     )
     val flavorRows = flavor.toFlavorEntities(rowId)
     val purchaseRows = purchaseLocations.mapIndexed { index, location ->

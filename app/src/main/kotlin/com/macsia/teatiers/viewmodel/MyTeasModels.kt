@@ -11,13 +11,13 @@ data class MyTeaItem(val tea: Tea, val boardCount: Int)
 
 /**
  * How to order the "my teas" list (UX-F-2). [NAME] (the existing default) and [TYPE] (grouped by
- * the GB/T 30766-2014 category order [TeaType] already declares, then by name within a group) are
- * the two orderings the current data actually supports cleanly — sorting by tier isn't well-defined
- * here (a shared tea can sit at a different tier on every board it's placed on, decisions.md #42),
- * and "date added"/"rating" aren't tracked fields (no timestamp column; flavor is multi-axis, not a
- * single scalar) — either would need a schema change or a product decision, not a client-side sort.
+ * the GB/T 30766-2014 category order [TeaType] already declares, then by name within a group), and
+ * [CREATED] (most recently added first, R4-F-1) are the orderings the current data supports cleanly.
+ * Sorting by tier still isn't well-defined here (a shared tea can sit at a different tier on every
+ * board it's placed on, decisions.md #42), and "rating" stays a product decision (flavor is
+ * multi-axis, not a single scalar).
  */
-enum class MyTeasSortOption { NAME, TYPE }
+enum class MyTeasSortOption { NAME, TYPE, CREATED }
 
 /** Immutable UI state for the "my teas" screen (decisions.md #27). */
 data class MyTeasUiState(
@@ -75,6 +75,10 @@ fun filterMyTeas(
         // TeaType's declaration order is the GB/T 30766-2014 category order, not arbitrary — grouping
         // by it, then alphabetically within a group, is a meaningful "by type" ordering for free.
         MyTeasSortOption.TYPE -> compareBy<Tea> { it.type.ordinal }.then(byName)
+        // Most recently added first (R4-F-1). Rows with no timestamp (pre-v9 / seed) sort last, then
+        // by name, so the ordering stays stable and deterministic instead of clumping arbitrarily.
+        MyTeasSortOption.CREATED ->
+            compareByDescending<Tea> { it.createdAtEpochMs ?: Long.MIN_VALUE }.then(byName)
     }
     return teas
         .asSequence()
