@@ -437,23 +437,25 @@ class AddTeaViewModel @Inject constructor(
         // `previous` if that entry is still the one bound — otherwise Undo would stomp a different
         // Add/Edit session with this one's stale snapshot.
         val entryTokenAtPick = lastEntryToken
-        _form.update { form ->
-            form.copy(
-                nameRu = tea.nameRu ?: tea.displayName,
-                // Keep a typed name when the catalog lacks that locale rather than blanking it — a
-                // ru-only catalog entry must not erase a "Dragon Well" the user already typed.
-                nameEn = tea.nameEn?.takeUnless { it.isBlank() } ?: form.nameEn,
-                pinyin = tea.pinyin?.takeUnless { it.isBlank() } ?: form.pinyin,
-                nameZh = tea.nameZh?.takeUnless { it.isBlank() } ?: form.nameZh,
-                type = tea.type,
-                origin = tea.originCountry ?: form.origin,
-                catalogTeaId = tea.id,
-            )
-        }
-        // R4-JRN-3: treat the auto-fill as the new baseline so backing out right after a pick (zero
-        // typing) doesn't warn "введённые данные не сохранятся" about data the user never entered. Only
-        // edits made AFTER the pick count as dirty. Undo reverts both the form and this baseline.
-        pristineForm = _form.value
+        // Apply the catalog fields onto a base form. Keep a typed name when the catalog lacks that
+        // locale rather than blanking it — a ru-only catalog entry must not erase a "Dragon Well" the
+        // user already typed.
+        fun applyPick(base: AddTeaForm) = base.copy(
+            nameRu = tea.nameRu ?: tea.displayName,
+            nameEn = tea.nameEn?.takeUnless { it.isBlank() } ?: base.nameEn,
+            pinyin = tea.pinyin?.takeUnless { it.isBlank() } ?: base.pinyin,
+            nameZh = tea.nameZh?.takeUnless { it.isBlank() } ?: base.nameZh,
+            type = tea.type,
+            origin = tea.originCountry ?: base.origin,
+            catalogTeaId = tea.id,
+        )
+        _form.value = applyPick(previous)
+        // R4-JRN-3: baseline = the pick applied to the PRISTINE form, NOT the current one. So a bare
+        // pick (zero typing) reads as clean — no false "введённые данные не сохранятся" on back-out —
+        // while anything the user typed before picking still differs from the baseline and stays dirty
+        // (folding the whole current form into pristine would silently swallow that pre-pick typing on
+        // back-out — cross-batch review finding). Undo reverts both the form and this baseline.
+        pristineForm = applyPick(previousPristine)
         _catalogQuery.value = ""
         // The pick overwrites the form (names/type/origin); offer an Undo so it is never a silent,
         // unrecoverable replace of what the user had typed.
