@@ -9,6 +9,7 @@ import com.macsia.teatiers.data.db.PurchaseLocationEntity
 import com.macsia.teatiers.data.db.SeedEntities
 import com.macsia.teatiers.data.db.TeaSampleEntity
 import com.macsia.teatiers.data.db.TierEntity
+import com.macsia.teatiers.viewmodel.NameMaxLength
 import kotlinx.serialization.Serializable
 
 /**
@@ -218,7 +219,12 @@ fun BackupBundle.bundledPhotoNames(): List<String> = photos.mapNotNull { it.bund
 fun BackupBundle.toSeedEntities(restoredPaths: Map<String, String>): SeedEntities {
     val teaRows = teas.map {
         TeaSampleEntity(
-            it.id, it.nameRu, it.nameZh, it.pinyin, it.nameEn, it.type, it.origin, it.shortBlurb, it.notes,
+            // Cap the names on the way in too (R4-LOC-1): a restore is the one enrichment-feeding path
+            // that doesn't go through the add form's toTea() cap, so an over-long name from an old or
+            // hand-edited bundle would otherwise 400 /resolve forever once resumePending re-dispatches it.
+            it.id, it.nameRu?.take(NameMaxLength), it.nameZh?.take(NameMaxLength),
+            it.pinyin?.take(NameMaxLength), it.nameEn?.take(NameMaxLength),
+            it.type, it.origin, it.shortBlurb, it.notes,
             it.catalogTeaId, it.enrichmentState,
             it.vendor, it.product, it.harvestYear, it.batch, it.grade, it.displayNamePref, it.createdAtEpochMs,
         )

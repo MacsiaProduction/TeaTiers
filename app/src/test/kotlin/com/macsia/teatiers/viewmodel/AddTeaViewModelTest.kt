@@ -781,6 +781,31 @@ class AddTeaViewModelTest {
     }
 
     @Test
+    fun `a bare catalog pick leaves the form not dirty (R4-JRN-3)`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+
+        // Picking a tea just to look, with zero typing, must not read as unsaved changes — backing out
+        // should not warn about data the user never entered.
+        viewModel.pickCatalogTea(catalogTea(1, ru = "Лунцзин", type = TeaType.GREEN))
+
+        assertFalse(viewModel.isDirty())
+    }
+
+    @Test
+    fun `typing before a catalog pick keeps the form dirty so back-out still warns (cross-batch review)`() = runTest {
+        val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
+        viewModel.bind(boardId = "b")
+        viewModel.update { it.copy(vendor = "Acme Tea Co.") } // real unsaved typing the pick doesn't overwrite
+
+        viewModel.pickCatalogTea(catalogTea(2, ru = "Да Хун Пао", type = TeaType.OOLONG))
+
+        // The pick must not fold the typed vendor into the clean baseline — otherwise back-out would
+        // silently discard it with no discard-confirmation dialog.
+        assertTrue(viewModel.isDirty())
+    }
+
+    @Test
     fun `picking a catalog tea keeps a typed name in a locale the catalog lacks`() = runTest {
         val viewModel = AddTeaViewModel(repository, catalogRepository, enrichmentManager, imageReader)
         viewModel.bind(boardId = "b")
