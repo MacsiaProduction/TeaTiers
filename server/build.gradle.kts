@@ -19,7 +19,7 @@ version = "0.1.0-SNAPSHOT"
 // 3.x is unaffected.)
 dependencyManagement {
     dependencies {
-        dependency("com.fasterxml.jackson.core:jackson-databind:2.21.5")
+        dependency("com.fasterxml.jackson.core:jackson-databind:2.22.1")
     }
 }
 
