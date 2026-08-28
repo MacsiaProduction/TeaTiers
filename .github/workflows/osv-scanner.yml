@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -33,7 +33,7 @@ jobs:
         working-directory: server
         run: ./gradlew --no-daemon cyclonedxBom
       - name: Scan SBOM against the OSV database
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.1
         with:
           scan-args: |-
             --config=server/osv-scanner.toml
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -54,7 +54,7 @@ jobs:
         working-directory: app
         run: ./gradlew --no-daemon cyclonedxBom
       - name: Scan SBOM against the OSV database
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.1
         with:
           scan-args: |-
             -L=app/build/reports/cyclonedx/bom.json
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           # Match the runtime image's Python (Dockerfile: python:3.14-slim) so the scanned graph is what we ship (OCR-P2-2).
           python-version: "3.14"
@@ -77,7 +77,7 @@ jobs:
           mkdir -p osv-python
           /tmp/venv/bin/pip freeze > osv-python/requirements.txt
       - name: Scan resolved deps against the OSV database
-        uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.1
         with:
           scan-args: |-
             --no-resolve
