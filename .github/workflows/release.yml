@@ -70,7 +70,7 @@ jobs:
             echo "OK: first tagged release — versionCode $vc, versionName $vn"
           fi
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
